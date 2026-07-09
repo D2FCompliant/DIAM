@@ -1,0 +1,40 @@
+Package: DIAM
+Type: Project
+Title: DIAM - DGFiP Audit Manager
+Version: 0.1.0
+Authors@R:
+    person(
+      "Patrice",
+      "D2F Compliant",
+      email = "patrice.gleizes@d2fcompliant.com",
+      role = c("aut","cre")
+    )
+Description: DGFiP Audit Manager for PDP Integrity compliance missions.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.3.0)
+Imports:
+    shiny,
+    bslib,
+    DBI,
+    RSQLite,
+    pool,
+    dplyr,
+    DT,
+    reactable,
+    digest,
+    openssl,
+    uuid,
+    jsonlite,
+    yaml,
+    fs,
+    glue,
+    purrr,
+    stringr,
+    tibble,
+    officer,
+    flextable,
+    rmarkdown
