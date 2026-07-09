@@ -1,0 +1,10 @@
+^data$
+^evidence$
+^archive$
+^reports$
+^logs$
+^tmp$
+^DIAM\.Rproj$
+^\.Rcheck$
+^DIAM\.Rcheck$
+^.*\.tar\.gz$

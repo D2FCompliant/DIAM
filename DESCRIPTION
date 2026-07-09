@@ -1,5 +1,5 @@
 Package: DIAM
-Type: Project
+Type: Package
 Title: DIAM - DGFiP Audit Manager
 Version: 0.1.0
 Authors@R:
@@ -10,7 +10,7 @@ Authors@R:
       role = c("aut","cre")
     )
 Description: DGFiP Audit Manager for PDP Integrity compliance missions.
-License: MIT
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
@@ -37,4 +37,5 @@ Imports:
     tibble,
     officer,
     flextable,
-    rmarkdown
+    rmarkdown,
+    mime

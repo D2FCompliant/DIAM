@@ -1,1 +1,6 @@
 exportPattern("^[[:alpha:]]+")
+import(shiny)
+importFrom(uuid,UUIDgenerate)
+importFrom(dplyr,bind_rows)
+importFrom(tibble,tibble)
+importFrom(reactable,getReactableState)

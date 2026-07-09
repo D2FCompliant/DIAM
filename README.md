@@ -1,61 +1,50 @@
 # DIAM
 
-DGFiP Integrity Audit Manager
+**DGFiP Integrity Audit Manager** est une application R/Shiny de gestion des
+missions d'audit de conformité.
 
----
+## Parcours couvert
 
-## Objectif
+DIAM permet de gérer le parcours complet :
 
-DIAM est un logiciel professionnel destiné aux audits de conformité :
+1. création et pilotage d'une mission ;
+2. constitution du questionnaire d'audit ;
+3. évaluation de conformité et calcul automatique de la progression ;
+4. versement de preuves avec empreinte SHA-256 et détection des doublons ;
+5. rédaction des constats ;
+6. déclaration des non-conformités ;
+7. suivi du plan d'action ;
+8. export du rapport et de l'Evidence Book ;
+9. consultation du journal d'audit.
 
-- DGFiP
-- PDP
-- Plateformes Agréées
-- PDP Integrity
-- ISO
-- NF Z42
-- PEPPOL
+## Lancer l'application
 
-Le cœur métier est construit autour de la mission d'audit.
+Depuis la racine du dépôt :
 
-Mission
+```r
+install.packages(c(
+  "shiny", "bslib", "DBI", "RSQLite", "DT", "openssl",
+  "uuid", "fs", "mime"
+))
+shiny::runApp()
+```
 
-↓
+La base SQLite est créée automatiquement dans `data/diam.sqlite`. Les preuves
+sont copiées sous `evidence/<uuid-mission>/originals/`.
 
-Questions
+## Vérification
 
-↓
+```sh
+R CMD build .
+R CMD check --no-manual DIAM_0.1.0.tar.gz
+```
 
-Réponses
+Le test d'intégration couvre le chemin mission → question → réponse → constat
+→ non-conformité → action corrective.
 
-↓
+## Sécurité et exploitation
 
-Preuves
-
-↓
-
-Constats
-
-↓
-
-Non-conformités
-
-↓
-
-Plan d'action
-
-↓
-
-Rapport
-
-↓
-
-Evidence Book
-
-↓
-
-Archivage
-
----
-
-Le logiciel suit strictement la logique du guide pratique DGFiP.
+Cette version est un MVP local mono-organisation. Avant une mise en production,
+prévoir l'authentification, la gestion des rôles, le chiffrement au repos, les
+sauvegardes, une politique de conservation et une validation formelle des
+exports.

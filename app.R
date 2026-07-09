@@ -6,6 +6,7 @@ source("R/app_ui.R")
 source("R/app_server.R")
 source("R/config.R")
 source("R/database.R")
+source("R/app_helpers.R")
 
 initialize_database()
 

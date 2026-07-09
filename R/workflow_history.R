@@ -1,4 +1,3 @@
-```r
 # ============================================================
 # DIAM
 # Workflow History Service
@@ -259,7 +258,7 @@ WHERE id = ?
 
 is_valid_transition <- function(
     previous,
-    next
+    next_status
 ) {
 
   workflow <- list(
@@ -298,9 +297,8 @@ is_valid_transition <- function(
 
   )
 
-  next %in%
+  next_status %in%
 
     workflow[[previous]]
 
 }
-```

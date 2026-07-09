@@ -1,4 +1,3 @@
-```r
 # ============================================================
 # DIAM
 # Evidence Service
@@ -354,4 +353,3 @@ get_mission_evidences <- function(
   )
 
 }
-```

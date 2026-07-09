@@ -1,4 +1,3 @@
-```r
 # ============================================================
 # DIAM
 # Answer Service
@@ -227,4 +226,3 @@ validate_answer <- function(
   invisible(TRUE)
 
 }
-```

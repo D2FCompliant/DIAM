@@ -1,0 +1,10 @@
+data/
+evidence/
+archive/
+reports/
+logs/
+tmp/
+.Rcheck/
+*.tar.gz
+.Rhistory
+.RData

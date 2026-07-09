@@ -1,4 +1,3 @@
-```r
 # ============================================================
 # DIAM
 # Database Service
@@ -186,13 +185,11 @@ initialize_database <- function() {
 
   )
 
-  sql_file <- file.path(
+  sql_file <- file.path("sql", "schema.sql")
 
-    "sql",
-
-    "schema.sql"
-
-  )
+  if (!file.exists(sql_file)) {
+    sql_file <- system.file("sql", "schema.sql", package = "DIAM")
+  }
 
   if (!file.exists(sql_file)) {
 
@@ -206,23 +203,28 @@ initialize_database <- function() {
 
   }
 
-  sql <- paste(
-
-    readLines(
-      sql_file,
-      warn = FALSE
-    ),
-
-    collapse = "\n"
-
+  sql <- readLines(
+    sql_file,
+    warn = FALSE
   )
 
-  DBI::dbExecute(
+  # RSQLite n'exécute que la première instruction lorsqu'un script SQL
+  # complet est transmis à dbExecute(). Le schéma est donc découpé et
+  # appliqué atomiquement, instruction par instruction.
+  sql <- sql[!grepl("^\\s*--", sql)]
+  statements <- strsplit(
+    paste(sql, collapse = "\n"),
+    ";",
+    fixed = TRUE
+  )[[1]]
+  statements <- trimws(statements)
+  statements <- statements[nzchar(statements)]
 
+  DBI::dbWithTransaction(
     con,
-
-    sql
-
+    for (statement in statements) {
+      DBI::dbExecute(con, statement)
+    }
   )
 
   invisible(TRUE)
@@ -270,4 +272,3 @@ count_rows <- function(
   )$n
 
 }
-```

@@ -1,4 +1,3 @@
-```r
 # ============================================================
 # DIAM
 # Evidence Metadata Engine
@@ -346,4 +345,3 @@ analyse_file <- function(file) {
   )
 
 }
-```
