@@ -51,7 +51,9 @@ app_server <- function(input, output, session) {
     tryCatch({
       diam_create_mission(
         con, input$mission_title, input$mission_client, input$mission_ref,
-        input$mission_scope, user()
+        input$mission_scope, user(),
+        as.character(input$mission_period_start),
+        as.character(input$mission_period_end)
       )
       bump()
       showNotification("Mission créée.", type = "message")
@@ -131,6 +133,15 @@ app_server <- function(input, output, session) {
   output$evidences <- DT::renderDT(
     DT::datatable(evidences_data(), rownames = FALSE, options = list(scrollX = TRUE))
   )
+  observe({
+    req(input$evidence_mission)
+    questions <- diam_questions(con, as.integer(input$evidence_mission))
+    choices <- c(
+      "Mission (preuve transversale)" = "",
+      stats::setNames(questions$id, paste(questions$reference, "—", questions$title))
+    )
+    updateSelectInput(session, "evidence_question", choices = choices)
+  })
   observeEvent(input$upload_evidence, {
     req(input$evidence_mission, input$evidence_file)
     files <- input$evidence_file
@@ -139,7 +150,12 @@ app_server <- function(input, output, session) {
       tryCatch(
         diam_add_evidence(
           con, as.integer(input$evidence_mission), files$datapath[[i]],
-          files$name[[i]], user()
+          files$name[[i]], user(),
+          if (nzchar(input$evidence_question %||% "")) {
+            as.integer(input$evidence_question)
+          } else {
+            NULL
+          }
         ),
         error = function(e) errors <<- c(errors, e$message)
       )
@@ -249,17 +265,62 @@ app_server <- function(input, output, session) {
       rownames = FALSE, options = list(pageLength = 15, scrollX = TRUE)
     )
   })
-  output$download_report <- downloadHandler(
-    filename = function() paste0("rapport-DIAM-", input$report_mission, ".csv"),
-    content = function(file) {
-      mission_id <- as.integer(input$report_mission)
-      report <- merge(
-        diam_questions(con, mission_id),
-        diam_findings(con, mission_id),
-        by.x = "reference", by.y = "reference", all.x = TRUE,
-        suffixes = c("_question", "_finding")
+  output$audit_opinion <- renderUI({
+    refresh()
+    req(input$report_mission)
+    result <- diam_audit_result(con, as.integer(input$report_mission))
+    color <- switch(
+      result$opinion,
+      "CONFORME" = "#237A3B",
+      "CONFORME SOUS RÉSERVES" = "#A66A00",
+      "NON CONFORME" = "#A11B1B",
+      "#5A6573"
+    )
+    wellPanel(
+      h3(tags$span(result$opinion, style = paste0("color:", color))),
+      p(result$reason),
+      p(
+        tags$strong("Avancement : "), result$completed, "/", result$total,
+        " contrôles - ",
+        tags$strong("Preuves : "), result$evidences,
+        " - ", tags$strong("Non-conformités ouvertes : "), result$open_nc
       )
-      utils::write.csv(report, file, row.names = FALSE, fileEncoding = "UTF-8")
+    )
+  })
+  output$download_report_docx <- downloadHandler(
+    filename = function() paste0("rapport-DIAM-", input$report_mission, ".docx"),
+    content = function(file) {
+      generated <- diam_generate_report_docx(
+        con, as.integer(input$report_mission), generated_by = user()
+      )
+      file.copy(generated, file, overwrite = TRUE)
+    }
+  )
+  output$download_report_pdf <- downloadHandler(
+    filename = function() paste0("rapport-DIAM-", input$report_mission, ".pdf"),
+    content = function(file) {
+      pdf <- diam_generate_report_pdf(
+        con, as.integer(input$report_mission), generated_by = user()
+      )
+      file.copy(pdf, file, overwrite = TRUE)
+    }
+  )
+  output$download_certificate_docx <- downloadHandler(
+    filename = function() paste0("certificat-DIAM-", input$report_mission, ".docx"),
+    content = function(file) {
+      generated <- diam_generate_certificate_docx(
+        con, as.integer(input$report_mission), issued_by = user()
+      )
+      file.copy(generated, file, overwrite = TRUE)
+    }
+  )
+  output$download_certificate_pdf <- downloadHandler(
+    filename = function() paste0("certificat-DIAM-", input$report_mission, ".pdf"),
+    content = function(file) {
+      pdf <- diam_generate_certificate_pdf(
+        con, as.integer(input$report_mission), issued_by = user()
+      )
+      file.copy(pdf, file, overwrite = TRUE)
     }
   )
   output$download_evidence_book <- downloadHandler(

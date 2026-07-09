@@ -8,3 +8,4 @@ tmp/
 *.tar.gz
 .Rhistory
 .RData
+work/

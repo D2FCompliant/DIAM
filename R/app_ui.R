@@ -28,6 +28,10 @@ app_ui <- function() {
           column(3, textInput("mission_scope", "Périmètre")),
           column(1, br(), actionButton("create_mission", "Créer", class = "btn-primary"))
         ),
+        fluidRow(
+          column(3, dateInput("mission_period_start", "Début de période auditée")),
+          column(3, dateInput("mission_period_end", "Fin de période auditée"))
+        ),
         DT::DTOutput("missions"),
         fluidRow(
           column(
@@ -82,6 +86,10 @@ app_ui <- function() {
       fluidPage(
         h2("Evidence Book"),
         selectInput("evidence_mission", "Mission", choices = character()),
+        selectInput(
+          "evidence_question", "Contrôle associé",
+          choices = character()
+        ),
         fileInput("evidence_file", "Importer une preuve", multiple = TRUE),
         actionButton("upload_evidence", "Verser au dossier", class = "btn-primary"),
         DT::DTOutput("evidences")
@@ -127,8 +135,15 @@ app_ui <- function() {
       fluidPage(
         h2("Restitution et traçabilité"),
         selectInput("report_mission", "Mission", choices = character()),
-        downloadButton("download_report", "Télécharger le rapport CSV"),
-        downloadButton("download_evidence_book", "Télécharger l'Evidence Book"),
+        uiOutput("audit_opinion"),
+        fluidRow(
+          column(3, downloadButton("download_report_docx", "Rapport Word")),
+          column(3, downloadButton("download_report_pdf", "Rapport PDF")),
+          column(3, downloadButton("download_certificate_docx", "Certificat Word")),
+          column(3, downloadButton("download_certificate_pdf", "Certificat PDF"))
+        ),
+        br(),
+        downloadButton("download_evidence_book", "Registre des preuves CSV"),
         h3("Journal d'audit"),
         DT::DTOutput("history")
       )

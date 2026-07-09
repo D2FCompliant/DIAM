@@ -8,3 +8,4 @@
 ^\.Rcheck$
 ^DIAM\.Rcheck$
 ^.*\.tar\.gz$
+^work$

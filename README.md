@@ -17,6 +17,27 @@ DIAM permet de gérer le parcours complet :
 8. export du rapport et de l'Evidence Book ;
 9. consultation du journal d'audit.
 
+## Rapport et certificat
+
+L'onglet **Rapport & journal** produit :
+
+- un rapport Word ou PDF reprenant la mission, l'opinion, les 33 contrôles,
+  les réponses de l'auditeur, les preuves rattachées, les constats,
+  non-conformités et actions ;
+- un certificat Word ou PDF fondé sur le résultat consolidé de l'audit ;
+- un registre CSV des preuves.
+
+L'opinion est calculée de manière déterministe :
+
+- **Audit incomplet** tant que tous les contrôles ne sont pas évalués ;
+- **Non conforme** en présence d'une non-conformité sur un contrôle critique ;
+- **Conforme sous réserves** si un écart, une conformité partielle ou une
+  non-conformité ouverte subsiste ;
+- **Conforme** lorsque tous les contrôles sont achevés sans écart ouvert.
+
+Une preuve peut être rattachée à un contrôle lors de son versement. Le rapport
+DGFiP présente ensuite ce lien ainsi que l'empreinte SHA-256 de la preuve.
+
 Chaque nouvelle mission reçoit automatiquement un questionnaire de 33 contrôles.
 Le guide pratique DGFiP v1.3 constitue l'autorité de référence ; PDP Integrity
 v3.2 apporte les méthodes de vérification, les preuves attendues et les

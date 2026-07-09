@@ -8,6 +8,7 @@ source("R/config.R")
 source("R/database.R")
 source("R/questionnaire_template.R")
 source("R/app_helpers.R")
+source("R/document_service.R")
 
 initialize_database()
 

@@ -72,7 +72,10 @@ diam_ensure_referential <- function(con, code) {
   DBI::dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id[[1]]
 }
 
-diam_create_mission <- function(con, title, client, referential, scope, user) {
+diam_create_mission <- function(
+    con, title, client, referential, scope, user,
+    audit_period_start = NULL, audit_period_end = NULL
+) {
   stopifnot(nzchar(trimws(title)), nzchar(trimws(client)))
   client_id <- diam_ensure_client(con, client)
   referential_id <- diam_ensure_referential(con, referential)
@@ -84,12 +87,15 @@ diam_create_mission <- function(con, title, client, referential, scope, user) {
     paste(
       "INSERT INTO mission",
       "(uuid, number, client_id, referential_id, title, scope,",
-      "start_date, status, progress, report_version, created_by, created_at, updated_at)",
-      "VALUES (?, ?, ?, ?, ?, ?, ?, 'CREATED', 0, '1.0', ?, ?, ?)"
+      "audit_period_start, audit_period_end, start_date, status, progress,",
+      "report_version, created_by, created_at, updated_at)",
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'CREATED', 0, '1.0', ?, ?, ?)"
     ),
     params = list(
       id, number, client_id, referential_id, trimws(title),
-      diam_scalar(scope), as.character(Sys.Date()), user, now, now
+      diam_scalar(scope), diam_scalar(as.character(audit_period_start)),
+      diam_scalar(as.character(audit_period_end)), as.character(Sys.Date()),
+      user, now, now
     )
   )
   mission_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id[[1]]
@@ -355,7 +361,9 @@ diam_actions <- function(con, mission_id) {
   )
 }
 
-diam_add_evidence <- function(con, mission_id, datapath, filename, user) {
+diam_add_evidence <- function(
+    con, mission_id, datapath, filename, user, question_id = NULL
+) {
   bytes <- readBin(datapath, "raw", n = file.info(datapath)$size)
   hash <- as.character(openssl::sha256(bytes))
   duplicate <- DBI::dbGetQuery(
@@ -387,6 +395,17 @@ diam_add_evidence <- function(con, mission_id, datapath, filename, user) {
       as.character(destination), diam_now(), diam_now()
     )
   )
+  evidence_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id[[1]]
+  if (!is.null(question_id) && length(question_id) && !is.na(question_id)) {
+    DBI::dbExecute(
+      con,
+      paste(
+        "INSERT OR IGNORE INTO question_evidence",
+        "(question_id, evidence_id, usage, created_at) VALUES (?, ?, 'AUDIT_PROOF', ?)"
+      ),
+      params = list(as.integer(question_id), evidence_id, diam_now())
+    )
+  }
   diam_log(con, mission_id, user, "ADD_EVIDENCE", "EVIDENCE", stored, filename)
 }
 
@@ -394,10 +413,14 @@ diam_evidences <- function(con, mission_id) {
   DBI::dbGetQuery(
     con,
     paste(
-      "SELECT id, evidence_number, original_name, mime_type, file_size,",
-      "substr(sha256, 1, 16) || '…' AS sha256, uploaded_at",
-      "FROM evidence WHERE mission_id=? AND status='ACTIVE'",
-      "ORDER BY uploaded_at DESC"
+      "SELECT e.id, e.evidence_number, e.original_name, e.mime_type, e.file_size,",
+      "substr(e.sha256, 1, 16) || '…' AS sha256,",
+      "COALESCE(group_concat(q.reference, ', '), 'Mission') AS linked_controls,",
+      "e.uploaded_at FROM evidence e",
+      "LEFT JOIN question_evidence qe ON qe.evidence_id=e.id",
+      "LEFT JOIN question q ON q.id=qe.question_id",
+      "WHERE e.mission_id=? AND e.status='ACTIVE'",
+      "GROUP BY e.id ORDER BY e.uploaded_at DESC"
     ),
     params = list(mission_id)
   )
