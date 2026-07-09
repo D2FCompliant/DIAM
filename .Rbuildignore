@@ -9,3 +9,4 @@
 ^DIAM\.Rcheck$
 ^.*\.tar\.gz$
 ^work$
+^client_documents$

@@ -151,7 +151,10 @@ diam_add_question <- function(
 }
 
 diam_seed_questionnaire <- function(con, mission_id, user = "SYSTEM") {
-  template <- diam_questionnaire_template()
+  client_id <- DBI::dbGetQuery(
+    con, "SELECT client_id FROM mission WHERE id=?", params = list(mission_id)
+  )$client_id[[1]]
+  template <- diam_target_questionnaire(con, mission_id, client_id)
   sql <- paste(
     "INSERT OR IGNORE INTO question",
     "(uuid, mission_id, reference, chapter, title, description, requirement,",

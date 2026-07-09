@@ -47,6 +47,8 @@ app_config <- list(
 
     evidence = "evidence",
 
+    client_documents = "client_documents",
+
     logs = "logs",
 
     temp = "tmp"
@@ -96,6 +98,8 @@ initialize_directories <- function() {
     app_config$directories$archive,
 
     app_config$directories$evidence,
+
+    app_config$directories$client_documents,
 
     app_config$directories$logs,
 

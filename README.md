@@ -38,6 +38,24 @@ L'opinion est calculée de manière déterministe :
 Une preuve peut être rattachée à un contrôle lors de son versement. Le rapport
 DGFiP présente ensuite ce lien ainsi que l'empreinte SHA-256 de la preuve.
 
+## Fiche client et dossier de candidature
+
+L'onglet **Clients & candidature** permet :
+
+- de créer et compléter la fiche d'une organisation auditée ;
+- de conserver ses dossiers de candidature et compléments DGFiP avec empreinte
+  SHA-256 ;
+- d'extraire le texte des PDF avec `pdftools` ;
+- de détecter les rôles PDPe/PDPr, l'e-reporting, Peppol, l'architecture API,
+  la présence d'une couche OD, l'hébergement cloud, SecNumCloud, la marque
+  blanche, les formats et les flux déclarés ;
+- de confirmer ou corriger manuellement le périmètre détecté ;
+- de synchroniser les missions du client avec un questionnaire ciblé.
+
+Les contrôles déjà évalués ou liés à une preuve/à un constat sont conservés lors
+d'un changement de périmètre. Seuls les contrôles non commencés devenus hors
+périmètre peuvent être retirés.
+
 Chaque nouvelle mission reçoit automatiquement un questionnaire de 33 contrôles.
 Le guide pratique DGFiP v1.3 constitue l'autorité de référence ; PDP Integrity
 v3.2 apporte les méthodes de vérification, les preuves attendues et les

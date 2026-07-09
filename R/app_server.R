@@ -13,6 +13,168 @@ app_server <- function(input, output, session) {
     diam_missions(con)
   })
 
+  clients_data <- reactive({
+    refresh()
+    diam_clients(con)
+  })
+
+  observe({
+    clients <- clients_data()
+    choices <- if (nrow(clients)) {
+      stats::setNames(clients$id, clients$name)
+    } else {
+      character()
+    }
+    current <- isolate(input$selected_client)
+    selected <- if (!is.null(current) && current %in% choices) current else {
+      if (length(choices)) choices[[1]] else character()
+    }
+    updateSelectInput(session, "selected_client", choices = choices, selected = selected)
+  })
+
+  update_scope_inputs <- function(scope) {
+    if (is.null(scope)) return(invisible(NULL))
+    value <- function(name) isTRUE(as.logical(scope[[name]][[1]]))
+    updateCheckboxInput(session, "scope_pdpe", value = value("role_pdpe"))
+    updateCheckboxInput(session, "scope_pdpr", value = value("role_pdpr"))
+    updateCheckboxInput(session, "scope_ereporting", value = value("e_reporting"))
+    updateCheckboxInput(session, "scope_peppol", value = value("peppol"))
+    updateCheckboxInput(session, "scope_api", value = value("api_only"))
+    updateCheckboxInput(session, "scope_od", value = value("od_layer"))
+    updateCheckboxInput(session, "scope_conversion", value = value("format_conversion"))
+    updateCheckboxInput(session, "scope_cloud", value = value("cloud_external"))
+    updateCheckboxInput(session, "scope_secnumcloud", value = value("secnumcloud"))
+    updateCheckboxInput(session, "scope_white_label", value = value("white_label"))
+    updateCheckboxInput(session, "scope_b2c", value = value("b2c"))
+    updateCheckboxInput(session, "scope_payment", value = value("payment_data"))
+    updateTextInput(
+      session, "scope_flows",
+      value = diam_display_value(scope$supported_flows, "")
+    )
+  }
+
+  observeEvent(input$save_client, {
+    req(nzchar(trimws(input$client_name)))
+    client_id <- diam_save_client(
+      con, input$client_name, input$client_siren, input$client_address,
+      city = input$client_city, country = input$client_country
+    )
+    bump()
+    updateSelectInput(session, "selected_client", selected = client_id)
+    showNotification("Fiche client enregistrée.", type = "message")
+  })
+
+  observeEvent(input$selected_client, {
+    req(input$selected_client)
+    scope <- diam_client_scope(con, as.integer(input$selected_client))
+    update_scope_inputs(scope)
+  })
+
+  client_documents_data <- reactive({
+    refresh()
+    req(input$selected_client)
+    diam_client_documents(con, as.integer(input$selected_client))
+  })
+
+  output$client_documents <- DT::renderDT(
+    DT::datatable(
+      client_documents_data(), rownames = FALSE,
+      options = list(pageLength = 8, scrollX = TRUE)
+    )
+  )
+
+  output$client_scope_summary <- renderUI({
+    refresh()
+    req(input$selected_client)
+    scope <- diam_client_scope(con, as.integer(input$selected_client))
+    if (is.null(scope)) {
+      return(wellPanel(
+        h4("Périmètre à définir"),
+        p("Importez le dossier de candidature ou renseignez les cases ci-dessous.")
+      ))
+    }
+    wellPanel(
+      h4("Périmètre d'audit retenu"),
+      p(scope$scope_summary[[1]]),
+      p(tags$strong("Flux déclarés : "), diam_display_value(scope$supported_flows, "Non précisés")),
+      p(
+        "Les missions de ce client sont automatiquement synchronisées avec ce périmètre.",
+        "Les contrôles déjà évalués ne sont jamais supprimés."
+      )
+    )
+  })
+
+  observeEvent(input$import_candidature, {
+    req(input$selected_client, input$candidature_file)
+    tryCatch({
+      stored <- diam_store_client_document(
+        con, as.integer(input$selected_client),
+        input$candidature_file$datapath[[1]],
+        input$candidature_file$name[[1]],
+        input$candidature_type, user()
+      )
+      if (stored$extracted) {
+        scope <- diam_analyze_client_document(
+          con, as.integer(input$selected_client), stored$id, user()
+        )
+        update_scope_inputs(as.data.frame(scope, stringsAsFactors = FALSE))
+        showNotification(
+          "Dossier importé, périmètre détecté et questionnaire ciblé.",
+          type = "message"
+        )
+      } else {
+        showNotification(
+          paste(
+            "Document conservé, mais extraction automatique indisponible.",
+            "Confirmez le périmètre manuellement."
+          ),
+          type = "warning", duration = 10
+        )
+      }
+      bump()
+    }, error = function(e) showNotification(e$message, type = "error", duration = 10))
+  })
+
+  observeEvent(input$save_scope, {
+    req(input$selected_client)
+    scope <- list(
+      role_pdpe = isTRUE(input$scope_pdpe),
+      role_pdpr = isTRUE(input$scope_pdpr),
+      e_reporting = isTRUE(input$scope_ereporting),
+      peppol = isTRUE(input$scope_peppol),
+      api_only = isTRUE(input$scope_api),
+      format_conversion = isTRUE(input$scope_conversion),
+      od_layer = isTRUE(input$scope_od),
+      cloud_external = isTRUE(input$scope_cloud),
+      secnumcloud = isTRUE(input$scope_secnumcloud),
+      white_label = isTRUE(input$scope_white_label),
+      b2b_domestic = isTRUE(input$scope_pdpe) || isTRUE(input$scope_pdpr),
+      b2b_international = isTRUE(input$scope_ereporting),
+      b2c = isTRUE(input$scope_b2c),
+      payment_data = isTRUE(input$scope_payment),
+      supported_flows = input$scope_flows,
+      scope_summary = paste(
+        c(
+          if (isTRUE(input$scope_pdpe)) "PDPe",
+          if (isTRUE(input$scope_pdpr)) "PDPr",
+          if (isTRUE(input$scope_ereporting)) "e-reporting",
+          if (isTRUE(input$scope_peppol)) "Peppol/AS4",
+          if (isTRUE(input$scope_api)) "full API",
+          if (isTRUE(input$scope_od)) "OD + PA",
+          if (isTRUE(input$scope_cloud)) "cloud",
+          if (!isTRUE(input$scope_conversion)) "sans conversion"
+        ),
+        collapse = " ; "
+      )
+    )
+    diam_save_scope(
+      con, as.integer(input$selected_client), scope,
+      analyzed_by = user()
+    )
+    bump()
+    showNotification("Périmètre confirmé et questionnaires synchronisés.", type = "message")
+  })
+
   observe({
     missions <- missions_data()
     choices <- if (nrow(missions)) {

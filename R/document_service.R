@@ -76,9 +76,11 @@ diam_report_data <- function(con, mission_id) {
     con,
     paste(
       "SELECT m.*, c.name AS client, c.address, c.postal_code, c.city, c.country,",
-      "r.code AS referential, r.version AS referential_version",
+      "r.code AS referential, r.version AS referential_version,",
+      "s.scope_summary, s.supported_flows",
       "FROM mission m JOIN client c ON c.id=m.client_id",
-      "JOIN referential r ON r.id=m.referential_id WHERE m.id=?"
+      "JOIN referential r ON r.id=m.referential_id",
+      "LEFT JOIN client_scope s ON s.client_id=c.id WHERE m.id=?"
     ),
     params = list(mission_id)
   )
@@ -211,6 +213,14 @@ diam_generate_report_docx <- function(con, mission_id, generated_by = "DIAM") {
   doc <- diam_add_label(doc, "Mission", paste(mission$number, mission$title))
   doc <- diam_add_label(doc, "Référentiel", "Guide pratique DGFiP v1.3 / PDP Integrity v3.2")
   doc <- diam_add_label(doc, "Périmètre", mission$scope)
+  doc <- diam_add_label(
+    doc, "Périmètre issu de la candidature",
+    diam_display_value(mission$scope_summary)
+  )
+  doc <- diam_add_label(
+    doc, "Flux déclarés",
+    diam_display_value(mission$supported_flows)
+  )
   doc <- diam_add_label(doc, "Période couverte", paste(
     diam_display_value(mission$audit_period_start, "Non renseignée"), "au",
     diam_display_value(mission$audit_period_end, "Non renseignée")
@@ -378,7 +388,11 @@ diam_generate_certificate_docx <- function(con, mission_id, issued_by = "DIAM") 
     Information = c(
       number, mission$client, mission$number,
       "Guide pratique DGFiP v1.3 / PDP Integrity v3.2",
-      mission$scope,
+      paste(
+        diam_display_value(mission$scope),
+        diam_display_value(mission$scope_summary),
+        sep = " - "
+      ),
       paste(
         diam_display_value(mission$audit_period_start, "Non renseignée"), "au",
         diam_display_value(mission$audit_period_end, "Non renseignée")
@@ -541,6 +555,11 @@ diam_generate_report_pdf <- function(con, mission_id, generated_by = "DIAM") {
   diam_pdf_label(state, "Mission", paste(mission$number, mission$title))
   diam_pdf_label(state, "Référentiel", "Guide pratique DGFiP v1.3 / PDP Integrity v3.2")
   diam_pdf_label(state, "Périmètre", mission$scope)
+  diam_pdf_label(
+    state, "Périmètre issu de la candidature",
+    diam_display_value(mission$scope_summary)
+  )
+  diam_pdf_label(state, "Flux déclarés", diam_display_value(mission$supported_flows))
   diam_pdf_label(
     state, "Période couverte",
     paste(
@@ -725,7 +744,12 @@ diam_generate_certificate_pdf <- function(con, mission_id, issued_by = "DIAM") {
   )
   values <- c(
     number, mission$client, mission$number,
-    "Guide DGFiP v1.3 / PDP Integrity v3.2", mission$scope,
+    "Guide DGFiP v1.3 / PDP Integrity v3.2",
+    paste(
+      diam_display_value(mission$scope),
+      diam_display_value(mission$scope_summary),
+      sep = " - "
+    ),
     paste(
       diam_display_value(mission$audit_period_start, "Non renseignée"), "au",
       diam_display_value(mission$audit_period_end, "Non renseignée")

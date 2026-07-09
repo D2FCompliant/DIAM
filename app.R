@@ -7,6 +7,7 @@ source("R/app_server.R")
 source("R/config.R")
 source("R/database.R")
 source("R/questionnaire_template.R")
+source("R/client_service.R")
 source("R/app_helpers.R")
 source("R/document_service.R")
 

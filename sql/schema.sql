@@ -48,6 +48,62 @@ ON client(name);
 CREATE INDEX IF NOT EXISTS idx_client_siren
 ON client(siren);
 
+CREATE TABLE IF NOT EXISTS client_document (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT NOT NULL UNIQUE,
+    client_id INTEGER NOT NULL,
+    document_type TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    stored_name TEXT NOT NULL,
+    mime_type TEXT,
+    file_size INTEGER,
+    sha256 TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    extracted_text TEXT,
+    status TEXT DEFAULT 'ACTIVE',
+    uploaded_by TEXT,
+    uploaded_at TEXT NOT NULL,
+
+    FOREIGN KEY (client_id)
+        REFERENCES client(id)
+
+);
+
+CREATE INDEX IF NOT EXISTS idx_client_document_client
+ON client_document(client_id);
+
+CREATE TABLE IF NOT EXISTS client_scope (
+
+    client_id INTEGER PRIMARY KEY,
+    source_document_id INTEGER,
+    role_pdpe INTEGER DEFAULT 0,
+    role_pdpr INTEGER DEFAULT 0,
+    e_reporting INTEGER DEFAULT 0,
+    peppol INTEGER DEFAULT 0,
+    api_only INTEGER DEFAULT 0,
+    format_conversion INTEGER DEFAULT 0,
+    od_layer INTEGER DEFAULT 0,
+    cloud_external INTEGER DEFAULT 0,
+    secnumcloud INTEGER DEFAULT 0,
+    white_label INTEGER DEFAULT 0,
+    b2b_domestic INTEGER DEFAULT 0,
+    b2b_international INTEGER DEFAULT 0,
+    b2c INTEGER DEFAULT 0,
+    payment_data INTEGER DEFAULT 0,
+    supported_flows TEXT,
+    scope_summary TEXT,
+    analyzed_at TEXT,
+    analyzed_by TEXT,
+
+    FOREIGN KEY (client_id)
+        REFERENCES client(id),
+
+    FOREIGN KEY (source_document_id)
+        REFERENCES client_document(id)
+
+);
+
 -- ============================================================
 -- AUDITOR
 -- ============================================================

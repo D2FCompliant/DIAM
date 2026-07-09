@@ -18,6 +18,68 @@ app_ui <- function() {
       )
     ),
     tabPanel(
+      "Clients & candidature",
+      fluidPage(
+        h2("Fiche client et dossier de candidature DGFiP"),
+        fluidRow(
+          column(3, textInput("client_name", "Raison sociale")),
+          column(2, textInput("client_siren", "SIREN")),
+          column(3, textInput("client_address", "Adresse")),
+          column(2, textInput("client_city", "Ville")),
+          column(1, textInput("client_country", "Pays", value = "France")),
+          column(1, br(), actionButton("save_client", "Enregistrer", class = "btn-primary"))
+        ),
+        selectInput("selected_client", "Client", choices = character()),
+        fluidRow(
+          column(
+            5,
+            fileInput(
+              "candidature_file", "Dossier de candidature DGFiP",
+              accept = c(".pdf")
+            )
+          ),
+          column(
+            3,
+            selectInput(
+              "candidature_type", "Type de document",
+              c(
+                "Dossier de candidature" = "DGFiP_APPLICATION",
+                "Complément de candidature" = "DGFiP_APPLICATION_ADDENDUM",
+                "Architecture" = "ARCHITECTURE",
+                "Autre" = "OTHER"
+              )
+            )
+          ),
+          column(
+            2, br(),
+            actionButton("import_candidature", "Importer et analyser", class = "btn-success")
+          )
+        ),
+        uiOutput("client_scope_summary"),
+        h4("Périmètre détecté ou confirmé"),
+        fluidRow(
+          column(2, checkboxInput("scope_pdpe", "PA d'émission (PDPe)")),
+          column(2, checkboxInput("scope_pdpr", "PA de réception (PDPr)")),
+          column(2, checkboxInput("scope_ereporting", "E-reporting")),
+          column(2, checkboxInput("scope_peppol", "Peppol / AS4")),
+          column(2, checkboxInput("scope_api", "Architecture full API")),
+          column(2, checkboxInput("scope_od", "Couche OD + PA"))
+        ),
+        fluidRow(
+          column(2, checkboxInput("scope_conversion", "Conversion de formats")),
+          column(2, checkboxInput("scope_cloud", "Cloud externalisé")),
+          column(2, checkboxInput("scope_secnumcloud", "SecNumCloud déclaré")),
+          column(2, checkboxInput("scope_white_label", "Marque blanche")),
+          column(2, checkboxInput("scope_b2c", "B2C")),
+          column(2, checkboxInput("scope_payment", "Données de paiement"))
+        ),
+        textInput("scope_flows", "Flux déclarés"),
+        actionButton("save_scope", "Confirmer le périmètre et cibler le questionnaire"),
+        h4("Documents du client"),
+        DT::DTOutput("client_documents")
+      )
+    ),
+    tabPanel(
       "Missions",
       fluidPage(
         h2("Créer et piloter une mission"),
