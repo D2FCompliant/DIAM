@@ -247,6 +247,9 @@ ON question(mission_id);
 CREATE INDEX IF NOT EXISTS idx_question_reference
 ON question(reference);
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_question_mission_reference
+ON question(mission_id, reference);
+
 CREATE INDEX IF NOT EXISTS idx_question_status
 ON question(status);
 

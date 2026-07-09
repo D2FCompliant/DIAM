@@ -45,6 +45,10 @@ app_ui <- function() {
       "Questionnaire",
       fluidPage(
         h2("Questionnaire et évaluation"),
+        p(
+          "Chaque nouvelle mission est préchargée avec le questionnaire DGFiP v1.3,",
+          "approfondi par les contrôles techniques PDP Integrity v3.2."
+        ),
         selectInput("audit_mission", "Mission", choices = character()),
         fluidRow(
           column(2, textInput("question_ref", "Référence")),
@@ -55,6 +59,7 @@ app_ui <- function() {
           column(1, br(), actionButton("add_question", "Ajouter"))
         ),
         DT::DTOutput("questions"),
+        uiOutput("question_detail"),
         wellPanel(
           h4("Évaluation de la question sélectionnée"),
           fluidRow(

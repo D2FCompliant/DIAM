@@ -77,6 +77,21 @@ app_server <- function(input, output, session) {
     )
   )
 
+  output$question_detail <- renderUI({
+    row <- input$questions_rows_selected
+    if (is.null(row) || length(row) != 1) {
+      return(helpText("Sélectionnez une question pour afficher l'exigence et les preuves attendues."))
+    }
+    question <- questions_data()[row, ]
+    wellPanel(
+      h4(paste(question$reference, "-", question$title)),
+      p(tags$strong("Source et correspondance : "), question$description),
+      p(tags$strong("Exigence DGFiP : "), question$requirement),
+      p(tags$strong("Méthode de vérification : "), question$verification_method),
+      p(tags$strong("Preuves attendues : "), question$expected_evidence)
+    )
+  })
+
   observeEvent(input$add_question, {
     req(input$audit_mission, nzchar(trimws(input$question_ref)), nzchar(trimws(input$question_title)))
     tryCatch({

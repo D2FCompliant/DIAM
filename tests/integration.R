@@ -17,6 +17,7 @@ local({
   mission_id <- diam_create_mission(
     con, "Audit PDP", "Client Test", "DGFiP", "Facturation", "Testeur"
   )
+  stopifnot(nrow(diam_questions(con, mission_id)) == 33)
   diam_add_question(
     con, mission_id, "Q-001", "Sécurité", "Les accès sont-ils maîtrisés ?",
     "HIGH", "Journal des accès"
@@ -41,7 +42,7 @@ local({
 
   stopifnot(
     nrow(diam_missions(con)) == 1,
-    diam_missions(con)$progress[[1]] == 100,
+    diam_missions(con)$progress[[1]] == 3,
     nrow(diam_findings(con, mission_id)) == 1,
     nrow(diam_non_conformities(con, mission_id)) == 1,
     nrow(diam_actions(con, mission_id)) == 1,

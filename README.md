@@ -17,6 +17,11 @@ DIAM permet de gérer le parcours complet :
 8. export du rapport et de l'Evidence Book ;
 9. consultation du journal d'audit.
 
+Chaque nouvelle mission reçoit automatiquement un questionnaire de 33 contrôles.
+Le guide pratique DGFiP v1.3 constitue l'autorité de référence ; PDP Integrity
+v3.2 apporte les méthodes de vérification, les preuves attendues et les
+correspondances techniques EX-6.x à EX-23.x.
+
 ## Lancer l'application
 
 Depuis la racine du dépôt :

@@ -94,6 +94,7 @@ diam_create_mission <- function(con, title, client, referential, scope, user) {
   )
   mission_id <- DBI::dbGetQuery(con, "SELECT last_insert_rowid() AS id")$id[[1]]
   diam_log(con, mission_id, user, "CREATE_MISSION", "MISSION", id, title)
+  diam_seed_questionnaire(con, mission_id, user)
   mission_id
 }
 
@@ -121,28 +122,62 @@ diam_set_mission_status <- function(con, mission_id, status, user) {
   diam_log(con, mission_id, user, "CHANGE_STATUS", "MISSION", as.character(mission_id), status)
 }
 
-diam_add_question <- function(con, mission_id, reference, chapter, title, criticality, expected) {
+diam_add_question <- function(
+    con, mission_id, reference, chapter, title, criticality, expected,
+    description = NULL, requirement = NULL, verification_method = NULL
+) {
   DBI::dbExecute(
     con,
     paste(
       "INSERT INTO question",
-      "(uuid, mission_id, reference, chapter, title, criticality,",
-      "expected_evidence, status, created_at, updated_at)",
-      "VALUES (?, ?, ?, ?, ?, ?, ?, 'NOT_STARTED', ?, ?)"
+      "(uuid, mission_id, reference, chapter, title, description, requirement,",
+      "criticality, verification_method, expected_evidence, status, created_at, updated_at)",
+      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_STARTED', ?, ?)"
     ),
     params = list(
       diam_uuid(), mission_id, trimws(reference), diam_scalar(chapter),
-      trimws(title), criticality, diam_scalar(expected), diam_now(), diam_now()
+      trimws(title), diam_scalar(description), diam_scalar(requirement),
+      criticality, diam_scalar(verification_method), diam_scalar(expected),
+      diam_now(), diam_now()
     )
   )
   diam_update_progress(con, mission_id)
+}
+
+diam_seed_questionnaire <- function(con, mission_id, user = "SYSTEM") {
+  template <- diam_questionnaire_template()
+  sql <- paste(
+    "INSERT OR IGNORE INTO question",
+    "(uuid, mission_id, reference, chapter, title, description, requirement,",
+    "criticality, verification_method, expected_evidence, status, created_at, updated_at)",
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_STARTED', ?, ?)"
+  )
+  now <- diam_now()
+  for (i in seq_len(nrow(template))) {
+    DBI::dbExecute(
+      con, sql,
+      params = list(
+        diam_uuid(), mission_id, template$reference[[i]], template$chapter[[i]],
+        template$title[[i]], template$description[[i]], template$requirement[[i]],
+        template$criticality[[i]], template$verification_method[[i]],
+        template$expected_evidence[[i]], now, now
+      )
+    )
+  }
+  diam_update_progress(con, mission_id)
+  diam_log(
+    con, mission_id, user, "LOAD_QUESTIONNAIRE", "MISSION",
+    as.character(mission_id), paste(nrow(template), "questions DGFiP/PDP Integrity")
+  )
+  invisible(nrow(template))
 }
 
 diam_questions <- function(con, mission_id) {
   DBI::dbGetQuery(
     con,
     paste(
-      "SELECT q.id, q.reference, q.chapter, q.title, q.criticality, q.status,",
+      "SELECT q.id, q.reference, q.chapter, q.title, q.description, q.requirement,",
+      "q.criticality, q.verification_method, q.expected_evidence, q.status,",
       "COALESCE(a.compliance_status, 'NOT_STARTED') AS compliance_status,",
       "COALESCE(a.answer, '') AS answer, COALESCE(a.comment, '') AS comment",
       "FROM question q LEFT JOIN answer a ON a.question_id=q.id",
