@@ -81,6 +81,12 @@ différente dans le constat ; cette décision est reprise dans l'evidence book.
 Les preuves versées dans l'onglet **Preuves** peuvent ensuite être liées
 explicitement au constat sélectionné.
 
+Dans **Constats**, le rattachement probatoire ne dépend plus d'une sélection
+implicite du tableau : choisir le **Constat à alimenter**, puis soit sélectionner
+une preuve déjà versée et cliquer **Lier au constat**, soit importer un fichier
+depuis **Verser et lier**. Un message de statut confirme le rattachement et la
+chaîne d'audit est recalculée.
+
 ## Lancer l'application
 
 Depuis la racine du dépôt :

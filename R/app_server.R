@@ -529,6 +529,12 @@ app_server <- function(input, output, session) {
     req(input$finding_mission)
     diam_findings(con, as.integer(input$finding_mission))
   })
+  finding_evidence_link_status <- reactiveVal(NULL)
+  output$finding_evidence_link_status <- renderUI({
+    status <- finding_evidence_link_status()
+    if (is.null(status)) return(NULL)
+    tags$div(class = paste("alert", status$class), role = "alert", status$message)
+  })
   output$findings <- DT::renderDT(
     DT::datatable(
       findings_data(), rownames = FALSE, selection = "single",
@@ -539,6 +545,7 @@ app_server <- function(input, output, session) {
     row <- input$findings_rows_selected
     if (length(row) == 1) {
       updateSelectInput(session, "finding_status", selected = findings_data()$status[[row]])
+      updateSelectInput(session, "finding_link_target", selected = findings_data()$id[[row]])
     }
   })
   observe({
@@ -551,6 +558,11 @@ app_server <- function(input, output, session) {
     updateSelectInput(
       session, "nc_finding",
       choices = choices
+    )
+    updateSelectInput(
+      session, "finding_link_target",
+      choices = choices,
+      selected = if (length(choices)) choices[[1]] else character()
     )
   })
   observe({
@@ -572,23 +584,120 @@ app_server <- function(input, output, session) {
     bump()
   })
   observeEvent(input$link_finding_evidence, {
-    row <- input$findings_rows_selected
-    req(length(row) == 1, input$finding_evidence)
-    diam_link_evidence_to_finding(
-      con, findings_data()$id[[row]], as.integer(input$finding_evidence), user()
-    )
+    if (is.null(input$finding_link_target) || !nzchar(input$finding_link_target)) {
+      finding_evidence_link_status(list(
+        class = "alert-warning",
+        message = "Créez ou choisissez d'abord un constat à alimenter."
+      ))
+      return(invisible(NULL))
+    }
+    if (is.null(input$finding_evidence) || !nzchar(input$finding_evidence)) {
+      finding_evidence_link_status(list(
+        class = "alert-warning",
+        message = "Choisissez une preuve déjà versée, ou utilisez le bouton Verser et lier."
+      ))
+      return(invisible(NULL))
+    }
+    tryCatch({
+      diam_link_evidence_to_finding(
+        con, as.integer(input$finding_link_target),
+        as.integer(input$finding_evidence), user()
+      )
+      bump()
+      finding_evidence_link_status(list(
+        class = "alert-success",
+        message = "Preuve liée au constat. La chaîne d'audit et l'evidence book sont mis à jour."
+      ))
+      showNotification("Preuve liée au constat.", type = "message")
+    }, error = function(e) {
+      finding_evidence_link_status(list(
+        class = "alert-danger",
+        message = paste("Lien impossible :", e$message)
+      ))
+      showNotification(e$message, type = "error", duration = 10)
+    })
+  })
+  observeEvent(input$upload_finding_evidence, {
+    if (is.null(input$finding_link_target) || !nzchar(input$finding_link_target)) {
+      finding_evidence_link_status(list(
+        class = "alert-warning",
+        message = "Créez ou choisissez d'abord un constat à alimenter."
+      ))
+      return(invisible(NULL))
+    }
+    if (is.null(input$finding_evidence_file) || !nrow(input$finding_evidence_file)) {
+      finding_evidence_link_status(list(
+        class = "alert-warning",
+        message = "Choisissez au moins un fichier de preuve à verser."
+      ))
+      return(invisible(NULL))
+    }
+    files <- input$finding_evidence_file
+    linked <- 0L
+    errors <- character()
+    for (i in seq_len(nrow(files))) {
+      tryCatch({
+        evidence_id <- diam_add_evidence(
+          con, as.integer(input$finding_mission), files$datapath[[i]],
+          files$name[[i]], user(), NULL
+        )
+        diam_link_evidence_to_finding(
+          con, as.integer(input$finding_link_target), evidence_id, user()
+        )
+        linked <- linked + 1L
+      }, error = function(e) {
+        errors <<- c(errors, paste(files$name[[i]], ":", e$message))
+      })
+    }
     bump()
-    showNotification("Preuve liée au constat.", type = "message")
+    if (length(errors)) {
+      finding_evidence_link_status(list(
+        class = "alert-danger",
+        message = paste("Certaines preuves n'ont pas été liées :", paste(errors, collapse = " | "))
+      ))
+      showNotification(paste(errors, collapse = "\n"), type = "error", duration = 10)
+    } else {
+      finding_evidence_link_status(list(
+        class = "alert-success",
+        message = paste(linked, "preuve(s) versée(s) et liée(s) au constat.")
+      ))
+      showNotification("Preuve(s) versée(s) et liée(s) au constat.", type = "message")
+    }
   })
   observeEvent(input$set_finding_status, {
     row <- input$findings_rows_selected
-    req(length(row) == 1)
-    diam_set_finding_status(
-      con, findings_data()$id[[row]], input$finding_status,
-      user(), input$finding_status_comment
-    )
-    bump()
-    showNotification("Statut du constat mis à jour.", type = "message")
+    finding_id <- if (length(row) == 1) {
+      findings_data()$id[[row]]
+    } else if (!is.null(input$finding_link_target) && nzchar(input$finding_link_target)) {
+      as.integer(input$finding_link_target)
+    } else {
+      NA_integer_
+    }
+    if (is.na(finding_id)) {
+      finding_evidence_link_status(list(
+        class = "alert-warning",
+        message = "Choisissez un constat avant de mettre à jour son traitement."
+      ))
+      return(invisible(NULL))
+    }
+    tryCatch({
+      diam_set_finding_status(
+        con, finding_id, input$finding_status,
+        user(), input$finding_status_comment
+      )
+      bump()
+      finding_evidence_link_status(list(
+        class = "alert-success",
+        message = paste("Statut du constat mis à jour :", input$finding_status)
+      ))
+      showNotification("Statut du constat mis à jour.", type = "message")
+    }, error = function(e) {
+      finding_evidence_link_status(list(
+        class = "alert-danger",
+        message = paste("Mise à jour impossible :", e$message)
+      ))
+      showNotification(e$message, type = "error", duration = 10)
+    })
   })
 
   ncs_data <- reactive({

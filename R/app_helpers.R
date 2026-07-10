@@ -562,6 +562,7 @@ diam_add_evidence <- function(
     )
   }
   diam_log(con, mission_id, user, "ADD_EVIDENCE", "EVIDENCE", stored, filename)
+  evidence_id
 }
 
 diam_evidences <- function(con, mission_id) {

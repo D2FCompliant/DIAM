@@ -186,11 +186,18 @@ app_ui <- function() {
             ),
             uiOutput("finding_question_expected"),
             DT::DTOutput("findings"),
-            h4("Associer une preuve au constat sélectionné"),
+            h4("Associer une preuve à un constat"),
+            p("Choisissez explicitement le constat à alimenter, puis liez une preuve existante ou versez une nouvelle preuve directement ici."),
             fluidRow(
+              column(5, selectInput("finding_link_target", "Constat à alimenter", choices = character())),
               column(5, selectInput("finding_evidence", "Preuve déjà versée", choices = character())),
-              column(3, br(), actionButton("link_finding_evidence", "Lier au constat", class = "btn-primary"))
+              column(2, br(), actionButton("link_finding_evidence", "Lier au constat", class = "btn-primary"))
             ),
+            fluidRow(
+              column(7, fileInput("finding_evidence_file", "Ou verser une nouvelle preuve et la lier au constat", multiple = TRUE)),
+              column(3, br(), actionButton("upload_finding_evidence", "Verser et lier", class = "btn-success"))
+            ),
+            uiOutput("finding_evidence_link_status"),
             h4("Traiter le constat sélectionné"),
             fluidRow(
               column(3, selectInput("finding_status", "Traitement du constat", c("OPEN", "IN_REVIEW", "CLOSED"))),
