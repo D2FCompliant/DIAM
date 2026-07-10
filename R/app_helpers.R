@@ -296,13 +296,39 @@ diam_findings <- function(con, mission_id) {
   DBI::dbGetQuery(
     con,
     paste(
-      "SELECT f.id, f.finding_number, q.reference, f.summary, f.risk,",
+      "SELECT f.id, f.finding_number, q.reference, q.title AS question,",
+      "COALESCE(a.answer, '') AS client_answer,",
+      "q.expected_evidence, f.summary, f.risk,",
       "f.recommendation, f.status",
       "FROM finding f JOIN question q ON q.id=f.question_id",
+      "LEFT JOIN answer a ON a.question_id=q.id",
       "WHERE q.mission_id=? ORDER BY f.created_at DESC"
     ),
     params = list(mission_id)
   )
+}
+
+diam_set_finding_status <- function(con, finding_id, status, user, comment = NULL) {
+  allowed <- c("OPEN", "IN_REVIEW", "CLOSED")
+  stopifnot(status %in% allowed)
+  now <- diam_now()
+  DBI::dbExecute(
+    con,
+    paste(
+      "UPDATE finding SET status=?, conclusion=COALESCE(NULLIF(?, ''), conclusion),",
+      "updated_at=? WHERE id=?"
+    ),
+    params = list(status, diam_scalar(comment), now, finding_id)
+  )
+  mission_id <- DBI::dbGetQuery(
+    con,
+    paste(
+      "SELECT q.mission_id FROM finding f",
+      "JOIN question q ON q.id=f.question_id WHERE f.id=?"
+    ),
+    params = list(finding_id)
+  )$mission_id[[1]]
+  diam_log(con, mission_id, user, "CHANGE_FINDING_STATUS", "FINDING", as.character(finding_id), status)
 }
 
 diam_add_non_conformity <- function(con, finding_id, severity, title, description) {
@@ -335,6 +361,28 @@ diam_non_conformities <- function(con, mission_id) {
   )
 }
 
+diam_set_non_conformity_status <- function(con, nc_id, status, user) {
+  allowed <- c("OPEN", "IN_PROGRESS", "CLOSED", "WAIVED")
+  stopifnot(status %in% allowed)
+  now <- diam_now()
+  closed_at <- if (status %in% c("CLOSED", "WAIVED")) now else NA_character_
+  DBI::dbExecute(
+    con,
+    "UPDATE non_conformity SET status=?, closed_at=?, updated_at=? WHERE id=?",
+    params = list(status, closed_at, now, nc_id)
+  )
+  mission_id <- DBI::dbGetQuery(
+    con,
+    paste(
+      "SELECT q.mission_id FROM non_conformity nc",
+      "JOIN finding f ON f.id=nc.finding_id",
+      "JOIN question q ON q.id=f.question_id WHERE nc.id=?"
+    ),
+    params = list(nc_id)
+  )$mission_id[[1]]
+  diam_log(con, mission_id, user, "CHANGE_NC_STATUS", "NON_CONFORMITY", as.character(nc_id), status)
+}
+
 diam_add_action <- function(con, nc_id, action, owner, due_date, priority) {
   DBI::dbExecute(
     con,
@@ -345,7 +393,7 @@ diam_add_action <- function(con, nc_id, action, owner, due_date, priority) {
     ),
     params = list(
       diam_uuid(), nc_id, diam_next_number(con, "action_number", "ACT"),
-      action, owner, diam_scalar(due_date), priority, diam_now(), diam_now()
+      action, owner, priority, diam_scalar(due_date), diam_now(), diam_now()
     )
   )
 }
@@ -359,6 +407,86 @@ diam_actions <- function(con, mission_id) {
       "FROM action_plan ap JOIN non_conformity nc ON nc.id=ap.nc_id",
       "JOIN finding f ON f.id=nc.finding_id JOIN question q ON q.id=f.question_id",
       "WHERE q.mission_id=? ORDER BY ap.due_date, ap.created_at"
+    ),
+    params = list(mission_id)
+  )
+}
+
+diam_set_action_status <- function(con, action_id, status, user, verification_comment = NULL) {
+  allowed <- c("OPEN", "IN_PROGRESS", "DONE", "VERIFIED", "CANCELLED")
+  stopifnot(status %in% allowed)
+  now <- diam_now()
+  completion_date <- if (status %in% c("DONE", "VERIFIED")) substr(now, 1, 10) else NA_character_
+  DBI::dbExecute(
+    con,
+    paste(
+      "UPDATE action_plan SET status=?, completion_date=?,",
+      "verification_comment=COALESCE(NULLIF(?, ''), verification_comment),",
+      "updated_at=? WHERE id=?"
+    ),
+    params = list(status, completion_date, diam_scalar(verification_comment), now, action_id)
+  )
+  mission_id <- DBI::dbGetQuery(
+    con,
+    paste(
+      "SELECT q.mission_id FROM action_plan ap",
+      "JOIN non_conformity nc ON nc.id=ap.nc_id",
+      "JOIN finding f ON f.id=nc.finding_id",
+      "JOIN question q ON q.id=f.question_id WHERE ap.id=?"
+    ),
+    params = list(action_id)
+  )$mission_id[[1]]
+  diam_log(con, mission_id, user, "CHANGE_ACTION_STATUS", "ACTION", as.character(action_id), status)
+}
+
+diam_audit_evidence_book <- function(con, mission_id) {
+  DBI::dbGetQuery(
+    con,
+    paste(
+      "WITH question_proofs AS (",
+      "SELECT qe.question_id,",
+      "group_concat(DISTINCT e.evidence_number || ' - ' || e.original_name) AS proofs",
+      "FROM question_evidence qe",
+      "JOIN evidence e ON e.id=qe.evidence_id AND e.status='ACTIVE'",
+      "GROUP BY qe.question_id",
+      "), finding_proofs AS (",
+      "SELECT fe.finding_id,",
+      "group_concat(DISTINCT e.evidence_number || ' - ' || e.original_name) AS proofs",
+      "FROM finding_evidence fe",
+      "JOIN evidence e ON e.id=fe.evidence_id AND e.status='ACTIVE'",
+      "GROUP BY fe.finding_id",
+      "), nc_summary AS (",
+      "SELECT finding_id,",
+      "group_concat(nc_number || ' [' || status || '] ' || COALESCE(title, ''), ' | ') AS non_conformities",
+      "FROM non_conformity GROUP BY finding_id",
+      "), action_summary AS (",
+      "SELECT nc.finding_id,",
+      "group_concat(ap.action_number || ' [' || ap.status || '] ' || ap.action, ' | ') AS actions",
+      "FROM action_plan ap JOIN non_conformity nc ON nc.id=ap.nc_id",
+      "GROUP BY nc.finding_id",
+      ")",
+      "SELECT q.reference, q.title AS question, q.requirement AS attendu_dgfip,",
+      "q.expected_evidence AS preuves_attendues,",
+      "COALESCE(a.compliance_status, 'NOT_STARTED') AS reponse_statut,",
+      "COALESCE(a.answer, '') AS reponse_client,",
+      "COALESCE(a.comment, '') AS commentaire_auditeur,",
+      "COALESCE(f.finding_number, '') AS constat,",
+      "COALESCE(f.summary, '') AS synthese_constat,",
+      "COALESCE(f.risk, '') AS risque,",
+      "COALESCE(f.recommendation, '') AS recommandation,",
+      "COALESCE(f.status, '') AS statut_constat,",
+      "COALESCE(nc_summary.non_conformities, '') AS non_conformites,",
+      "COALESCE(action_summary.actions, '') AS actions_correctives,",
+      "trim(COALESCE(question_proofs.proofs, '') ||",
+      "CASE WHEN finding_proofs.proofs IS NOT NULL THEN ' | ' || finding_proofs.proofs ELSE '' END) AS preuves_associees",
+      "FROM question q",
+      "LEFT JOIN answer a ON a.question_id=q.id",
+      "LEFT JOIN finding f ON f.question_id=q.id",
+      "LEFT JOIN question_proofs ON question_proofs.question_id=q.id",
+      "LEFT JOIN finding_proofs ON finding_proofs.finding_id=f.id",
+      "LEFT JOIN nc_summary ON nc_summary.finding_id=f.id",
+      "LEFT JOIN action_summary ON action_summary.finding_id=f.id",
+      "WHERE q.mission_id=? ORDER BY q.reference"
     ),
     params = list(mission_id)
   )

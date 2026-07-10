@@ -105,6 +105,7 @@ diam_report_data <- function(con, mission_id) {
     result = diam_audit_result(con, mission_id),
     controls = controls,
     evidences = diam_evidences(con, mission_id),
+    evidence_book = diam_audit_evidence_book(con, mission_id),
     findings = diam_findings(con, mission_id),
     non_conformities = diam_non_conformities(con, mission_id),
     actions = diam_actions(con, mission_id),
@@ -309,11 +310,17 @@ diam_generate_report_docx <- function(con, mission_id, generated_by = "DIAM") {
   }
 
   doc <- officer::body_add_par(doc, "5. Registre des preuves", style = "heading 1")
-  if (nrow(data$evidences)) {
-    evidence <- data$evidences[, c(
-      "evidence_number", "original_name", "linked_controls", "sha256", "uploaded_at"
+  if (nrow(data$evidence_book)) {
+    evidence <- data$evidence_book[, c(
+      "reference", "question", "preuves_attendues", "reponse_statut",
+      "reponse_client", "constat", "synthese_constat", "statut_constat",
+      "preuves_associees"
     )]
-    names(evidence) <- c("Preuve", "Fichier", "Contrôles", "SHA-256 (extrait)", "Versement")
+    names(evidence) <- c(
+      "Contrôle", "Question", "Preuves attendues", "Réponse",
+      "Réponse client / analyse", "Constat", "Synthèse constat",
+      "État constat", "Preuves associées"
+    )
     doc <- flextable::body_add_flextable(doc, diam_make_table(evidence))
   } else {
     doc <- officer::body_add_par(doc, "Aucune preuve versée.", style = "Normal")
@@ -656,15 +663,18 @@ diam_generate_report_pdf <- function(con, mission_id, generated_by = "DIAM") {
   }
 
   diam_pdf_heading(state, "5. Registre des preuves")
-  if (nrow(data$evidences)) {
-    for (i in seq_len(nrow(data$evidences))) {
-      row <- data$evidences[i, ]
+  if (nrow(data$evidence_book)) {
+    for (i in seq_len(nrow(data$evidence_book))) {
+      row <- data$evidence_book[i, ]
       diam_pdf_heading(
-        state, paste(row$evidence_number, "-", row$original_name), level = 3
+        state, paste(row$reference, "-", row$question), level = 3
       )
-      diam_pdf_label(state, "Contrôles liés", row$linked_controls)
-      diam_pdf_label(state, "SHA-256 (extrait)", row$sha256)
-      diam_pdf_label(state, "Date de versement", row$uploaded_at)
+      diam_pdf_label(state, "Preuves attendues", row$preuves_attendues)
+      diam_pdf_label(state, "Réponse", row$reponse_statut)
+      diam_pdf_label(state, "Réponse client / analyse", row$reponse_client)
+      diam_pdf_label(state, "Constat", paste(row$constat, row$synthese_constat))
+      diam_pdf_label(state, "État constat", row$statut_constat)
+      diam_pdf_label(state, "Preuves associées", row$preuves_associees)
     }
   } else {
     diam_pdf_text(state, "Aucune preuve versée.")

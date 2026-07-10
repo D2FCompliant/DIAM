@@ -66,6 +66,15 @@ un guide auditeur opérationnel : pièces et traces à demander, tests à réali
 échantillonnage recommandé et règle de conclusion conforme / conforme sous
 réserves / non conforme.
 
+Dans l'onglet **Constats & actions**, la vue **Chaîne d'audit et evidence
+book** consolide désormais le contrôle, l'attendu DGFiP, la réponse client,
+le constat, les non-conformités, les actions correctives et les preuves
+associées. Pour traiter un écart, sélectionner la ligne du constat, de la
+non-conformité ou de l'action, choisir le nouveau statut puis cliquer sur le
+bouton de mise à jour correspondant. Un constat peut ainsi passer à
+`IN_REVIEW` puis `CLOSED`, une non-conformité à `CLOSED` ou `WAIVED`, et une
+action à `DONE` puis `VERIFIED`.
+
 ## Lancer l'application
 
 Depuis la racine du dépôt :

@@ -447,6 +447,19 @@ app_server <- function(input, output, session) {
     req(input$finding_mission)
     diam_questions(con, as.integer(input$finding_mission))
   })
+
+  audit_evidence_book_data <- reactive({
+    refresh()
+    req(input$finding_mission)
+    diam_audit_evidence_book(con, as.integer(input$finding_mission))
+  })
+  output$audit_evidence_book <- DT::renderDT(
+    DT::datatable(
+      audit_evidence_book_data(), rownames = FALSE,
+      options = list(pageLength = 8, scrollX = TRUE)
+    )
+  )
+
   observe({
     q <- finding_questions()
     choices <- if (nrow(q)) {
@@ -465,8 +478,17 @@ app_server <- function(input, output, session) {
     diam_findings(con, as.integer(input$finding_mission))
   })
   output$findings <- DT::renderDT(
-    DT::datatable(findings_data(), rownames = FALSE, options = list(scrollX = TRUE))
+    DT::datatable(
+      findings_data(), rownames = FALSE, selection = "single",
+      options = list(scrollX = TRUE)
+    )
   )
+  observeEvent(input$findings_rows_selected, {
+    row <- input$findings_rows_selected
+    if (length(row) == 1) {
+      updateSelectInput(session, "finding_status", selected = findings_data()$status[[row]])
+    }
+  })
   observe({
     f <- findings_data()
     choices <- if (nrow(f)) {
@@ -487,6 +509,16 @@ app_server <- function(input, output, session) {
     )
     bump()
   })
+  observeEvent(input$set_finding_status, {
+    row <- input$findings_rows_selected
+    req(length(row) == 1)
+    diam_set_finding_status(
+      con, findings_data()$id[[row]], input$finding_status,
+      user(), input$finding_status_comment
+    )
+    bump()
+    showNotification("Statut du constat mis à jour.", type = "message")
+  })
 
   ncs_data <- reactive({
     refresh()
@@ -494,8 +526,17 @@ app_server <- function(input, output, session) {
     diam_non_conformities(con, as.integer(input$finding_mission))
   })
   output$non_conformities <- DT::renderDT(
-    DT::datatable(ncs_data(), rownames = FALSE, options = list(scrollX = TRUE))
+    DT::datatable(
+      ncs_data(), rownames = FALSE, selection = "single",
+      options = list(scrollX = TRUE)
+    )
   )
+  observeEvent(input$non_conformities_rows_selected, {
+    row <- input$non_conformities_rows_selected
+    if (length(row) == 1) {
+      updateSelectInput(session, "nc_status", selected = ncs_data()$status[[row]])
+    }
+  })
   observe({
     ncs <- ncs_data()
     choices <- if (nrow(ncs)) {
@@ -516,6 +557,15 @@ app_server <- function(input, output, session) {
     )
     bump()
   })
+  observeEvent(input$set_nc_status, {
+    row <- input$non_conformities_rows_selected
+    req(length(row) == 1)
+    diam_set_non_conformity_status(
+      con, ncs_data()$id[[row]], input$nc_status, user()
+    )
+    bump()
+    showNotification("Statut de la non-conformité mis à jour.", type = "message")
+  })
 
   actions_data <- reactive({
     refresh()
@@ -523,8 +573,17 @@ app_server <- function(input, output, session) {
     diam_actions(con, as.integer(input$finding_mission))
   })
   output$actions <- DT::renderDT(
-    DT::datatable(actions_data(), rownames = FALSE, options = list(scrollX = TRUE))
+    DT::datatable(
+      actions_data(), rownames = FALSE, selection = "single",
+      options = list(scrollX = TRUE)
+    )
   )
+  observeEvent(input$actions_rows_selected, {
+    row <- input$actions_rows_selected
+    if (length(row) == 1) {
+      updateSelectInput(session, "action_status", selected = actions_data()$status[[row]])
+    }
+  })
   observeEvent(input$add_action, {
     req(input$action_nc, nzchar(trimws(input$action_text)))
     diam_add_action(
@@ -532,6 +591,16 @@ app_server <- function(input, output, session) {
       as.character(input$action_due), input$action_priority
     )
     bump()
+  })
+  observeEvent(input$set_action_status, {
+    row <- input$actions_rows_selected
+    req(length(row) == 1)
+    diam_set_action_status(
+      con, actions_data()$id[[row]], input$action_status,
+      user(), input$action_status_comment
+    )
+    bump()
+    showNotification("Statut de l'action mis à jour.", type = "message")
   })
 
   output$history <- DT::renderDT({
@@ -618,7 +687,7 @@ app_server <- function(input, output, session) {
     filename = function() paste0("evidence-book-", input$report_mission, ".csv"),
     content = function(file) {
       utils::write.csv(
-        diam_evidences(con, as.integer(input$report_mission)),
+        diam_audit_evidence_book(con, as.integer(input$report_mission)),
         file, row.names = FALSE, fileEncoding = "UTF-8"
       )
     }

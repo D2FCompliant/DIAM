@@ -166,6 +166,9 @@ app_ui <- function() {
       fluidPage(
         h2("Constats, non-conformités et plan d'action"),
         selectInput("finding_mission", "Mission", choices = character()),
+        h4("Chaîne d'audit et evidence book"),
+        p("Vue consolidée : question, attendu DGFiP, réponse client, constat, non-conformités, actions et preuves associées."),
+        DT::DTOutput("audit_evidence_book"),
         h4("Créer ou modifier un constat depuis une question"),
         fluidRow(
           column(3, selectInput("finding_question", "Question", choices = character())),
@@ -175,6 +178,11 @@ app_ui <- function() {
           column(1, br(), actionButton("save_finding", "Enregistrer"))
         ),
         DT::DTOutput("findings"),
+        fluidRow(
+          column(3, selectInput("finding_status", "Traitement du constat", c("OPEN", "IN_REVIEW", "CLOSED"))),
+          column(6, textInput("finding_status_comment", "Commentaire de traitement / justification")),
+          column(3, br(), actionButton("set_finding_status", "Mettre à jour le constat", class = "btn-primary"))
+        ),
         h4("Déclarer une non-conformité"),
         fluidRow(
           column(3, selectInput("nc_finding", "Constat", choices = character())),
@@ -184,6 +192,10 @@ app_ui <- function() {
           column(1, br(), actionButton("add_nc", "Créer"))
         ),
         DT::DTOutput("non_conformities"),
+        fluidRow(
+          column(3, selectInput("nc_status", "Traitement NC", c("OPEN", "IN_PROGRESS", "CLOSED", "WAIVED"))),
+          column(3, br(), actionButton("set_nc_status", "Mettre à jour la NC", class = "btn-primary"))
+        ),
         h4("Ajouter une action corrective"),
         fluidRow(
           column(2, selectInput("action_nc", "Non-conformité", choices = character())),
@@ -193,7 +205,12 @@ app_ui <- function() {
           column(2, selectInput("action_priority", "Priorité", c("LOW", "MEDIUM", "HIGH"))),
           column(1, br(), actionButton("add_action", "Ajouter"))
         ),
-        DT::DTOutput("actions")
+        DT::DTOutput("actions"),
+        fluidRow(
+          column(3, selectInput("action_status", "Traitement action", c("OPEN", "IN_PROGRESS", "DONE", "VERIFIED", "CANCELLED"))),
+          column(6, textInput("action_status_comment", "Commentaire de vérification")),
+          column(3, br(), actionButton("set_action_status", "Mettre à jour l'action", class = "btn-primary"))
+        )
       )
     ),
     tabPanel(
