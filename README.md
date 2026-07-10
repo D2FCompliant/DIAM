@@ -61,6 +61,11 @@ Le guide pratique DGFiP v1.3 constitue l'autorité de référence ; PDP Integrit
 v3.2 apporte les méthodes de vérification, les preuves attendues et les
 correspondances techniques EX-6.x à EX-23.x.
 
+Dans l'onglet **Questionnaire**, la sélection d'un contrôle affiche désormais
+un guide auditeur opérationnel : pièces et traces à demander, tests à réaliser,
+échantillonnage recommandé et règle de conclusion conforme / conforme sous
+réserves / non conforme.
+
 ## Lancer l'application
 
 Depuis la racine du dépôt :

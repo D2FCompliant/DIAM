@@ -294,12 +294,24 @@ app_server <- function(input, output, session) {
       return(helpText("Sélectionnez une question pour afficher l'exigence et les preuves attendues."))
     }
     question <- questions_data()[row, ]
+    guidance <- diam_question_evidence_guidance(question)
     wellPanel(
       h4(paste(question$reference, "-", question$title)),
       p(tags$strong("Source et correspondance : "), question$description),
       p(tags$strong("Exigence DGFiP : "), question$requirement),
       p(tags$strong("Méthode de vérification : "), question$verification_method),
-      p(tags$strong("Preuves attendues : "), question$expected_evidence)
+      p(tags$strong("Preuves attendues : "), question$expected_evidence),
+      tags$hr(),
+      h4("Guide auditeur — preuves à collecter"),
+      p("À utiliser comme checklist de collecte avant de répondre à la question."),
+      tags$strong("Pièces et traces à demander :"),
+      tags$ul(lapply(guidance$to_collect, tags$li)),
+      tags$strong("Tests et contrôles à réaliser :"),
+      tags$ul(lapply(guidance$tests, tags$li)),
+      tags$strong("Échantillonnage :"),
+      p(guidance$sampling),
+      tags$strong("Règle de conclusion :"),
+      tags$ul(lapply(guidance$decision, tags$li))
     )
   })
 
