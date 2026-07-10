@@ -293,9 +293,9 @@ diam_generate_report_docx <- function(con, mission_id, generated_by = "DIAM") {
   doc <- officer::body_add_par(doc, "4. Constats et plan d'action", style = "heading 1")
   if (nrow(data$findings)) {
     findings <- data$findings[, c(
-      "finding_number", "reference", "summary", "risk", "recommendation", "status"
+      "finding_number", "reference", "summary", "base_qualification", "risk", "recommendation", "status"
     )]
-    names(findings) <- c("Constat", "Contrôle", "Synthèse", "Risque", "Recommandation", "État")
+    names(findings) <- c("Constat", "Contrôle", "Synthèse", "Qualification base", "Qualification retenue", "Recommandation", "État")
     doc <- flextable::body_add_flextable(doc, diam_make_table(findings))
   } else {
     doc <- officer::body_add_par(doc, "Aucun constat enregistré.", style = "Normal")
@@ -312,14 +312,14 @@ diam_generate_report_docx <- function(con, mission_id, generated_by = "DIAM") {
   doc <- officer::body_add_par(doc, "5. Registre des preuves", style = "heading 1")
   if (nrow(data$evidence_book)) {
     evidence <- data$evidence_book[, c(
-      "reference", "question", "preuves_attendues", "reponse_statut",
-      "reponse_client", "constat", "synthese_constat", "statut_constat",
-      "preuves_associees"
+      "reference", "question", "qualification_base", "qualification_retenue",
+      "preuves_attendues", "reponse_statut", "reponse_client",
+      "constat", "synthese_constat", "statut_constat", "preuves_associees"
     )]
     names(evidence) <- c(
-      "Contrôle", "Question", "Preuves attendues", "Réponse",
-      "Réponse client / analyse", "Constat", "Synthèse constat",
-      "État constat", "Preuves associées"
+      "Contrôle", "Question", "Qualification base", "Qualification retenue",
+      "Preuves attendues", "Réponse", "Réponse client / analyse",
+      "Constat", "Synthèse constat", "État constat", "Preuves associées"
     )
     doc <- flextable::body_add_flextable(doc, diam_make_table(evidence))
   } else {
@@ -642,7 +642,8 @@ diam_generate_report_pdf <- function(con, mission_id, generated_by = "DIAM") {
       diam_pdf_heading(
         state, paste(row$finding_number, "-", row$reference, "-", row$summary), level = 3
       )
-      diam_pdf_label(state, "Risque", row$risk)
+      diam_pdf_label(state, "Qualification de base", row$base_qualification)
+      diam_pdf_label(state, "Qualification retenue", row$risk)
       diam_pdf_label(state, "Recommandation", row$recommendation)
       diam_pdf_label(state, "État", row$status)
     }
@@ -669,6 +670,8 @@ diam_generate_report_pdf <- function(con, mission_id, generated_by = "DIAM") {
       diam_pdf_heading(
         state, paste(row$reference, "-", row$question), level = 3
       )
+      diam_pdf_label(state, "Qualification de base", row$qualification_base)
+      diam_pdf_label(state, "Qualification retenue", row$qualification_retenue)
       diam_pdf_label(state, "Preuves attendues", row$preuves_attendues)
       diam_pdf_label(state, "Réponse", row$reponse_statut)
       diam_pdf_label(state, "Réponse client / analyse", row$reponse_client)

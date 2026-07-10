@@ -298,7 +298,7 @@ diam_findings <- function(con, mission_id) {
     paste(
       "SELECT f.id, f.finding_number, q.reference, q.title AS question,",
       "COALESCE(a.answer, '') AS client_answer,",
-      "q.expected_evidence, f.summary, f.risk,",
+      "q.criticality AS base_qualification, q.expected_evidence, f.summary, f.risk,",
       "f.recommendation, f.status",
       "FROM finding f JOIN question q ON q.id=f.question_id",
       "LEFT JOIN answer a ON a.question_id=q.id",
@@ -306,6 +306,28 @@ diam_findings <- function(con, mission_id) {
     ),
     params = list(mission_id)
   )
+}
+
+diam_link_evidence_to_finding <- function(con, finding_id, evidence_id, user) {
+  now <- diam_now()
+  DBI::dbExecute(
+    con,
+    paste(
+      "INSERT OR IGNORE INTO finding_evidence",
+      "(finding_id, evidence_id, usage, created_at)",
+      "VALUES (?, ?, 'FINDING_PROOF', ?)"
+    ),
+    params = list(finding_id, evidence_id, now)
+  )
+  mission_id <- DBI::dbGetQuery(
+    con,
+    paste(
+      "SELECT q.mission_id FROM finding f",
+      "JOIN question q ON q.id=f.question_id WHERE f.id=?"
+    ),
+    params = list(finding_id)
+  )$mission_id[[1]]
+  diam_log(con, mission_id, user, "LINK_EVIDENCE_TO_FINDING", "FINDING", as.character(finding_id), as.character(evidence_id))
 }
 
 diam_set_finding_status <- function(con, finding_id, status, user, comment = NULL) {
@@ -466,13 +488,15 @@ diam_audit_evidence_book <- function(con, mission_id) {
       "GROUP BY nc.finding_id",
       ")",
       "SELECT q.reference, q.title AS question, q.requirement AS attendu_dgfip,",
+      "q.criticality AS qualification_base,",
+      "q.verification_method AS methode_verification,",
       "q.expected_evidence AS preuves_attendues,",
       "COALESCE(a.compliance_status, 'NOT_STARTED') AS reponse_statut,",
       "COALESCE(a.answer, '') AS reponse_client,",
       "COALESCE(a.comment, '') AS commentaire_auditeur,",
       "COALESCE(f.finding_number, '') AS constat,",
       "COALESCE(f.summary, '') AS synthese_constat,",
-      "COALESCE(f.risk, '') AS risque,",
+      "COALESCE(f.risk, q.criticality) AS qualification_retenue,",
       "COALESCE(f.recommendation, '') AS recommandation,",
       "COALESCE(f.status, '') AS statut_constat,",
       "COALESCE(nc_summary.non_conformities, '') AS non_conformites,",

@@ -454,11 +454,40 @@ app_server <- function(input, output, session) {
     diam_audit_evidence_book(con, as.integer(input$finding_mission))
   })
   output$audit_evidence_book <- DT::renderDT(
-    DT::datatable(
-      audit_evidence_book_data(), rownames = FALSE,
+    {
+      data <- audit_evidence_book_data()
+      visible <- data[, c(
+        "reference", "question", "qualification_base", "qualification_retenue",
+        "reponse_statut", "constat", "statut_constat", "preuves_associees"
+      ), drop = FALSE]
+      DT::datatable(
+      visible, rownames = FALSE, selection = "single",
       options = list(pageLength = 8, scrollX = TRUE)
     )
+    }
   )
+
+  output$audit_evidence_book_detail <- renderUI({
+    row <- input$audit_evidence_book_rows_selected
+    if (is.null(row) || length(row) != 1) {
+      return(helpText("Sélectionnez une ligne de la chaîne d'audit pour voir le détail probatoire."))
+    }
+    item <- audit_evidence_book_data()[row, ]
+    wellPanel(
+      h4(paste(item$reference, "-", item$question)),
+      p(tags$strong("Qualification de base PDP/DGFiP : "), item$qualification_base),
+      p(tags$strong("Qualification retenue après constat : "), item$qualification_retenue),
+      p(tags$strong("Attendu DGFiP : "), item$attendu_dgfip),
+      p(tags$strong("Méthode de vérification : "), item$methode_verification),
+      p(tags$strong("Preuves attendues : "), item$preuves_attendues),
+      p(tags$strong("Réponse client / analyse : "), item$reponse_client),
+      p(tags$strong("Commentaire auditeur : "), item$commentaire_auditeur),
+      p(tags$strong("Constat : "), paste(item$constat, item$synthese_constat)),
+      p(tags$strong("Non-conformités : "), item$non_conformites),
+      p(tags$strong("Actions : "), item$actions_correctives),
+      p(tags$strong("Preuves associées : "), item$preuves_associees)
+    )
+  })
 
   observe({
     q <- finding_questions()
@@ -470,6 +499,29 @@ app_server <- function(input, output, session) {
     updateSelectInput(
       session, "finding_question",
       choices = choices
+    )
+  })
+  observeEvent(input$finding_question, {
+    req(input$finding_question)
+    q <- finding_questions()
+    selected <- q[q$id == as.integer(input$finding_question), , drop = FALSE]
+    if (nrow(selected)) {
+      updateSelectInput(session, "finding_risk", selected = selected$criticality[[1]])
+    }
+  })
+  output$finding_question_expected <- renderUI({
+    req(input$finding_question)
+    q <- finding_questions()
+    selected <- q[q$id == as.integer(input$finding_question), , drop = FALSE]
+    if (!nrow(selected)) return(NULL)
+    guidance <- diam_question_evidence_guidance(selected)
+    wellPanel(
+      h4("Qualification et preuves attendues pour la question"),
+      p(tags$strong("Qualification de base PDP/DGFiP : "), selected$criticality[[1]]),
+      p(tags$strong("Attendu DGFiP : "), selected$requirement[[1]]),
+      p(tags$strong("Preuves attendues : "), selected$expected_evidence[[1]]),
+      tags$strong("Checklist auditeur :"),
+      tags$ul(lapply(guidance$to_collect, tags$li))
     )
   })
   findings_data <- reactive({
@@ -501,6 +553,16 @@ app_server <- function(input, output, session) {
       choices = choices
     )
   })
+  observe({
+    req(input$finding_mission)
+    evidence <- diam_evidences(con, as.integer(input$finding_mission))
+    choices <- if (nrow(evidence)) {
+      stats::setNames(evidence$id, paste(evidence$evidence_number, "—", evidence$original_name))
+    } else {
+      character()
+    }
+    updateSelectInput(session, "finding_evidence", choices = choices)
+  })
   observeEvent(input$save_finding, {
     req(input$finding_question, nzchar(trimws(input$finding_summary)))
     diam_save_finding(
@@ -508,6 +570,15 @@ app_server <- function(input, output, session) {
       input$finding_risk, input$finding_recommendation, user()
     )
     bump()
+  })
+  observeEvent(input$link_finding_evidence, {
+    row <- input$findings_rows_selected
+    req(length(row) == 1, input$finding_evidence)
+    diam_link_evidence_to_finding(
+      con, findings_data()$id[[row]], as.integer(input$finding_evidence), user()
+    )
+    bump()
+    showNotification("Preuve liée au constat.", type = "message")
   })
   observeEvent(input$set_finding_status, {
     row <- input$findings_rows_selected

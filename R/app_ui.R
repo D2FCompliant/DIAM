@@ -166,50 +166,72 @@ app_ui <- function() {
       fluidPage(
         h2("Constats, non-conformités et plan d'action"),
         selectInput("finding_mission", "Mission", choices = character()),
-        h4("Chaîne d'audit et evidence book"),
-        p("Vue consolidée : question, attendu DGFiP, réponse client, constat, non-conformités, actions et preuves associées."),
-        DT::DTOutput("audit_evidence_book"),
-        h4("Créer ou modifier un constat depuis une question"),
-        fluidRow(
-          column(3, selectInput("finding_question", "Question", choices = character())),
-          column(3, textInput("finding_summary", "Synthèse")),
-          column(2, selectInput("finding_risk", "Risque", c("LOW", "MEDIUM", "HIGH", "CRITICAL"))),
-          column(3, textInput("finding_recommendation", "Recommandation")),
-          column(1, br(), actionButton("save_finding", "Enregistrer"))
-        ),
-        DT::DTOutput("findings"),
-        fluidRow(
-          column(3, selectInput("finding_status", "Traitement du constat", c("OPEN", "IN_REVIEW", "CLOSED"))),
-          column(6, textInput("finding_status_comment", "Commentaire de traitement / justification")),
-          column(3, br(), actionButton("set_finding_status", "Mettre à jour le constat", class = "btn-primary"))
-        ),
-        h4("Déclarer une non-conformité"),
-        fluidRow(
-          column(3, selectInput("nc_finding", "Constat", choices = character())),
-          column(2, selectInput("nc_severity", "Sévérité", c("MINOR", "MAJOR", "CRITICAL"))),
-          column(3, textInput("nc_title", "Titre")),
-          column(3, textInput("nc_description", "Description")),
-          column(1, br(), actionButton("add_nc", "Créer"))
-        ),
-        DT::DTOutput("non_conformities"),
-        fluidRow(
-          column(3, selectInput("nc_status", "Traitement NC", c("OPEN", "IN_PROGRESS", "CLOSED", "WAIVED"))),
-          column(3, br(), actionButton("set_nc_status", "Mettre à jour la NC", class = "btn-primary"))
-        ),
-        h4("Ajouter une action corrective"),
-        fluidRow(
-          column(2, selectInput("action_nc", "Non-conformité", choices = character())),
-          column(3, textInput("action_text", "Action")),
-          column(2, textInput("action_owner", "Responsable")),
-          column(2, dateInput("action_due", "Échéance")),
-          column(2, selectInput("action_priority", "Priorité", c("LOW", "MEDIUM", "HIGH"))),
-          column(1, br(), actionButton("add_action", "Ajouter"))
-        ),
-        DT::DTOutput("actions"),
-        fluidRow(
-          column(3, selectInput("action_status", "Traitement action", c("OPEN", "IN_PROGRESS", "DONE", "VERIFIED", "CANCELLED"))),
-          column(6, textInput("action_status_comment", "Commentaire de vérification")),
-          column(3, br(), actionButton("set_action_status", "Mettre à jour l'action", class = "btn-primary"))
+        tabsetPanel(
+          tabPanel(
+            "Chaîne d'audit",
+            h4("Evidence book opérationnel"),
+            p("Sélectionnez une ligne pour voir l'attendu DGFiP, les preuves à collecter, la réponse client et les preuves associées."),
+            DT::DTOutput("audit_evidence_book"),
+            uiOutput("audit_evidence_book_detail")
+          ),
+          tabPanel(
+            "Constats",
+            h4("Créer ou modifier un constat depuis une question"),
+            fluidRow(
+              column(4, selectInput("finding_question", "Question", choices = character())),
+              column(3, textInput("finding_summary", "Synthèse")),
+              column(2, selectInput("finding_risk", "Qualification retenue", c("LOW", "MEDIUM", "HIGH", "CRITICAL"))),
+              column(2, textInput("finding_recommendation", "Recommandation")),
+              column(1, br(), actionButton("save_finding", "Enregistrer"))
+            ),
+            uiOutput("finding_question_expected"),
+            DT::DTOutput("findings"),
+            h4("Associer une preuve au constat sélectionné"),
+            fluidRow(
+              column(5, selectInput("finding_evidence", "Preuve déjà versée", choices = character())),
+              column(3, br(), actionButton("link_finding_evidence", "Lier au constat", class = "btn-primary"))
+            ),
+            h4("Traiter le constat sélectionné"),
+            fluidRow(
+              column(3, selectInput("finding_status", "Traitement du constat", c("OPEN", "IN_REVIEW", "CLOSED"))),
+              column(6, textInput("finding_status_comment", "Commentaire de traitement / justification")),
+              column(3, br(), actionButton("set_finding_status", "Mettre à jour le constat", class = "btn-primary"))
+            )
+          ),
+          tabPanel(
+            "Non-conformités",
+            h4("Déclarer une non-conformité"),
+            fluidRow(
+              column(3, selectInput("nc_finding", "Constat", choices = character())),
+              column(2, selectInput("nc_severity", "Sévérité", c("MINOR", "MAJOR", "CRITICAL"))),
+              column(3, textInput("nc_title", "Titre")),
+              column(3, textInput("nc_description", "Description")),
+              column(1, br(), actionButton("add_nc", "Créer"))
+            ),
+            DT::DTOutput("non_conformities"),
+            fluidRow(
+              column(3, selectInput("nc_status", "Traitement NC", c("OPEN", "IN_PROGRESS", "CLOSED", "WAIVED"))),
+              column(3, br(), actionButton("set_nc_status", "Mettre à jour la NC", class = "btn-primary"))
+            )
+          ),
+          tabPanel(
+            "Actions",
+            h4("Ajouter une action corrective"),
+            fluidRow(
+              column(2, selectInput("action_nc", "Non-conformité", choices = character())),
+              column(3, textInput("action_text", "Action")),
+              column(2, textInput("action_owner", "Responsable")),
+              column(2, dateInput("action_due", "Échéance")),
+              column(2, selectInput("action_priority", "Priorité", c("LOW", "MEDIUM", "HIGH"))),
+              column(1, br(), actionButton("add_action", "Ajouter"))
+            ),
+            DT::DTOutput("actions"),
+            fluidRow(
+              column(3, selectInput("action_status", "Traitement action", c("OPEN", "IN_PROGRESS", "DONE", "VERIFIED", "CANCELLED"))),
+              column(6, textInput("action_status_comment", "Commentaire de vérification")),
+              column(3, br(), actionButton("set_action_status", "Mettre à jour l'action", class = "btn-primary"))
+            )
+          )
         )
       )
     ),

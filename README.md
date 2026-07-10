@@ -75,6 +75,12 @@ bouton de mise à jour correspondant. Un constat peut ainsi passer à
 `IN_REVIEW` puis `CLOSED`, une non-conformité à `CLOSED` ou `WAIVED`, et une
 action à `DONE` puis `VERIFIED`.
 
+La qualification de base issue du questionnaire PDP/DGFiP est affichée et sert
+de valeur initiale au constat. L'auditeur peut retenir une qualification
+différente dans le constat ; cette décision est reprise dans l'evidence book.
+Les preuves versées dans l'onglet **Preuves** peuvent ensuite être liées
+explicitement au constat sélectionné.
+
 ## Lancer l'application
 
 Depuis la racine du dépôt :
