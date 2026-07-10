@@ -78,10 +78,57 @@ app_server <- function(input, output, session) {
 
   output$client_documents <- DT::renderDT(
     DT::datatable(
-      client_documents_data(), rownames = FALSE,
+      client_documents_data(), rownames = FALSE, selection = "single",
       options = list(pageLength = 8, scrollX = TRUE)
     )
   )
+
+  selected_client_document <- reactive({
+    req(input$selected_client)
+    selected <- input$client_documents_rows_selected
+    if (is.null(selected) || !length(selected)) return(NULL)
+    documents <- client_documents_data()
+    if (!nrow(documents) || selected[[1]] > nrow(documents)) return(NULL)
+    diam_client_document_file(
+      con,
+      as.integer(input$selected_client),
+      as.integer(documents$id[[selected[[1]]]])
+    )
+  })
+
+  output$selected_client_document <- renderUI({
+    document <- selected_client_document()
+    if (is.null(document)) {
+      return(tags$p(
+        class = "text-muted",
+        "Aucun document sélectionné."
+      ))
+    }
+    tags$p(
+      tags$strong("Document prêt : "),
+      document$original_name[[1]],
+      " — ",
+      format(document$file_size[[1]], big.mark = " ", scientific = FALSE),
+      " octets"
+    )
+  })
+
+  output$client_document_download_ui <- renderUI({
+    document <- selected_client_document()
+    if (is.null(document)) {
+      return(tags$button(
+        type = "button",
+        class = "btn btn-default disabled",
+        disabled = "disabled",
+        "Télécharger le document sélectionné"
+      ))
+    }
+    downloadButton(
+      "download_client_document",
+      "Télécharger le document sélectionné",
+      class = "btn-primary"
+    )
+  })
 
   output$client_scope_summary <- renderUI({
     refresh()
@@ -483,6 +530,20 @@ app_server <- function(input, output, session) {
         con, as.integer(input$report_mission), issued_by = user()
       )
       file.copy(pdf, file, overwrite = TRUE)
+    }
+  )
+  output$download_client_document <- downloadHandler(
+    filename = function() {
+      document <- selected_client_document()
+      req(document)
+      document$original_name[[1]]
+    },
+    content = function(file) {
+      document <- selected_client_document()
+      req(document)
+      source <- document$storage_path[[1]]
+      shiny::validate(shiny::need(file.exists(source), "Le fichier stocké est introuvable."))
+      file.copy(source, file, overwrite = TRUE)
     }
   )
   output$download_evidence_book <- downloadHandler(

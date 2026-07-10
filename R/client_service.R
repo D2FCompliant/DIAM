@@ -130,6 +130,20 @@ diam_client_documents <- function(con, client_id) {
   )
 }
 
+diam_client_document_file <- function(con, client_id, document_id) {
+  document <- DBI::dbGetQuery(
+    con,
+    paste(
+      "SELECT id, original_name, storage_path, mime_type, file_size, sha256",
+      "FROM client_document",
+      "WHERE id=? AND client_id=? AND status='ACTIVE'"
+    ),
+    params = list(document_id, client_id)
+  )
+  if (!nrow(document)) stop("Document client introuvable.")
+  document
+}
+
 diam_has <- function(text, pattern) {
   grepl(pattern, text, ignore.case = TRUE, perl = TRUE)
 }

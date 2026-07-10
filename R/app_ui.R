@@ -76,7 +76,10 @@ app_ui <- function() {
         textInput("scope_flows", "Flux déclarés"),
         actionButton("save_scope", "Confirmer le périmètre et cibler le questionnaire"),
         h4("Documents du client"),
-        DT::DTOutput("client_documents")
+        p("Sélectionnez un document dans le tableau pour le télécharger."),
+        DT::DTOutput("client_documents"),
+        uiOutput("selected_client_document"),
+        uiOutput("client_document_download_ui")
       )
     ),
     tabPanel(
