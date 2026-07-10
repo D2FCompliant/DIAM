@@ -55,6 +55,7 @@ app_ui <- function() {
             actionButton("import_candidature", "Importer et analyser", class = "btn-success")
           )
         ),
+        uiOutput("import_candidature_status"),
         uiOutput("client_scope_summary"),
         h4("Périmètre détecté ou confirmé"),
         fluidRow(

@@ -151,20 +151,63 @@ app_server <- function(input, output, session) {
     )
   })
 
+  import_candidature_status <- reactiveVal(NULL)
+
+  output$import_candidature_status <- renderUI({
+    status <- import_candidature_status()
+    if (is.null(status)) return(NULL)
+    tags$div(
+      class = paste("alert", status$class),
+      role = "alert",
+      status$message
+    )
+  })
+
   observeEvent(input$import_candidature, {
-    req(input$selected_client, input$candidature_file)
+    if (is.null(input$selected_client) || !nzchar(input$selected_client)) {
+      import_candidature_status(list(
+        class = "alert-warning",
+        message = "Sélectionnez ou enregistrez d'abord un client avant d'importer un dossier."
+      ))
+      showNotification("Sélectionnez d'abord un client.", type = "warning")
+      return(invisible(NULL))
+    }
+    if (is.null(input$candidature_file) || !nrow(input$candidature_file)) {
+      import_candidature_status(list(
+        class = "alert-warning",
+        message = "Choisissez un fichier PDF de candidature avant de cliquer sur Importer et analyser."
+      ))
+      showNotification("Choisissez d'abord un PDF.", type = "warning")
+      return(invisible(NULL))
+    }
+    client_id <- suppressWarnings(as.integer(input$selected_client))
+    if (is.na(client_id)) {
+      import_candidature_status(list(
+        class = "alert-danger",
+        message = "Le client sélectionné est invalide. Rechargez la page ou sélectionnez un autre client."
+      ))
+      return(invisible(NULL))
+    }
+    import_candidature_status(list(
+      class = "alert-info",
+      message = paste("Import et analyse en cours :", input$candidature_file$name[[1]])
+    ))
     tryCatch({
       stored <- diam_store_client_document(
-        con, as.integer(input$selected_client),
+        con, client_id,
         input$candidature_file$datapath[[1]],
         input$candidature_file$name[[1]],
         input$candidature_type, user()
       )
       if (stored$extracted) {
         scope <- diam_analyze_client_document(
-          con, as.integer(input$selected_client), stored$id, user()
+          con, client_id, stored$id, user()
         )
         update_scope_inputs(as.data.frame(scope, stringsAsFactors = FALSE))
+        import_candidature_status(list(
+          class = "alert-success",
+          message = "Dossier importé, texte extrait, périmètre détecté et questionnaire ciblé."
+        ))
         showNotification(
           "Dossier importé, périmètre détecté et questionnaire ciblé.",
           type = "message"
@@ -177,9 +220,22 @@ app_server <- function(input, output, session) {
           ),
           type = "warning", duration = 10
         )
+        import_candidature_status(list(
+          class = "alert-warning",
+          message = paste(
+            "Document conservé, mais l'extraction automatique du texte est indisponible.",
+            "Confirmez le périmètre manuellement."
+          )
+        ))
       }
       bump()
-    }, error = function(e) showNotification(e$message, type = "error", duration = 10))
+    }, error = function(e) {
+      import_candidature_status(list(
+        class = "alert-danger",
+        message = paste("Import impossible :", e$message)
+      ))
+      showNotification(e$message, type = "error", duration = 10)
+    })
   })
 
   observeEvent(input$save_scope, {
