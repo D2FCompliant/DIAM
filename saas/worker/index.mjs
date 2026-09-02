@@ -155,7 +155,7 @@ export const SC_CONTROLS = [
 }));
 
 function auditProgram(id) {
-  return AUDIT_PROGRAMS[id] || AUDIT_PROGRAMS.PA_DGFIP;
+  return id && AUDIT_PROGRAMS[id] ? AUDIT_PROGRAMS[id] : AUDIT_PROGRAMS.PA_DGFIP;
 }
 
 function programFromReferential(referentialVersion = "") {
@@ -1045,7 +1045,7 @@ async function handleApi(request, env) {
 
   if (path === "/api/missions" && request.method === "POST") {
     const body = await readBody(request);
-    const program = auditProgram(body.audit_program);
+    const program = auditProgram(body.audit_program || "PA_DGFIP");
     const controls = controlsForProgram(program.id);
     const client = await db.upsert("diam_clients", {
       tenant_id: tenant.id,

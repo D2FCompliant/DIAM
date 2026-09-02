@@ -16,12 +16,14 @@ let appRelease = {
 
 const AUDIT_PROGRAMS = {
   PA_DGFIP: {
+    id: "PA_DGFIP",
     label: "PA / DGFiP + PDP Integrity",
     shortLabel: "PA",
     defaultTitle: "Audit de conformité PA",
     expectedControls: 33
   },
   SC_RLFC: {
+    id: "SC_RLFC",
     label: "SC / Solution Compatible RLF-C",
     shortLabel: "SC",
     defaultTitle: "Audit de conformité SC",
@@ -478,6 +480,13 @@ function auditProgram(id) {
   return AUDIT_PROGRAMS[id] || AUDIT_PROGRAMS.PA_DGFIP;
 }
 
+function selectedAuditProgramId() {
+  const value = $("auditProgram")?.value;
+  if (value && AUDIT_PROGRAMS[value]) return value;
+  const current = auditProgramFromMission(currentMission());
+  return current.id || "PA_DGFIP";
+}
+
 function auditProgramFromMission(mission = {}) {
   const scope = mission.client_scope || {};
   if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return auditProgram(scope.audit_program);
@@ -499,7 +508,7 @@ function applyAuditProgramDefaults() {
 function missionProfilePayload() {
   return {
     ...clientIdentityPayload(),
-    audit_program: $("auditProgram")?.value || "PA_DGFIP",
+    audit_program: selectedAuditProgramId(),
     title: $("missionTitle").value,
     client_language: $("clientLanguage").value,
     dgfip_application_status: $("dgfipApplicationStatus").value,
