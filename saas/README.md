@@ -45,6 +45,19 @@ La logique suit une approche d'assurance de type ISO/ISAE 3000 :
 
 ## Configuration Cloudflare
 
+### Déploiement depuis le dashboard Cloudflare
+
+Si Cloudflare est connecté au dépôt GitHub `D2FCompliant/DIAM`, utiliser :
+
+- Root directory : `/`
+- Build command : vide / `None`
+- Deploy command : `npx wrangler deploy`
+
+Le fichier racine `wrangler.toml` pointe vers le Worker
+`saas/worker/index.mjs` et sert directement les assets `saas/public`.
+
+### Déploiement local depuis le dossier SaaS
+
 ```bash
 cd saas
 npm install

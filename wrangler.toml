@@ -1,0 +1,21 @@
+name = "diam"
+main = "saas/worker/index.mjs"
+compatibility_date = "2026-09-02"
+
+[assets]
+directory = "./saas/public"
+binding = "ASSETS"
+
+[vars]
+APP_NAME = "DIAM SaaS"
+OPENAI_MODEL = "gpt-5"
+SUPABASE_URL = "https://wyvdcuhqewvvcqmdhtqt.supabase.co"
+
+# Secrets Cloudflare à définir dans Workers & Pages > Settings > Variables
+# ou en CLI :
+# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# wrangler secret put DIAM_OWNER_EMAIL
+# wrangler secret put OPENAI_API_KEY
+#
+# En développement seulement, si les politiques Supabase l'autorisent :
+# wrangler secret put SUPABASE_PUBLISHABLE_KEY
