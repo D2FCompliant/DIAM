@@ -15,8 +15,16 @@
 }
 
 * { box-sizing: border-box; }
+html {
+  height: 100%;
+  overflow: hidden;
+}
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
     radial-gradient(circle at 8% 0%, rgba(196, 154, 61, .18), transparent 28rem),
@@ -32,11 +40,12 @@ body.authLocked .layout {
   user-select: none;
 }
 .topbar {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 24px;
-  padding: 30px 38px;
+  padding: 16px 34px;
   background:
     linear-gradient(135deg, rgba(8, 23, 45, .98), rgba(13, 59, 102, .96)),
     linear-gradient(90deg, rgba(196, 154, 61, .28), transparent);
@@ -51,8 +60,8 @@ body.authLocked .layout {
   min-width: 420px;
 }
 .brandMark {
-  width: 68px;
-  height: 68px;
+  width: 52px;
+  height: 52px;
   border: 1px solid rgba(255, 255, 255, .32);
   border-radius: 22px;
   display: grid;
@@ -65,14 +74,14 @@ body.authLocked .layout {
 .eyebrow { margin: 0 0 4px; color: #e9c46a; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; font-weight: 800; }
 .eyebrow.dark { color: var(--gold); }
 h1, h2, h3, h4 { margin-top: 0; }
-h1 { margin-bottom: 2px; font-size: 40px; letter-spacing: -.04em; }
+h1 { margin-bottom: 0; font-size: 30px; letter-spacing: -.04em; }
 h2 { font-size: 22px; letter-spacing: -.02em; }
 h3 { font-size: 18px; }
 h4 { margin-bottom: 8px; color: #243b5a; }
-.tagline { margin: 0; max-width: 700px; color: #dce9f8; }
+.tagline { margin: 0; max-width: 760px; color: #dce9f8; font-size: 14px; }
 .topPanel {
   display: grid;
-  gap: 10px;
+  gap: 6px;
   justify-items: end;
   text-align: right;
   max-width: 620px;
@@ -134,12 +143,12 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   margin-bottom: 0;
 }
 .tabs {
-  position: sticky;
-  top: 0;
+  flex: 0 0 auto;
+  position: relative;
   z-index: 20;
   display: flex;
   gap: 8px;
-  padding: 14px 28px;
+  padding: 12px 28px;
   background: rgba(243, 246, 251, .86);
   border-bottom: 1px solid rgba(216, 222, 232, .92);
   backdrop-filter: blur(14px);
@@ -165,12 +174,22 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   box-shadow: 0 10px 24px rgba(13, 59, 102, .18);
 }
 .layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 22px;
-  padding: 28px;
+  padding: 16px 28px 22px;
   max-width: 1680px;
+  width: 100%;
   margin: 0 auto;
+}
+.layout.dashboardMode {
+  grid-template-columns: minmax(430px, .95fr) minmax(520px, 1.05fr);
+  grid-template-rows: minmax(118px, .24fr) minmax(300px, .96fr) minmax(210px, .62fr);
+  align-items: stretch;
 }
 .card {
   background: var(--card);
@@ -179,16 +198,46 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   box-shadow: var(--shadow);
   padding: 24px;
   position: relative;
-  overflow: hidden;
+  overflow: auto;
+  min-height: 0;
+}
+.layout.dashboardMode .card[data-panel="dashboard"] {
+  max-height: 100%;
+}
+.layout.dashboardMode .card[data-panel="dashboard"]:nth-of-type(1) {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  padding: 18px 24px;
+}
+.layout.dashboardMode .card[data-panel="dashboard"]:nth-of-type(1) p:not(.eyebrow):not(.notice) {
+  margin: 8px 0 0;
+}
+.layout.dashboardMode .card[data-panel="dashboard"]:nth-of-type(2) {
+  grid-column: 1;
+  grid-row: 2;
+}
+.layout.dashboardMode .card[data-panel="dashboard"]:nth-of-type(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+.layout.dashboardMode .card[data-panel="dashboard"]:nth-of-type(4) {
+  grid-column: 1;
+  grid-row: 3;
+}
+.layout.dashboardMode .card[data-panel="dashboard"]:nth-of-type(5) {
+  grid-column: 2;
+  grid-row: 3;
 }
 .card[data-panel="audit"],
 .card[data-panel="documents"],
 .card[data-panel="client"],
 .card[data-panel="report"],
 #detailCard {
-  max-height: calc(100vh - 190px);
+  height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .card[data-panel="documents"] > *,
 .card[data-panel="client"] > *,
@@ -231,6 +280,9 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
+.layout.dashboardMode .factGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .factGrid div {
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -251,6 +303,9 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+.layout.dashboardMode .grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .twoCols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
@@ -352,8 +407,10 @@ button.small {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.65);
   max-height: 42vh;
   min-height: 120px;
+  flex: 1 1 auto;
 }
-.card[data-panel="audit"] .tableWrap { max-height: calc(100vh - 330px); }
+.layout.dashboardMode .card[data-panel="dashboard"] .tableWrap { max-height: 100%; }
+.card[data-panel="audit"] .tableWrap { max-height: none; }
 .card[data-panel="documents"] .tableWrap { max-height: 26vh; }
 .card[data-panel="client"] .tableWrap { max-height: 34vh; }
 #missionsTable { min-width: 920px; }
@@ -421,10 +478,12 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 }
 
 @media (max-width: 900px) {
+  html, body { overflow: auto; height: auto; }
   .topbar, .sectionHeader { display: block; }
   .brandBlock { min-width: 0; align-items: flex-start; }
   .topPanel { text-align: left; justify-items: start; margin-top: 18px; }
-  .layout, .grid, .twoCols, .factGrid { grid-template-columns: 1fr; }
+  .layout, .layout.dashboardMode, .grid, .twoCols, .factGrid, .layout.dashboardMode .grid, .layout.dashboardMode .factGrid { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; overflow: visible; }
+  .layout.dashboardMode .card[data-panel="dashboard"] { grid-column: auto; grid-row: auto; max-height: none; }
   .layout { padding: 16px; }
   .tabs { padding: 10px 16px; }
 }

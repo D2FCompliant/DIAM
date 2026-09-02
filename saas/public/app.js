@@ -1055,6 +1055,7 @@ function requireSelection() { if (!state.selected) throw new Error("Sélectionne
 function requireMission() { if (!state.missionId) throw new Error("Crée ou sélectionne d'abord une mission. Sans mission, DIAM ne peut pas rattacher le questionnaire, les preuves et le rapport."); }
 function showTab(name, options = {}) {
   state.activeTab = name;
+  document.querySelector(".layout")?.classList.toggle("dashboardMode", name === "dashboard");
   for (const panel of document.querySelectorAll("[data-panel]")) {
     panel.hidden = panel.dataset.panel !== name;
   }
