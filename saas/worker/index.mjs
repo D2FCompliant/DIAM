@@ -683,6 +683,14 @@ async function handleApi(request, env) {
     if (!file || !missionId) return json({ error: "Fichier et mission obligatoires." }, 400);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const existing = (await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&sha256=eq.${hash}`))[0];
+    if (existing) {
+      const updated = await db.patch("diam_documents", `?id=eq.${existing.id}&tenant_id=eq.${tenant.id}`, {
+        document_type: documentType || existing.document_type,
+        updated_at: new Date().toISOString()
+      });
+      return json({ ...(updated || existing), duplicate: true, message: "Document déjà présent dans cette mission : il a été sélectionné pour analyse." }, 200);
+    }
     const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${file.name}`;
     await db.uploadToBucket("diam-documents", storagePath, bytes, file.type || "application/octet-stream");
     const document = await db.insert("diam_documents", {

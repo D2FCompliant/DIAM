@@ -512,7 +512,7 @@ function renderDocuments() {
   }
   $("documentsTable").querySelector("tbody").innerHTML = state.documents.map((d, i) => `
     <tr data-index="${i}" class="${state.documentId === d.id ? "selected" : ""}">
-      <td>${escapeHtml(d.document_type)}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(analysisStatusLabel(d.analysis_status))}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
+      <td>${escapeHtml(documentTypeLabel(d.document_type))}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(analysisStatusLabel(d.analysis_status))}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
     </tr>`).join("");
   for (const row of $("documentsTable").querySelectorAll("tbody tr")) {
     row.onclick = () => { state.documentId = state.documents[Number(row.dataset.index)].id; renderDocumentsSelection(); };
@@ -536,7 +536,7 @@ async function uploadAuditDocument() {
   setStatus("Dépôt documentaire...", "info", "documentStatus");
   const doc = await api("/api/documents", { method: "POST", body: fd });
   state.documentId = doc.id;
-  setStatus("Document déposé et haché. Tu peux lancer l'analyse IA.", "success", "documentStatus");
+  setStatus(doc.duplicate ? "Document déjà présent : il est sélectionné, tu peux lancer l'analyse au regard du référentiel." : "Document déposé et haché. Tu peux lancer l'analyse au regard du référentiel.", "success", "documentStatus");
   await loadDocuments();
   showTab("documents");
 }
@@ -812,6 +812,20 @@ function applicationStatusLabel(value) {
     DRAFT: "Dossier en préparation",
     UNKNOWN: "Non renseigné"
   })[value] || "Non renseigné";
+}
+function documentTypeLabel(value) {
+  return ({
+    QUALITY: "Qualité / ISO",
+    TECHNICAL: "Technique / architecture",
+    SECURITY: "Sécurité / IAM / journalisation",
+    DGFiP_APPLICATION: "Dossier de candidature DGFiP",
+    DGFiP_APPLICATION_ACCEPTED: "Dossier de candidature accepté DGFiP",
+    D2F_REFERENCE: "Référentiel / note D2F Compliant",
+    REGULATORY_UPDATE: "Demande récente DGFiP/AIFE",
+    DGFIP_MEETING_NOTE: "Compte rendu réunion DGFiP/AIFE",
+    EVIDENCE_EXPORT: "Export de logs / preuve",
+    OTHER: "Autre"
+  })[value] || value || "-";
 }
 function formatDate(value) {
   if (!value) return "-";
