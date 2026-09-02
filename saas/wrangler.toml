@@ -1,6 +1,7 @@
-name = "diam-saas"
+name = "diam"
 main = "worker/index.mjs"
 compatibility_date = "2026-09-02"
+keep_vars = true
 
 [assets]
 directory = "./dist"
