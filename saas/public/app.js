@@ -256,9 +256,15 @@ function importD2FClient() {
   if (!client) throw new Error("Client D2F introuvable dans la sélection.");
   $("clientName").value = client.name || $("clientName").value;
   $("siren").value = client.siren || client.siret || $("siren").value;
+  $("legalIdentifier").value = client.legalIdentifier || $("legalIdentifier").value;
+  $("vatId").value = client.vatId || $("vatId").value;
   $("clientAddress").value = client.address || $("clientAddress").value;
+  $("clientAddressLine2").value = client.addressLine2 || $("clientAddressLine2").value;
+  $("clientPostalCode").value = client.postalCode || $("clientPostalCode").value;
   $("clientCity").value = client.city || $("clientCity").value;
   $("clientCountry").value = client.country || $("clientCountry").value;
+  $("clientEmail").value = client.email || $("clientEmail").value;
+  $("clientPhone").value = client.phone || $("clientPhone").value;
   $("clientLanguage").value = client.language || $("clientLanguage").value;
   $("d2fSuiteClientId").value = client.id || $("d2fSuiteClientId").value;
   $("d2fSuiteCaseUrl").value = client.caseUrl || client.sourceUrl || $("d2fSuiteCaseUrl").value;
@@ -270,11 +276,17 @@ function normalizeD2FClient(raw = {}) {
   const id = raw.dossierSourceId || raw.dossier_source_id || raw.id || raw.clientId || raw.stableId || raw.d2fClientId || raw.identity?.id || "";
   const siren = raw.siren || raw.SIREN || raw.identity?.siren || "";
   const siret = raw.siret || raw.SIRET || raw.identity?.siret || "";
+  const legalIdentifier = raw.legalIdentifier || raw.legal_identifier || raw.legalId || raw.identity?.legalIdentifier || siren || siret || "";
+  const vatId = raw.vatId || raw.vat_id || raw.vatNumber || raw.identity?.vatId || "";
   const addressObj = raw.address || raw.identity?.address || {};
   const address = typeof addressObj === "string" ? addressObj : [addressObj.line1, addressObj.line2, addressObj.street].filter(Boolean).join(" ");
+  const addressLine2 = raw.addressLine2 || raw.address_line_2 || raw.street2 || (typeof addressObj === "object" ? addressObj.line2 || "" : "");
+  const postalCode = raw.postalCode || raw.postal_code || raw.postal || (typeof addressObj === "object" ? addressObj.postalCode || addressObj.postal_code || addressObj.zip || "" : "");
   const city = raw.city || addressObj.city || raw.identity?.city || "";
   const country = raw.country || addressObj.country || raw.identity?.country || "";
   const language = normalizeLanguage(raw.language || raw.clientLanguage || raw.identity?.language || "fr");
+  const email = raw.email || raw.identity?.email || "";
+  const phone = raw.phone || raw.identity?.phone || "";
   const caseUrl = raw.caseUrl || raw.case_url || raw.url || raw.sourceUrl || "";
   return {
     raw,
@@ -282,13 +294,19 @@ function normalizeD2FClient(raw = {}) {
     name,
     siren,
     siret,
+    legalIdentifier,
+    vatId,
     address,
+    addressLine2,
+    postalCode,
     city,
     country,
     language,
+    email,
+    phone,
     caseUrl,
     sourceUrl: raw.sourceUrl || raw.source_url || "",
-    label: `${id || "Client D2F"} — ${name || "Sans nom"}${siren || siret ? ` · ${siren || siret}` : ""}`
+    label: `${id || "Client D2F"} — ${name || "Sans nom"}${siren || siret || legalIdentifier || vatId ? ` · ${siren || siret || legalIdentifier || vatId}` : ""}`
   };
 }
 
@@ -344,15 +362,37 @@ function fillMissionForm(mission) {
   const scope = mission.client_scope || {};
   $("clientName").value = mission.client_name || "";
   $("siren").value = mission.client_siren || "";
+  $("legalIdentifier").value = scope.client_legal_identifier || "";
+  $("vatId").value = scope.client_vat_id || "";
   $("missionTitle").value = mission.title || "Audit de conformité PA";
   $("clientCountry").value = mission.client_country || "France";
   $("clientAddress").value = mission.client_address || "";
+  $("clientAddressLine2").value = scope.client_address_line_2 || "";
+  $("clientPostalCode").value = scope.client_postal_code || "";
   $("clientCity").value = mission.client_city || "";
+  $("clientEmail").value = scope.client_email || "";
+  $("clientPhone").value = scope.client_phone || "";
   $("clientLanguage").value = mission.client_language || scope.client_language || "fr";
   $("dgfipApplicationStatus").value = scope.dgfip_application_status || "UNKNOWN";
   $("d2fSuiteClientId").value = scope.d2f_business_suite_client_id || "";
   $("d2fSuiteCaseUrl").value = scope.d2f_business_suite_case_url || "";
   $("declaredScope").value = scope.declared_scope || "";
+}
+
+function clientIdentityPayload() {
+  return {
+    client_name: $("clientName").value,
+    siren: $("siren").value,
+    legal_identifier: $("legalIdentifier").value,
+    vat_id: $("vatId").value,
+    country: $("clientCountry").value,
+    address: $("clientAddress").value,
+    address_line_2: $("clientAddressLine2").value,
+    postal_code: $("clientPostalCode").value,
+    city: $("clientCity").value,
+    email: $("clientEmail").value,
+    phone: $("clientPhone").value
+  };
 }
 
 function renderMissionList() {
@@ -394,7 +434,11 @@ function renderClientFacts() {
     <div class="factGrid">
       <div><span>Client</span><strong>${escapeHtml(mission.client_name || "Non renseigné")}</strong></div>
       <div><span>SIREN</span><strong>${escapeHtml(mission.client_siren || "Non renseigné")}</strong></div>
+      <div><span>Identifiant légal</span><strong>${escapeHtml(scope.client_legal_identifier || "Non renseigné")}</strong></div>
+      <div><span>N° TVA</span><strong>${escapeHtml(scope.client_vat_id || "Non renseigné")}</strong></div>
       <div><span>Pays</span><strong>${escapeHtml(mission.client_country || "Non renseigné")}</strong></div>
+      <div><span>Adresse</span><strong>${escapeHtml([mission.client_address, scope.client_address_line_2, [scope.client_postal_code, mission.client_city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Non renseignée")}</strong></div>
+      <div><span>Contact</span><strong>${escapeHtml([scope.client_email, scope.client_phone].filter(Boolean).join(" · ") || "Non renseigné")}</strong></div>
       <div><span>Langue</span><strong>${escapeHtml(languageLabel(mission.client_language || scope.client_language || "fr"))}</strong></div>
       <div><span>Dossier DGFiP</span><strong>${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</strong></div>
       <div><span>Périmètre déclaré</span><strong>${escapeHtml(scope.declared_scope || "À cadrer par dossier de candidature accepté")}</strong></div>
@@ -429,13 +473,9 @@ async function createMission() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      client_name: $("clientName").value,
-      siren: $("siren").value,
+      ...clientIdentityPayload(),
       title: $("missionTitle").value,
       client_language: $("clientLanguage").value,
-      country: $("clientCountry").value,
-      address: $("clientAddress").value,
-      city: $("clientCity").value,
       dgfip_application_status: $("dgfipApplicationStatus").value,
       d2f_business_suite_client_id: $("d2fSuiteClientId").value,
       d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
@@ -455,13 +495,9 @@ async function updateMissionProfile() {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      client_name: $("clientName").value,
-      siren: $("siren").value,
+      ...clientIdentityPayload(),
       title: $("missionTitle").value,
       client_language: $("clientLanguage").value,
-      country: $("clientCountry").value,
-      address: $("clientAddress").value,
-      city: $("clientCity").value,
       dgfip_application_status: $("dgfipApplicationStatus").value,
       d2f_business_suite_client_id: $("d2fSuiteClientId").value,
       d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
@@ -882,7 +918,8 @@ function reportHtml(out) {
     <p><strong>Référentiel :</strong> ${escapeHtml(REG_LABEL())}</p>
     <p><strong>Version DIAM :</strong> ${escapeHtml(appRelease.name)} v${escapeHtml(appRelease.version)} — ${escapeHtml(appRelease.release)} · schéma ${escapeHtml(appRelease.schema?.current || appRelease.schemaVersion || "-")} · build ${escapeHtml(appRelease.buildCommit || "non renseigné")}</p>
     <h2>Fiche client et périmètre audité</h2>
-    <p><strong>Client :</strong> ${escapeHtml(out.client?.name || "-")} · <strong>SIREN :</strong> ${escapeHtml(out.client?.siren || "-")} · <strong>Pays :</strong> ${escapeHtml(out.client?.country || "-")}</p>
+    <p><strong>Client :</strong> ${escapeHtml(out.client?.name || "-")} · <strong>SIREN :</strong> ${escapeHtml(out.client?.siren || "-")} · <strong>Identifiant légal :</strong> ${escapeHtml(scope.client_legal_identifier || "-")} · <strong>N° TVA :</strong> ${escapeHtml(scope.client_vat_id || "-")} · <strong>Pays :</strong> ${escapeHtml(out.client?.country || "-")}</p>
+    <p><strong>Adresse :</strong> ${escapeHtml([out.client?.address, scope.client_address_line_2, [scope.client_postal_code, out.client?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "-")} · <strong>Contact :</strong> ${escapeHtml([scope.client_email, scope.client_phone].filter(Boolean).join(" · ") || "-")}</p>
     <p><strong>Langue client :</strong> ${escapeHtml(languageLabel(out.mission?.client_language || scope.client_language || "fr"))}</p>
     <p><strong>Statut dossier DGFiP :</strong> ${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</p>
     <p><strong>Périmètre PA déclaré :</strong> ${escapeHtml(scope.declared_scope || "-")}</p>

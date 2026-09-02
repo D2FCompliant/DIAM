@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "0.3.3",
-  release: "Business Suite Lookup Guard",
+  version: "0.3.4",
+  release: "Business Suite Identity Sync",
   schemaVersion: "202609020009_security_baseline",
   channel: "main",
   releasedAt: "2026-09-02",
-  lastChange: "Recherche client D2F Business Suite tolérante, fallback élargi, authentification HTTPS et protection API"
+  lastChange: "Synchronisation fidèle de la fiche client internationale Business Suite vers DIAM"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -941,6 +941,12 @@ async function handleApi(request, env) {
       scope: {
         ...(body.scope || {}),
         client_language: body.client_language || "fr",
+        client_legal_identifier: body.legal_identifier || "",
+        client_vat_id: body.vat_id || "",
+        client_address_line_2: body.address_line_2 || "",
+        client_postal_code: body.postal_code || "",
+        client_email: body.email || "",
+        client_phone: body.phone || "",
         dgfip_application_status: body.dgfip_application_status || "UNKNOWN",
         declared_scope: body.declared_scope || "",
         d2f_business_suite_client_id: body.d2f_business_suite_client_id || "",
@@ -984,6 +990,12 @@ async function handleApi(request, env) {
     const nextScope = {
       ...currentScope,
       client_language: body.client_language || mission.client_language || currentScope.client_language || "fr",
+      client_legal_identifier: body.legal_identifier ?? currentScope.client_legal_identifier ?? "",
+      client_vat_id: body.vat_id ?? currentScope.client_vat_id ?? "",
+      client_address_line_2: body.address_line_2 ?? currentScope.client_address_line_2 ?? "",
+      client_postal_code: body.postal_code ?? currentScope.client_postal_code ?? "",
+      client_email: body.email ?? currentScope.client_email ?? "",
+      client_phone: body.phone ?? currentScope.client_phone ?? "",
       dgfip_application_status: body.dgfip_application_status || currentScope.dgfip_application_status || "UNKNOWN",
       declared_scope: body.declared_scope ?? currentScope.declared_scope ?? "",
       d2f_business_suite_client_id: body.d2f_business_suite_client_id ?? currentScope.d2f_business_suite_client_id ?? "",
