@@ -96,11 +96,27 @@ install.packages(c(
   "shiny", "bslib", "DBI", "RSQLite", "DT", "openssl",
   "uuid", "fs", "mime"
 ))
-shiny::runApp()
+shiny::runApp(".")
 ```
 
 La base SQLite est créée automatiquement dans `data/diam.sqlite`. Les preuves
 sont copiées sous `evidence/<uuid-mission>/originals/`.
+
+## Version SaaS Cloudflare/Supabase
+
+Le dossier `saas/` contient un socle SaaS distinct de D2F Enterprise Platform :
+
+- interface web Cloudflare Assets ;
+- API Cloudflare Worker ;
+- base Supabase Postgres dédiée ;
+- buckets privés Supabase pour documents audités et preuves ;
+- analyse IA optionnelle des documents qualité/techniques via OpenAI côté
+  serveur ;
+- evidence book et rapport DGFiP avec questions, attendus, réponses, constats,
+  preuves attendues et preuves associées.
+
+Voir `saas/README.md` pour l'installation Supabase, les secrets Cloudflare et
+les commandes de test/déploiement.
 
 ## Vérification
 

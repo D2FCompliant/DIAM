@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DIAM SaaS - Audit PA DGFiP</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">D2F Compliant</p>
+        <h1>DIAM SaaS</h1>
+      </div>
+      <div class="baseline" id="baseline">Chargement du référentiel...</div>
+    </header>
+
+    <main class="layout">
+      <section class="card wide">
+        <h2>Méthode d'audit obligatoire</h2>
+        <p>DIAM applique une approche d'assurance inspirée ISO/ISAE 3000 : critères explicites, preuves suffisantes et appropriées, scepticisme professionnel, traçabilité, revue humaine et rapport final. L'IA analyse les documents et propose des écarts potentiels ; elle ne remplace jamais la décision de l'auditeur.</p>
+      </section>
+
+      <section class="card">
+        <h2>Nouvelle mission</h2>
+        <div class="grid">
+          <label>Client audité <input id="clientName" value="Client PA" /></label>
+          <label>SIREN <input id="siren" placeholder="123456789" /></label>
+          <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
+        </div>
+        <button id="createMission">Créer mission + questionnaire DGFiP/PDP</button>
+        <p class="status" id="createStatus"></p>
+      </section>
+
+      <section class="card">
+        <h2>Mission</h2>
+        <div class="row">
+          <select id="missionSelect"></select>
+          <button id="reload">Rafraîchir</button>
+          <button id="generateReport">Générer rapport DGFiP</button>
+        </div>
+        <div class="opinion" id="opinion"></div>
+      </section>
+
+      <section class="card wide">
+        <h2>Chaîne d'audit</h2>
+        <p>Une ligne = attendu DGFiP + qualification PDP + réponse client + constat + preuves.</p>
+        <div class="tableWrap">
+          <table id="chainTable">
+            <thead>
+              <tr>
+                <th>Réf.</th><th>Question</th><th>Base</th><th>Retenue</th><th>Réponse</th><th>Constat</th><th>Preuves</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card wide" id="detailCard">
+        <h2>Détail du contrôle sélectionné</h2>
+        <div id="detailEmpty" class="muted">Sélectionne une ligne dans la chaîne d'audit.</div>
+        <div id="detail" hidden>
+          <h3 id="detailTitle"></h3>
+          <div class="twoCols">
+            <div>
+              <h4>Attendu DGFiP</h4>
+              <p id="requirement"></p>
+              <h4>Preuves attendues</h4>
+              <p id="expectedEvidence"></p>
+              <h4>Checklist auditeur</h4>
+              <ul id="checklist"></ul>
+            </div>
+            <div>
+              <h4>Réponse client / analyse</h4>
+              <label>Statut
+                <select id="answerStatus">
+                  <option>NOT_STARTED</option>
+                  <option>COMPLIANT</option>
+                  <option>PARTIALLY_COMPLIANT</option>
+                  <option>NON_COMPLIANT</option>
+                  <option>NOT_APPLICABLE</option>
+                </select>
+              </label>
+              <label>Réponse client <textarea id="clientAnswer"></textarea></label>
+              <label>Analyse auditeur <textarea id="auditorAnalysis"></textarea></label>
+              <button id="saveAnswer">Enregistrer réponse</button>
+            </div>
+          </div>
+
+          <hr />
+          <div class="twoCols">
+            <div>
+              <h4>Constat et qualification</h4>
+              <label>Synthèse constat <input id="findingSummary" /></label>
+              <label>Qualification retenue
+                <select id="retainedQualification">
+                  <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option>
+                </select>
+              </label>
+              <label>Recommandation <textarea id="recommendation"></textarea></label>
+              <button id="saveFinding">Créer / mettre à jour constat</button>
+              <div class="row">
+                <select id="findingStatus">
+                  <option>OPEN</option><option>IN_REVIEW</option><option>CLOSED</option>
+                </select>
+                <button id="closeFinding">Mettre à jour traitement</button>
+              </div>
+            </div>
+            <div>
+              <h4>Preuve liée au constat</h4>
+              <p class="muted">Verse une preuve directement ici : elle sera stockée dans Supabase Storage, hachée SHA-256 et liée au constat.</p>
+              <input id="evidenceFile" type="file" />
+              <button id="uploadEvidence">Verser et lier au constat</button>
+              <p class="status" id="actionStatus"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card wide">
+        <h2>Dépôt documentaire et analyse IA</h2>
+        <p>Dépose les documents qualité, sécurité, techniques, architecture, procédures, journaux exportés ou dossiers de candidature. L'IA analyse les documents contre le référentiel et propose des écarts potentiels à valider par l'auditeur.</p>
+        <div class="grid">
+          <label>Type de document
+            <select id="auditDocumentType">
+              <option value="QUALITY">Qualité / ISO</option>
+              <option value="TECHNICAL">Technique / architecture</option>
+              <option value="SECURITY">Sécurité / IAM / journalisation</option>
+              <option value="DGFiP_APPLICATION">Candidature DGFiP</option>
+              <option value="EVIDENCE_EXPORT">Export de logs / preuve</option>
+              <option value="OTHER">Autre</option>
+            </select>
+          </label>
+          <label>Document à analyser <input id="auditDocumentFile" type="file" /></label>
+          <div class="row">
+            <button id="uploadAuditDocument">Déposer</button>
+            <button id="analyzeAuditDocument">Analyser par IA</button>
+          </div>
+        </div>
+        <p class="muted" id="selectedDocument">Aucun document sélectionné.</p>
+        <div class="tableWrap">
+          <table id="documentsTable">
+            <thead><tr><th>Type</th><th>Fichier</th><th>Analyse</th><th>SHA-256</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <h3>Propositions d'écarts IA</h3>
+        <p class="muted">Ces propositions ne sont pas des constats définitifs. L'auditeur doit les valider, les rejeter ou les compléter.</p>
+        <div class="tableWrap">
+          <table id="suggestionsTable">
+            <thead><tr><th>Contrôle</th><th>Qualification</th><th>Écart potentiel</th><th>Confiance</th><th>Statut</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <button id="promoteSuggestion">Promouvoir la proposition sélectionnée en constat</button>
+      </section>
+
+      <section class="card wide" id="reportCard" hidden>
+        <h2>Rapport DGFiP</h2>
+        <button onclick="window.print()">Imprimer / exporter PDF</button>
+        <div id="report"></div>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

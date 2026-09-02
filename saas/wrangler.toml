@@ -1,0 +1,17 @@
+name = "diam-saas"
+main = "worker/index.mjs"
+compatibility_date = "2026-09-02"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+
+[vars]
+APP_NAME = "DIAM SaaS"
+OPENAI_MODEL = "gpt-5"
+
+# Secrets à définir avant déploiement :
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# wrangler secret put DIAM_OWNER_EMAIL
+# wrangler secret put OPENAI_API_KEY
