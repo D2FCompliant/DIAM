@@ -302,13 +302,35 @@ async function auditChain(db, tenantId, missionId) {
 }
 
 async function handleApi(request, env) {
-  const db = supabase(env);
-  const tenant = await ensureTenant(db, env, request);
   const url = new URL(request.url);
   const path = url.pathname;
+
+  if (path === "/api/health") {
+    return json({
+      ok: true,
+      runtime: "cloudflare-worker",
+      supabase_url_configured: Boolean(env.SUPABASE_URL),
+      supabase_key_configured: Boolean(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY),
+      baseline: REGULATORY_BASELINE
+    });
+  }
+
+  const db = supabase(env);
+  let tenant;
+  try {
+    tenant = await ensureTenant(db, env, request);
+  } catch (e) {
+    const message = e.message || String(e);
+    if (message.includes("diam_tenants") || message.includes("schema cache")) {
+      return json({
+        error: "Base Supabase non initialisée : exécuter la migration saas/supabase/migrations/202609020001_diam_saas.sql dans le SQL Editor Supabase.",
+        technical: message
+      }, 503);
+    }
+    throw e;
+  }
   const who = actor(request, env);
 
-  if (path === "/api/health") return json({ ok: true, baseline: REGULATORY_BASELINE });
   if (path === "/api/bootstrap") return json({ tenant, baseline: REGULATORY_BASELINE, controls: BASE_CONTROLS });
 
   if (path === "/api/missions" && request.method === "GET") {
