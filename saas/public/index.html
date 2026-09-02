@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DIAM SaaS - Audit PA DGFiP</title>
+    <title>DIAM SaaS - Audits PA et SC</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -13,7 +13,7 @@
         <div>
           <p class="eyebrow">D2F Compliant · Audit & conformité</p>
           <h1>DIAM SaaS</h1>
-          <p class="tagline">Plateforme d’audit PA — questionnaire, preuves, constats, analyse assistée et rapport DGFiP.</p>
+          <p class="tagline">Plateforme d’audit PA/SC — questionnaire, preuves, constats, analyse assistée et rapports.</p>
         </div>
       </div>
       <div class="topPanel">
@@ -50,7 +50,7 @@
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Méthode obligatoire</p>
-            <h2>Chaîne d’assurance DGFiP / PDP Integrity</h2>
+            <h2>Chaîne d’assurance PA/DGFiP et SC/RLF-C</h2>
           </div>
           <div class="kpis">
             <span>33 contrôles socle</span>
@@ -64,12 +64,18 @@
 
       <section class="card" data-panel="dashboard">
         <h2>Fiche mission / client</h2>
-        <p class="muted">Crée une mission ou mets à jour la mission ouverte. Le dossier DGFiP accepté sert ensuite à cadrer le périmètre PA audité.</p>
+        <p class="muted">Crée une mission ou mets à jour la mission ouverte. Le programme d’audit pilote le questionnaire, les preuves attendues et le rapport.</p>
         <div class="grid">
           <label>Client audité <input id="clientName" value="Client PA" /></label>
-          <label>SIREN <input id="siren" placeholder="123456789" /></label>
-          <label>Identifiant légal <input id="legalIdentifier" placeholder="Identifiant national / registre" /></label>
+          <label id="sirenField"><span id="sirenLabel">SIREN</span> <input id="siren" placeholder="123456789" /></label>
+          <label id="legalIdentifierField"><span id="legalIdentifierLabel">Identifiant légal national</span> <input id="legalIdentifier" placeholder="Identifiant national / registre" /></label>
           <label>N° TVA <input id="vatId" placeholder="Ex. BE0552912569" /></label>
+          <label>Programme d’audit
+            <select id="auditProgram">
+              <option value="PA_DGFIP">PA / DGFiP + PDP Integrity</option>
+              <option value="SC_RLFC">SC / Solution Compatible RLF-C</option>
+            </select>
+          </label>
           <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
           <label>Pays <input id="clientCountry" value="France" /></label>
           <label>Adresse <input id="clientAddress" placeholder="Adresse du siège" /></label>
@@ -97,7 +103,7 @@
           </label>
           <label>ID client D2F Business Suite <input id="d2fSuiteClientId" placeholder="Ex. D2F-BS-CLIENT-0001" /></label>
           <label>Dossier source D2F Business Suite <input id="d2fSuiteCaseUrl" placeholder="URL ou référence du dossier D2F Business Suite" /></label>
-          <label>Périmètre PA déclaré <textarea id="declaredScope" placeholder="Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales..."></textarea></label>
+          <label>Périmètre déclaré <textarea id="declaredScope" placeholder="Ex. émission, réception, e-reporting, SC, PA raccordée, Peppol, périmètre pays/filiales..."></textarea></label>
         </div>
         <div class="integrationBox">
           <h3>Connexion D2F Business Suite</h3>
@@ -108,13 +114,13 @@
           </div>
           <div class="row">
             <select id="d2fClientResults"><option value="">Aucun client D2F chargé</option></select>
-            <button id="importD2FClient" class="secondary" type="button">Importer dans la fiche</button>
+            <button id="importD2FClient" class="secondary" type="button">Importer et synchroniser</button>
           </div>
           <p class="status" id="d2fSyncStatus"></p>
         </div>
         <div class="row">
-          <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>
-          <button id="updateMissionProfile" class="secondary">Mettre à jour fiche mission active</button>
+          <button id="createMission">Créer mission + questionnaire</button>
+          <button id="updateMissionProfile" class="secondary">Enregistrer les modifications manuelles</button>
           <button id="prepareDgfipAnalysis" class="secondary">Déposer/analyser dossier DGFiP accepté</button>
         </div>
         <p class="status" id="createStatus"></p>

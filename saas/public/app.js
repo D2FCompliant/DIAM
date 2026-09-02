@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "" };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], d2fImportedClientUpdatedAt: "", clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
@@ -8,10 +8,25 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.3.3",
-  release: "Business Suite Lookup Guard",
+  version: "0.3.6",
+  release: "SC Audit Program",
   schemaVersion: "202609020009_security_baseline",
   buildCommit: "mode local"
+};
+
+const AUDIT_PROGRAMS = {
+  PA_DGFIP: {
+    label: "PA / DGFiP + PDP Integrity",
+    shortLabel: "PA",
+    defaultTitle: "Audit de conformité PA",
+    expectedControls: 33
+  },
+  SC_RLFC: {
+    label: "SC / Solution Compatible RLF-C",
+    shortLabel: "SC",
+    defaultTitle: "Audit de conformité SC",
+    expectedControls: 62
+  }
 };
 
 const DEMO_CHAIN = [
@@ -155,6 +170,7 @@ function bindEvents() {
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
   $("searchD2FClients").onclick = () => run(searchD2FClients, "d2fSyncStatus");
   $("importD2FClient").onclick = () => run(importD2FClient, "d2fSyncStatus");
+  $("auditProgram").onchange = () => applyAuditProgramDefaults();
   $("refreshMissions").onclick = () => run(loadMissions, "createStatus");
   $("reload").onclick = () => run(refreshAll, "createStatus");
   $("deleteMission").onclick = () => run(deleteMission, "createStatus");
@@ -180,6 +196,14 @@ function bindEvents() {
     fillMissionForm(currentMission());
     run(refreshAll, "createStatus");
   };
+  $("clientCountry").addEventListener("input", syncCountryIdentifierFields);
+  $("clientCountry").addEventListener("change", syncCountryIdentifierFields);
+  for (const id of ["clientName", "siren", "legalIdentifier", "vatId", "clientAddress", "clientAddressLine2", "clientPostalCode", "clientCity", "clientEmail", "clientPhone", "clientLanguage", "d2fSuiteClientId", "d2fSuiteCaseUrl", "declaredScope"]) {
+    $(id)?.addEventListener("input", () => {
+      if (state.missionId) setStatus("Modifications manuelles non enregistrées. Clique “Enregistrer les modifications manuelles”.", "info", "createStatus");
+    });
+  }
+  syncCountryIdentifierFields();
   showTab("dashboard", { scroll: false });
 }
 
@@ -249,26 +273,76 @@ async function searchD2FClients() {
   setStatus(`${state.d2fClients.length} client(s) D2F chargé(s) depuis Business Suite ${out.integration?.version || ""}${mode}${correlation}.`, "success", "d2fSyncStatus");
 }
 
-function importD2FClient() {
+async function importD2FClient() {
   const index = $("d2fClientResults").value;
   if (index === "") throw new Error("Recherche et sélectionne d’abord un client D2F Business Suite.");
   const client = state.d2fClients?.[Number(index)];
   if (!client) throw new Error("Client D2F introuvable dans la sélection.");
   $("clientName").value = client.name || $("clientName").value;
-  $("siren").value = client.siren || client.siret || $("siren").value;
-  $("legalIdentifier").value = client.legalIdentifier || $("legalIdentifier").value;
+  $("clientCountry").value = client.country || $("clientCountry").value;
+  const french = isFrenchCountry($("clientCountry").value);
+  $("siren").value = french ? frenchSiren(client) : "";
+  $("legalIdentifier").value = client.legalIdentifier || (french ? frenchSiren(client) : client.vatId) || "";
   $("vatId").value = client.vatId || $("vatId").value;
   $("clientAddress").value = client.address || $("clientAddress").value;
   $("clientAddressLine2").value = client.addressLine2 || $("clientAddressLine2").value;
   $("clientPostalCode").value = client.postalCode || $("clientPostalCode").value;
   $("clientCity").value = client.city || $("clientCity").value;
-  $("clientCountry").value = client.country || $("clientCountry").value;
   $("clientEmail").value = client.email || $("clientEmail").value;
   $("clientPhone").value = client.phone || $("clientPhone").value;
   $("clientLanguage").value = client.language || $("clientLanguage").value;
   $("d2fSuiteClientId").value = client.id || $("d2fSuiteClientId").value;
   $("d2fSuiteCaseUrl").value = client.caseUrl || client.sourceUrl || $("d2fSuiteCaseUrl").value;
-  setStatus("Client D2F importé dans la fiche. Clique ensuite “Créer mission” ou “Mettre à jour fiche mission active”.", "success", "d2fSyncStatus");
+  state.d2fImportedClientUpdatedAt = client.updatedAt || "";
+  syncCountryIdentifierFields();
+  if (!state.missionId) {
+    setStatus("Client D2F importé dans la fiche. Crée maintenant la première mission pour l’enregistrer.", "success", "d2fSyncStatus");
+    return;
+  }
+  setStatus("Synchronisation et enregistrement de la mission active...", "info", "d2fSyncStatus");
+  const out = await api(`/api/missions/${state.missionId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(missionProfilePayload())
+  });
+  state.missionId = out.mission.id;
+  await loadMissions();
+  setStatus("Client importé depuis Business Suite et mission DIAM mise à jour. La synchronisation est enregistrée dans la traçabilité.", "success", "d2fSyncStatus");
+}
+
+function normalizedCountry(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function isFrenchCountry(value) {
+  return ["FR", "FRA", "FRANCE", "RÉPUBLIQUE FRANÇAISE", "REPUBLIQUE FRANCAISE"].includes(normalizedCountry(value));
+}
+
+function frenchSiren(client = {}) {
+  const direct = String(client.siren || "").replace(/\D/g, "");
+  if (direct.length === 9) return direct;
+  const siret = String(client.siret || "").replace(/\D/g, "");
+  if (siret.length === 14) return siret.slice(0, 9);
+  const legal = String(client.legalIdentifier || "").replace(/\D/g, "");
+  return legal.length === 9 ? legal : "";
+}
+
+function syncCountryIdentifierFields() {
+  const country = $("clientCountry")?.value || "";
+  const french = isFrenchCountry(country);
+  if ($("sirenField")) $("sirenField").hidden = !french;
+  if ($("legalIdentifierField")) $("legalIdentifierField").hidden = french;
+  if ($("legalIdentifierLabel")) $("legalIdentifierLabel").textContent = "Identifiant légal national";
+}
+
+function countryIdentifier(mission = {}, scope = {}) {
+  const french = isFrenchCountry(mission.client_country);
+  return {
+    label: french ? "SIREN" : "Identifiant légal national",
+    value: french
+      ? mission.client_siren || scope.client_legal_identifier || ""
+      : scope.client_legal_identifier || scope.client_vat_id || ""
+  };
 }
 
 function normalizeD2FClient(raw = {}) {
@@ -306,6 +380,7 @@ function normalizeD2FClient(raw = {}) {
     phone,
     caseUrl,
     sourceUrl: raw.sourceUrl || raw.source_url || "",
+    updatedAt: raw.updatedAt || raw.updated_at || "",
     label: `${id || "Client D2F"} — ${name || "Sans nom"}${siren || siret || legalIdentifier || vatId ? ` · ${siren || siret || legalIdentifier || vatId}` : ""}`
   };
 }
@@ -330,7 +405,7 @@ async function loadMissions() {
     state.selected = null;
     state.selectedClientFinding = null;
     $("missionSelect").innerHTML = `<option value="">Aucune mission — crée d’abord une mission</option>`;
-    $("opinion").innerHTML = "<strong>Aucune mission active</strong><br>Crée une mission pour générer automatiquement les 33 contrôles PA/DGFiP.";
+    $("opinion").innerHTML = "<strong>Aucune mission active</strong><br>Crée une mission pour générer automatiquement le questionnaire PA ou SC.";
     $("detailEmpty").hidden = false;
     $("detail").hidden = true;
     $("selectedDocument").textContent = "Aucune mission active : dépôt documentaire bloqué tant qu’une mission n’est pas créée.";
@@ -364,6 +439,7 @@ function fillMissionForm(mission) {
   $("siren").value = mission.client_siren || "";
   $("legalIdentifier").value = scope.client_legal_identifier || "";
   $("vatId").value = scope.client_vat_id || "";
+  $("auditProgram").value = auditProgramFromMission(mission).id;
   $("missionTitle").value = mission.title || "Audit de conformité PA";
   $("clientCountry").value = mission.client_country || "France";
   $("clientAddress").value = mission.client_address || "";
@@ -376,14 +452,17 @@ function fillMissionForm(mission) {
   $("dgfipApplicationStatus").value = scope.dgfip_application_status || "UNKNOWN";
   $("d2fSuiteClientId").value = scope.d2f_business_suite_client_id || "";
   $("d2fSuiteCaseUrl").value = scope.d2f_business_suite_case_url || "";
+  state.d2fImportedClientUpdatedAt = scope.d2f_business_suite_source_updated_at || "";
   $("declaredScope").value = scope.declared_scope || "";
+  syncCountryIdentifierFields();
 }
 
 function clientIdentityPayload() {
+  const french = isFrenchCountry($("clientCountry").value);
   return {
     client_name: $("clientName").value,
-    siren: $("siren").value,
-    legal_identifier: $("legalIdentifier").value,
+    siren: french ? $("siren").value : "",
+    legal_identifier: french ? ($("siren").value || $("legalIdentifier").value) : $("legalIdentifier").value,
     vat_id: $("vatId").value,
     country: $("clientCountry").value,
     address: $("clientAddress").value,
@@ -395,6 +474,42 @@ function clientIdentityPayload() {
   };
 }
 
+function auditProgram(id) {
+  return AUDIT_PROGRAMS[id] || AUDIT_PROGRAMS.PA_DGFIP;
+}
+
+function auditProgramFromMission(mission = {}) {
+  const scope = mission.client_scope || {};
+  if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return auditProgram(scope.audit_program);
+  return String(mission.referential_version || "").includes("RLF-C:SC") ? AUDIT_PROGRAMS.SC_RLFC : AUDIT_PROGRAMS.PA_DGFIP;
+}
+
+function applyAuditProgramDefaults() {
+  const program = auditProgram($("auditProgram").value);
+  const title = $("missionTitle");
+  if (!title.value.trim() || Object.values(AUDIT_PROGRAMS).some((p) => p.defaultTitle === title.value)) {
+    title.value = program.defaultTitle;
+  }
+  $("declaredScope").placeholder = program.id === "SC_RLFC"
+    ? "Ex. émission/réception, ERP, connecteur PA, annuaire, e-reporting, CDAR, SAE, pays/filiales..."
+    : "Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales...";
+  setStatus(`Programme sélectionné : ${program.label}. Le questionnaire créé contiendra ${program.expectedControls} contrôles.`, "info", "createStatus");
+}
+
+function missionProfilePayload() {
+  return {
+    ...clientIdentityPayload(),
+    audit_program: $("auditProgram")?.value || "PA_DGFIP",
+    title: $("missionTitle").value,
+    client_language: $("clientLanguage").value,
+    dgfip_application_status: $("dgfipApplicationStatus").value,
+    d2f_business_suite_client_id: $("d2fSuiteClientId").value,
+    d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
+    d2f_business_suite_source_updated_at: state.d2fImportedClientUpdatedAt || "",
+    declared_scope: $("declaredScope").value
+  };
+}
+
 function renderMissionList() {
   const tbody = $("missionsTable")?.querySelector("tbody");
   if (!tbody) return;
@@ -403,7 +518,7 @@ function renderMissionList() {
       <tr class="noRows">
         <td colspan="5">
           <strong>Aucune mission créée.</strong><br>
-          Crée une mission pour initialiser les 33 contrôles PA/DGFiP.
+          Crée une mission pour initialiser le questionnaire PA ou SC.
         </td>
       </tr>`;
     return;
@@ -411,7 +526,7 @@ function renderMissionList() {
   tbody.innerHTML = state.missions.map((m) => `
     <tr class="${m.id === state.missionId ? "selected" : ""}">
       <td>${escapeHtml(m.number)}</td>
-      <td>${escapeHtml(m.title)}<br><span class="muted">${escapeHtml(m.client_name || "")}${m.client_country ? " · " + escapeHtml(m.client_country) : ""} · ${escapeHtml(auditTypeLabel(m.audit_type))}</span></td>
+      <td>${escapeHtml(m.title)}<br><span class="muted">${escapeHtml(m.client_name || "")}${m.client_country ? " · " + escapeHtml(m.client_country) : ""} · ${escapeHtml(auditProgramFromMission(m).shortLabel)} · ${escapeHtml(auditTypeLabel(m.audit_type))}</span></td>
       <td>${escapeHtml(m.status || "IN_PROGRESS")}</td>
       <td>${formatDate(m.created_at)}</td>
       <td><button class="small" data-open-mission="${m.id}" type="button">Ouvrir</button></td>
@@ -430,11 +545,14 @@ function renderClientFacts() {
     return;
   }
   const scope = mission.client_scope || {};
+  const identifier = countryIdentifier(mission, scope);
+  const program = auditProgramFromMission(mission);
   box.innerHTML = `
     <div class="factGrid">
+      <div><span>Programme</span><strong>${escapeHtml(program.label)}</strong></div>
+      <div><span>Référentiel</span><strong>${escapeHtml(mission.referential_version || "Non renseigné")}</strong></div>
       <div><span>Client</span><strong>${escapeHtml(mission.client_name || "Non renseigné")}</strong></div>
-      <div><span>SIREN</span><strong>${escapeHtml(mission.client_siren || "Non renseigné")}</strong></div>
-      <div><span>Identifiant légal</span><strong>${escapeHtml(scope.client_legal_identifier || "Non renseigné")}</strong></div>
+      <div><span>${escapeHtml(identifier.label)}</span><strong>${escapeHtml(identifier.value || "Non renseigné")}</strong></div>
       <div><span>N° TVA</span><strong>${escapeHtml(scope.client_vat_id || "Non renseigné")}</strong></div>
       <div><span>Pays</span><strong>${escapeHtml(mission.client_country || "Non renseigné")}</strong></div>
       <div><span>Adresse</span><strong>${escapeHtml([mission.client_address, scope.client_address_line_2, [scope.client_postal_code, mission.client_city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Non renseignée")}</strong></div>
@@ -450,7 +568,7 @@ function renderClientFacts() {
       <div><span>Statut cycle</span><strong>${escapeHtml(lifecycleStatusLabel(mission.lifecycle_status))}</strong></div>
       <div><span>D2F Business Suite</span><strong>${escapeHtml(d2fSuiteLabel(scope))}</strong></div>
     </div>
-    <p class="notice">${escapeHtml(mission.lifecycle_notes || "Après dépôt du dossier de candidature accepté DGFiP et des notes D2F/réunions récentes, l’analyse assistée met en évidence les preuves manquantes et les demandes complémentaires applicables au périmètre déclaré.")}</p>
+    <p class="notice">${escapeHtml(mission.lifecycle_notes || `Après dépôt des documents de cadrage ${program.shortLabel}, des référentiels et des notes D2F/réunions récentes, l’analyse assistée met en évidence les preuves manquantes et les demandes complémentaires applicables au périmètre déclaré.`)}</p>
   `;
 }
 
@@ -472,17 +590,9 @@ async function createMission() {
   const out = await api("/api/missions", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...clientIdentityPayload(),
-      title: $("missionTitle").value,
-      client_language: $("clientLanguage").value,
-      dgfip_application_status: $("dgfipApplicationStatus").value,
-      d2f_business_suite_client_id: $("d2fSuiteClientId").value,
-      d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
-      declared_scope: $("declaredScope").value
-    })
+    body: JSON.stringify(missionProfilePayload())
   });
-  $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles.`;
+  $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles ${out.audit_program?.shortLabel || auditProgram($("auditProgram").value).shortLabel}.`;
   await loadMissions();
   showTab("audit");
 }
@@ -494,26 +604,19 @@ async function updateMissionProfile() {
   const out = await api(`/api/missions/${state.missionId}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      ...clientIdentityPayload(),
-      title: $("missionTitle").value,
-      client_language: $("clientLanguage").value,
-      dgfip_application_status: $("dgfipApplicationStatus").value,
-      d2f_business_suite_client_id: $("d2fSuiteClientId").value,
-      d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
-      declared_scope: $("declaredScope").value
-    })
+    body: JSON.stringify(missionProfilePayload())
   });
   state.missionId = out.mission.id;
   await loadMissions();
-  setStatus("Fiche mission active mise à jour : client, langue, statut DGFiP et périmètre PA sont enregistrés.", "success", "createStatus");
+  setStatus("Fiche mission active mise à jour : client, langue, programme d’audit et périmètre sont enregistrés.", "success", "createStatus");
   showTab("dashboard", { scroll: false });
 }
 
 function prepareDgfipAnalysis() {
   requireMission();
   $("auditDocumentType").value = "DGFiP_APPLICATION_ACCEPTED";
-  setStatus("Dépose le dossier de candidature accepté DGFiP : DIAM l’utilisera pour cadrer le périmètre PA et identifier les preuves manquantes.", "info", "documentStatus");
+  const program = auditProgram($("auditProgram").value);
+  setStatus(`Dépose le dossier de cadrage ${program.shortLabel} : DIAM l’utilisera pour cadrer le périmètre et identifier les preuves manquantes.`, "info", "documentStatus");
   showTab("documents");
   $("auditDocumentFile")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -564,7 +667,7 @@ function renderChain() {
       <tr class="noRows">
         <td colspan="7">
           <strong>Aucune ligne d’audit à afficher.</strong><br>
-          Crée une mission : DIAM générera alors le questionnaire PA/DGFiP, les preuves attendues et la chaîne d’audit.
+          Crée une mission : DIAM générera alors le questionnaire PA ou SC, les preuves attendues et la chaîne d’audit.
         </td>
       </tr>`;
     return;
@@ -911,6 +1014,7 @@ async function generateReport() {
 
 function reportHtml(out) {
   const scope = out.client?.scope || {};
+  const identifier = countryIdentifier({ client_country: out.client?.country, client_siren: out.client?.siren }, scope);
   return `
     <h1>Rapport d'audit de conformité réglementaire</h1>
     <p><strong>Opinion :</strong> ${escapeHtml(out.result.opinion)}</p>
@@ -918,7 +1022,7 @@ function reportHtml(out) {
     <p><strong>Référentiel :</strong> ${escapeHtml(REG_LABEL())}</p>
     <p><strong>Version DIAM :</strong> ${escapeHtml(appRelease.name)} v${escapeHtml(appRelease.version)} — ${escapeHtml(appRelease.release)} · schéma ${escapeHtml(appRelease.schema?.current || appRelease.schemaVersion || "-")} · build ${escapeHtml(appRelease.buildCommit || "non renseigné")}</p>
     <h2>Fiche client et périmètre audité</h2>
-    <p><strong>Client :</strong> ${escapeHtml(out.client?.name || "-")} · <strong>SIREN :</strong> ${escapeHtml(out.client?.siren || "-")} · <strong>Identifiant légal :</strong> ${escapeHtml(scope.client_legal_identifier || "-")} · <strong>N° TVA :</strong> ${escapeHtml(scope.client_vat_id || "-")} · <strong>Pays :</strong> ${escapeHtml(out.client?.country || "-")}</p>
+    <p><strong>Client :</strong> ${escapeHtml(out.client?.name || "-")} · <strong>${escapeHtml(identifier.label)} :</strong> ${escapeHtml(identifier.value || "-")} · <strong>N° TVA :</strong> ${escapeHtml(scope.client_vat_id || "-")} · <strong>Pays :</strong> ${escapeHtml(out.client?.country || "-")}</p>
     <p><strong>Adresse :</strong> ${escapeHtml([out.client?.address, scope.client_address_line_2, [scope.client_postal_code, out.client?.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "-")} · <strong>Contact :</strong> ${escapeHtml([scope.client_email, scope.client_phone].filter(Boolean).join(" · ") || "-")}</p>
     <p><strong>Langue client :</strong> ${escapeHtml(languageLabel(out.mission?.client_language || scope.client_language || "fr"))}</p>
     <p><strong>Statut dossier DGFiP :</strong> ${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</p>
@@ -1085,7 +1189,9 @@ function d2fSuiteLabel(scope = {}) {
   const clientId = scope.d2f_business_suite_client_id || "";
   const caseUrl = scope.d2f_business_suite_case_url || "";
   if (!clientId && !caseUrl) return "Non raccordé";
-  return [clientId, caseUrl].filter(Boolean).join(" · ");
+  const status = scope.d2f_business_suite_sync_status === "SYNCED_API" ? "Synchronisé par API" : "Raccordé manuellement";
+  const syncedAt = scope.d2f_business_suite_synced_at ? `le ${formatDate(scope.d2f_business_suite_synced_at)}` : "";
+  return [status, syncedAt, clientId, caseUrl].filter(Boolean).join(" · ");
 }
 function documentTypeLabel(value) {
   return ({

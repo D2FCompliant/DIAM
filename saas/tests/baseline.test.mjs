@@ -1,12 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { BASE_CONTROLS, d2fClientMatches, extractD2FClients } from "../worker/index.mjs";
+import { BASE_CONTROLS, SC_CONTROLS, d2fClientMatches, extractD2FClients } from "../worker/index.mjs";
 
 test("DIAM SaaS regulatory baseline is seeded with DGFiP/PDP controls", () => {
   assert.equal(BASE_CONTROLS.length, 33);
   assert.ok(BASE_CONTROLS.some((c) => c.reference === "DGFiP-A9"));
   assert.ok(BASE_CONTROLS.every((c) => c.expected_evidence && c.base_qualification));
   assert.ok(BASE_CONTROLS.some((c) => c.expected_evidence.includes("Journaux")));
+});
+
+test("DIAM SaaS SC audit baseline is seeded with RLF-C:SC controls", () => {
+  assert.equal(SC_CONTROLS.length, 62);
+  assert.ok(SC_CONTROLS.some((c) => c.reference === "SC-EX-2.1"));
+  assert.ok(SC_CONTROLS.some((c) => c.reference === "SC-EX-14.3"));
+  assert.ok(SC_CONTROLS.every((c) => c.source.includes("RLF-C:SC") || c.reference === "SC-RAPPORT"));
+  assert.ok(SC_CONTROLS.every((c) => c.expected_evidence && c.base_qualification));
 });
 
 test("reads the actual wrapped Business Suite audit-client contract", () => {
@@ -36,6 +44,7 @@ test("frontend contains document AI review and report workflow controls", async 
     "clientCity",
     "legalIdentifier",
     "vatId",
+    "auditProgram",
     "clientAddressLine2",
     "clientPostalCode",
     "clientEmail",
@@ -80,4 +89,13 @@ test("frontend contains document AI review and report workflow controls", async 
     assert.ok(html.includes(`data-tab="${tab}"`), `missing tab ${tab}`);
     assert.ok(html.includes(`data-panel="${tab}"`), `missing panel ${tab}`);
   }
+});
+
+test("Business Suite import is country-aware and persists the active mission", async () => {
+  const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"));
+  assert.match(app, /async function importD2FClient/);
+  assert.match(app, /api\(`\/api\/missions\/\$\{state\.missionId\}`/);
+  assert.match(app, /function isFrenchCountry/);
+  assert.match(app, /french \? \$\("siren"\)\.value : ""/);
+  assert.match(app, /d2f_business_suite_source_updated_at/);
 });
