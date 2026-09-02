@@ -378,6 +378,7 @@ async function analyzeWithAI(env, file, controls, context = {}) {
     "Référentiel obligatoire : Guide pratique DGFiP audit de conformité v1.3, PDP Integrity v3.2 Label PA, exigences DGFiP/impots.gouv.fr vérifiées au 2026-09-02.",
     "Analyse le document au regard du référentiel et propose uniquement des éléments à examiner par l'auditeur.",
     "Si le document est un dossier de candidature accepté DGFiP, identifie le périmètre PA déclaré, les activités effectivement couvertes, les zones non couvertes et les preuves manquantes pour encadrer l'audit.",
+    "Si le document est un nouveau référentiel applicable, qualifie les impacts sur les contrôles existants, les nouvelles preuves attendues et les éventuels contrôles à créer.",
     "Si le document est une note D2F, réunion DGFiP/AIFE ou demande récente hors référentiel officiel publié, traite-la comme contexte d'audit D2F Compliant : mets en évidence les impacts, demandes complémentaires et preuves nouvelles à collecter, sans la confondre avec une norme officielle.",
     "Règle fondamentale : l'absence de preuve dans un document déposé n'est pas une non-conformité. Utilise assessment_type=INSUFFICIENT_EVIDENCE si la preuve est insuffisante, MORE_INFO_REQUIRED si une clarification est nécessaire, POTENTIAL_GAP seulement si un écart factuel est étayé.",
     "Pour chaque proposition, fournis la source normative exacte dans requirement_source, un extrait bref ou résumé du critère dans requirement_excerpt, et la preuve/document/page/section/paragraphe analysé dans evidence_locator.",

@@ -207,8 +207,20 @@
       </section>
 
       <section class="card wide" data-panel="documents" hidden>
-        <h2>Dépôt documentaire et analyse IA</h2>
-        <p>Dépose les documents qualité, sécurité, techniques, architecture, procédures, journaux exportés ou dossiers de candidature. L'IA analyse les documents contre le référentiel et propose des écarts potentiels à valider par l'auditeur.</p>
+        <div class="sectionHeader">
+          <div>
+            <p class="eyebrow dark">Registre documentaire d’audit</p>
+            <h2>Dépôt documentaire et analyse au regard du référentiel</h2>
+          </div>
+        </div>
+        <p>Dépose le dossier de candidature DGFiP accepté, les nouveaux référentiels, les CR de réunion DGFiP/AIFE, les notes D2F Compliant et les documents qualité/techniques du client. Chaque fichier est haché SHA-256, rattaché à la mission et peut être analysé pour cadrer l’audit ou proposer des preuves manquantes.</p>
+        <div class="quickActions" aria-label="Types de dépôt rapides">
+          <button class="secondary" data-doc-type="DGFiP_APPLICATION_ACCEPTED" type="button">Dossier DGFiP accepté</button>
+          <button class="secondary" data-doc-type="REGULATORY_REFERENCE" type="button">Nouveau référentiel</button>
+          <button class="secondary" data-doc-type="DGFIP_MEETING_NOTE" type="button">CR réunion DGFiP/AIFE</button>
+          <button class="secondary" data-doc-type="D2F_REFERENCE" type="button">Note / exigence D2F</button>
+          <button class="secondary" data-doc-type="OTHER" type="button">Document complémentaire</button>
+        </div>
         <div class="grid">
           <label>Type de document
             <select id="auditDocumentType">
@@ -216,6 +228,7 @@
               <option value="TECHNICAL">Technique / architecture</option>
               <option value="SECURITY">Sécurité / IAM / journalisation</option>
               <option value="DGFiP_APPLICATION_ACCEPTED">Dossier de candidature accepté DGFiP</option>
+              <option value="REGULATORY_REFERENCE">Nouveau référentiel applicable</option>
               <option value="D2F_REFERENCE">Référentiel / note D2F Compliant</option>
               <option value="REGULATORY_UPDATE">Demande récente DGFiP/AIFE</option>
               <option value="DGFIP_MEETING_NOTE">Compte rendu réunion DGFiP/AIFE</option>
@@ -223,7 +236,7 @@
               <option value="OTHER">Autre</option>
             </select>
           </label>
-          <label>Document à analyser <input id="auditDocumentFile" type="file" /></label>
+          <label>Document(s) à déposer <input id="auditDocumentFile" type="file" multiple /></label>
         <div class="row">
             <button id="uploadAuditDocument">Déposer</button>
             <button id="analyzeAuditDocument">Analyser au regard du référentiel</button>

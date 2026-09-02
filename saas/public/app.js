@@ -137,6 +137,13 @@ function bindEvents() {
   $("promoteSuggestion").onclick = () => run(promoteSuggestion, "documentStatus");
   $("rejectSuggestion").onclick = () => run(rejectSuggestion, "documentStatus");
   $("submitClientReply").onclick = () => run(submitClientReply, "clientStatus");
+  for (const button of document.querySelectorAll("[data-doc-type]")) {
+    button.onclick = () => {
+      $("auditDocumentType").value = button.dataset.docType;
+      setStatus(`Type de dépôt sélectionné : ${documentTypeLabel(button.dataset.docType)}. Choisis un ou plusieurs fichiers, puis clique “Déposer”.`, "info", "documentStatus");
+      $("auditDocumentFile")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    };
+  }
   $("missionSelect").onchange = () => {
     state.missionId = $("missionSelect").value;
     fillMissionForm(currentMission());
@@ -530,16 +537,22 @@ function renderDocumentsSelection() {
 async function uploadAuditDocument() {
   requireMission();
   if (state.demo) return demoOnly("Le dépôt documentaire nécessite l’API Cloudflare Worker et Supabase Storage.");
-  const file = $("auditDocumentFile").files[0];
-  if (!file) throw new Error("Choisis un document à déposer : dossier DGFiP accepté, note D2F/réunion récente, document qualité, technique ou sécurité.");
-  const fd = new FormData();
-  fd.set("mission_id", state.missionId);
-  fd.set("document_type", $("auditDocumentType").value);
-  fd.set("file", file);
-  setStatus("Dépôt documentaire...", "info", "documentStatus");
-  const doc = await api("/api/documents", { method: "POST", body: fd });
-  state.documentId = doc.id;
-  setStatus(doc.duplicate ? "Document déjà présent : il est sélectionné, tu peux lancer l'analyse au regard du référentiel." : "Document déposé et haché. Tu peux lancer l'analyse au regard du référentiel.", "success", "documentStatus");
+  const files = [...$("auditDocumentFile").files];
+  if (!files.length) throw new Error("Choisis un ou plusieurs documents à déposer : dossier DGFiP accepté, nouveau référentiel, CR réunion, note D2F, document qualité, technique ou sécurité.");
+  const uploaded = [];
+  setStatus(`Dépôt documentaire en cours (${files.length} fichier(s))...`, "info", "documentStatus");
+  for (const file of files) {
+    const fd = new FormData();
+    fd.set("mission_id", state.missionId);
+    fd.set("document_type", $("auditDocumentType").value);
+    fd.set("file", file);
+    uploaded.push(await api("/api/documents", { method: "POST", body: fd }));
+  }
+  state.documentId = uploaded.at(-1)?.id || state.documentId;
+  const duplicates = uploaded.filter((doc) => doc.duplicate).length;
+  const created = uploaded.length - duplicates;
+  setStatus(`${created} document(s) déposé(s), ${duplicates} déjà présent(s). Sélectionne une ligne puis clique “Analyser au regard du référentiel”.`, "success", "documentStatus");
+  $("auditDocumentFile").value = "";
   await loadDocuments();
   showTab("documents");
 }
@@ -547,10 +560,11 @@ async function uploadAuditDocument() {
 async function analyzeAuditDocument() {
   requireMission();
   if (state.demo) return demoOnly("L’analyse IA réelle nécessite l’API Worker, Supabase et une clé OpenAI configurée.");
-  const file = $("auditDocumentFile").files[0];
+  let file = $("auditDocumentFile").files[0];
   if (!state.documentId) {
     if (!file) throw new Error("Choisis un document à déposer/analyser.");
     await uploadAuditDocument();
+    file = null;
   }
   const fd = new FormData();
   if (file) fd.set("file", file);
@@ -824,6 +838,7 @@ function documentTypeLabel(value) {
     DGFiP_APPLICATION: "Dossier de candidature DGFiP",
     DGFiP_APPLICATION_ACCEPTED: "Dossier de candidature accepté DGFiP",
     D2F_REFERENCE: "Référentiel / note D2F Compliant",
+    REGULATORY_REFERENCE: "Nouveau référentiel applicable",
     REGULATORY_UPDATE: "Demande récente DGFiP/AIFE",
     DGFIP_MEETING_NOTE: "Compte rendu réunion DGFiP/AIFE",
     EVIDENCE_EXPORT: "Export de logs / preuve",
