@@ -491,6 +491,7 @@ async function handleApi(request, env) {
       client_id: client.id,
       number: `MIS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       title: body.title || "Audit conformité PA",
+      client_language: body.client_language || "fr",
       created_by: who
     });
     for (const c of BASE_CONTROLS) await db.insert("diam_questions", { tenant_id: tenant.id, mission_id: mission.id, ...c });
@@ -766,6 +767,12 @@ async function handleApi(request, env) {
     const form = await request.formData();
     const file = form.get("file");
     const message = form.get("message") || "";
+    const messageLanguage = form.get("message_language") || mission.client_language || "fr";
+    const frenchTranslation = form.get("french_translation") || "";
+    const translationValidated = form.get("translation_validated") === "true";
+    if (messageLanguage !== "fr" && !frenchTranslation) {
+      return json({ error: "Traduction française obligatoire pour une réponse client non francophone destinée au dossier DGFiP." }, 400);
+    }
     if (!message && !file) return json({ error: "Réponse client ou preuve obligatoire." }, 400);
     let evidence = null;
     if (file) {
@@ -803,6 +810,9 @@ async function handleApi(request, env) {
       mission_id: question.mission_id,
       finding_id: findingId,
       message: message || "Preuve client versée.",
+      message_language: messageLanguage,
+      french_translation: frenchTranslation || (messageLanguage === "fr" ? message : ""),
+      translation_validated: messageLanguage === "fr" ? true : translationValidated,
       evidence_id: evidence?.id || null,
       submitted_by: who
     });

@@ -220,7 +220,8 @@ async function createMission() {
     body: JSON.stringify({
       client_name: $("clientName").value,
       siren: $("siren").value,
-      title: $("missionTitle").value
+      title: $("missionTitle").value,
+      client_language: $("clientLanguage").value
     })
   });
   $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles.`;
@@ -572,6 +573,9 @@ async function submitClientReply() {
   if (!state.selectedClientFinding?.constat_id) throw new Error("Sélectionne un constat ouvert à traiter.");
   const fd = new FormData();
   fd.set("message", $("clientReplyMessage").value);
+  fd.set("message_language", $("clientReplyLanguage").value);
+  fd.set("french_translation", $("clientReplyFrenchTranslation").value);
+  fd.set("translation_validated", $("translationValidated").checked ? "true" : "false");
   const file = $("clientReplyFile").files[0];
   if (file) fd.set("file", file);
   setStatus("Envoi de la réponse client...", "info", "clientStatus");
@@ -579,6 +583,8 @@ async function submitClientReply() {
   await api(`/api/client/findings/${state.selectedClientFinding.constat_id}/reply${suffix}`, { method: "POST", body: fd });
   setStatus("Réponse client enregistrée, preuve liée au constat.", "success", "clientStatus");
   $("clientReplyMessage").value = "";
+  $("clientReplyFrenchTranslation").value = "";
+  $("translationValidated").checked = false;
   $("clientReplyFile").value = "";
   await Promise.all([loadChain(), loadClientFindings()]);
 }
@@ -644,6 +650,9 @@ function enterClientPortalMode() {
   }
   $("runtimeMode").textContent = "Portail client";
   $("baseline").textContent = "Réponse client aux constats — accès limité à la mission partagée";
+  $("clientPortalIntro").textContent = "Client portal: reply to open findings and upload corrective evidence. French translation is required for the DGFiP audit file / Portail client : répondez aux constats ouverts et versez les preuves de correction. La traduction française est requise pour le dossier DGFiP.";
+  $("clientReplyLabel").childNodes[0].textContent = "Client reply / Réponse client ";
+  $("clientReplyLanguage").value = "en";
 }
 async function run(fn, targetId = "actionStatus") {
   try {

@@ -172,6 +172,11 @@ h4 { margin-bottom: 8px; color: #243b5a; }
 .twoCols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
 label { display: grid; gap: 7px; font-size: 13px; color: #526173; font-weight: 700; }
+label.inlineCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 input, select, textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -183,6 +188,7 @@ input, select, textarea {
   outline: none;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
+label.inlineCheck input { width: auto; }
 input:focus, select:focus, textarea:focus {
   border-color: #7aa7d9;
   box-shadow: 0 0 0 4px rgba(13, 59, 102, .10);

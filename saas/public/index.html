@@ -55,6 +55,15 @@
           <label>Client audité <input id="clientName" value="Client PA" /></label>
           <label>SIREN <input id="siren" placeholder="123456789" /></label>
           <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
+          <label>Langue client
+            <select id="clientLanguage">
+              <option value="fr">Français</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="de">Deutsch</option>
+              <option value="it">Italiano</option>
+            </select>
+          </label>
         </div>
         <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>
         <p class="status" id="createStatus"></p>
@@ -215,7 +224,7 @@
 
       <section class="card wide" data-panel="client" hidden>
         <h2>Espace client — réponses aux constats</h2>
-        <p class="muted">Le client audité répond aux écarts ouverts et verse ses preuves de correction. Chaque réponse est horodatée, rattachée au constat et peut être archivée au SAE.</p>
+        <p class="muted" id="clientPortalIntro">Le client audité répond aux écarts ouverts et verse ses preuves de correction. Chaque réponse est horodatée, rattachée au constat et peut être archivée au SAE. Si la réponse est en anglais ou dans une autre langue, une traduction française doit être fournie pour le dossier DGFiP.</p>
         <div class="tableWrap">
           <table id="clientFindingsTable">
             <thead><tr><th>Contrôle</th><th>Constat</th><th>Attendu</th><th>Preuves attendues</th><th>Preuves liées</th></tr></thead>
@@ -226,9 +235,20 @@
         <div id="clientReplyBox">
           <h3>Réponse au constat sélectionné</h3>
           <p class="muted" id="clientFindingSelected">Sélectionne un constat ouvert dans la table.</p>
-          <label>Réponse / explication client <textarea id="clientReplyMessage" placeholder="Décrire le traitement, l’action menée ou la clarification apportée."></textarea></label>
+          <label id="clientReplyLabel">Réponse / explication client <textarea id="clientReplyMessage" placeholder="Décrire le traitement, l’action menée ou la clarification apportée."></textarea></label>
+          <label>Langue de la réponse
+            <select id="clientReplyLanguage">
+              <option value="fr">Français</option>
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="de">Deutsch</option>
+              <option value="it">Italiano</option>
+            </select>
+          </label>
+          <label>Traduction française pour le dossier DGFiP <textarea id="clientReplyFrenchTranslation" placeholder="Obligatoire si la réponse originale n’est pas en français. Cette version est utilisée dans le rapport DGFiP."></textarea></label>
+          <label class="inlineCheck"><input id="translationValidated" type="checkbox" /> Traduction française validée</label>
           <label>Preuve de correction <input id="clientReplyFile" type="file" /></label>
-          <button id="submitClientReply">Envoyer réponse + preuve</button>
+          <button id="submitClientReply">Envoyer réponse + preuve / Submit reply + evidence</button>
           <p class="status" id="clientStatus"></p>
         </div>
       </section>
