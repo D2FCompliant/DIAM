@@ -75,6 +75,8 @@
               <option value="UNKNOWN">Non renseigné</option>
             </select>
           </label>
+          <label>ID client D2F Business Suite <input id="d2fSuiteClientId" placeholder="Ex. D2F-BS-CLIENT-0001" /></label>
+          <label>Dossier source D2F Business Suite <input id="d2fSuiteCaseUrl" placeholder="URL ou référence du dossier D2F Business Suite" /></label>
           <label>Périmètre PA déclaré <textarea id="declaredScope" placeholder="Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales..."></textarea></label>
         </div>
         <div class="row">
@@ -219,6 +221,7 @@
           <button class="secondary" data-doc-type="REGULATORY_REFERENCE" type="button">Nouveau référentiel</button>
           <button class="secondary" data-doc-type="DGFIP_MEETING_NOTE" type="button">CR réunion DGFiP/AIFE</button>
           <button class="secondary" data-doc-type="D2F_REFERENCE" type="button">Note / exigence D2F</button>
+          <button class="secondary" data-doc-type="D2F_BUSINESS_SUITE_EXPORT" type="button">Export D2F Business Suite</button>
           <button class="secondary" data-doc-type="OTHER" type="button">Document complémentaire</button>
         </div>
         <div class="grid">
@@ -230,6 +233,7 @@
               <option value="DGFiP_APPLICATION_ACCEPTED">Dossier de candidature accepté DGFiP</option>
               <option value="REGULATORY_REFERENCE">Nouveau référentiel applicable</option>
               <option value="D2F_REFERENCE">Référentiel / note D2F Compliant</option>
+              <option value="D2F_BUSINESS_SUITE_EXPORT">Export D2F Business Suite</option>
               <option value="REGULATORY_UPDATE">Demande récente DGFiP/AIFE</option>
               <option value="DGFIP_MEETING_NOTE">Compte rendu réunion DGFiP/AIFE</option>
               <option value="EVIDENCE_EXPORT">Export de logs / preuve</option>

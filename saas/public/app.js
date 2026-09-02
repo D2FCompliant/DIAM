@@ -201,6 +201,8 @@ function fillMissionForm(mission) {
   $("clientCity").value = mission.client_city || "";
   $("clientLanguage").value = mission.client_language || scope.client_language || "fr";
   $("dgfipApplicationStatus").value = scope.dgfip_application_status || "UNKNOWN";
+  $("d2fSuiteClientId").value = scope.d2f_business_suite_client_id || "";
+  $("d2fSuiteCaseUrl").value = scope.d2f_business_suite_case_url || "";
   $("declaredScope").value = scope.declared_scope || "";
 }
 
@@ -220,7 +222,7 @@ function renderMissionList() {
   tbody.innerHTML = state.missions.map((m) => `
     <tr class="${m.id === state.missionId ? "selected" : ""}">
       <td>${escapeHtml(m.number)}</td>
-      <td>${escapeHtml(m.title)}<br><span class="muted">${escapeHtml(m.client_name || "")}${m.client_country ? " · " + escapeHtml(m.client_country) : ""}</span></td>
+      <td>${escapeHtml(m.title)}<br><span class="muted">${escapeHtml(m.client_name || "")}${m.client_country ? " · " + escapeHtml(m.client_country) : ""} · ${escapeHtml(auditTypeLabel(m.audit_type))}</span></td>
       <td>${escapeHtml(m.status || "IN_PROGRESS")}</td>
       <td>${formatDate(m.created_at)}</td>
       <td><button class="small" data-open-mission="${m.id}" type="button">Ouvrir</button></td>
@@ -247,8 +249,15 @@ function renderClientFacts() {
       <div><span>Langue</span><strong>${escapeHtml(languageLabel(mission.client_language || scope.client_language || "fr"))}</strong></div>
       <div><span>Dossier DGFiP</span><strong>${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</strong></div>
       <div><span>Périmètre déclaré</span><strong>${escapeHtml(scope.declared_scope || "À cadrer par dossier de candidature accepté")}</strong></div>
+      <div><span>Cycle label</span><strong>${escapeHtml(auditTypeLabel(mission.audit_type))}</strong></div>
+      <div><span>Validité label</span><strong>${escapeHtml(labelValidity(mission))}</strong></div>
+      <div><span>Surveillance</span><strong>${escapeHtml(surveillanceLabel(mission))}</strong></div>
+      <div><span>What’s new</span><strong>${mission.whats_new_required ? "Analyse obligatoire" : "Non requis"}</strong></div>
+      <div><span>Audit complémentaire</span><strong>${mission.complementary_audit_required ? "À déclencher — temps passé" : "Non déclenché"}</strong></div>
+      <div><span>Statut cycle</span><strong>${escapeHtml(lifecycleStatusLabel(mission.lifecycle_status))}</strong></div>
+      <div><span>D2F Business Suite</span><strong>${escapeHtml(d2fSuiteLabel(scope))}</strong></div>
     </div>
-    <p class="notice">Après dépôt du dossier de candidature accepté DGFiP et des notes D2F/réunions récentes, l’analyse assistée met en évidence les preuves manquantes et les demandes complémentaires applicables au périmètre déclaré.</p>
+    <p class="notice">${escapeHtml(mission.lifecycle_notes || "Après dépôt du dossier de candidature accepté DGFiP et des notes D2F/réunions récentes, l’analyse assistée met en évidence les preuves manquantes et les demandes complémentaires applicables au périmètre déclaré.")}</p>
   `;
 }
 
@@ -279,6 +288,8 @@ async function createMission() {
       address: $("clientAddress").value,
       city: $("clientCity").value,
       dgfip_application_status: $("dgfipApplicationStatus").value,
+      d2f_business_suite_client_id: $("d2fSuiteClientId").value,
+      d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
       declared_scope: $("declaredScope").value
     })
   });
@@ -303,6 +314,8 @@ async function updateMissionProfile() {
       address: $("clientAddress").value,
       city: $("clientCity").value,
       dgfip_application_status: $("dgfipApplicationStatus").value,
+      d2f_business_suite_client_id: $("d2fSuiteClientId").value,
+      d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
       declared_scope: $("declaredScope").value
     })
   });
@@ -723,6 +736,11 @@ function reportHtml(out) {
     <p><strong>Langue client :</strong> ${escapeHtml(languageLabel(out.mission?.client_language || scope.client_language || "fr"))}</p>
     <p><strong>Statut dossier DGFiP :</strong> ${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</p>
     <p><strong>Périmètre PA déclaré :</strong> ${escapeHtml(scope.declared_scope || "-")}</p>
+    <p><strong>Rattachement D2F Business Suite :</strong> ${escapeHtml(d2fSuiteLabel(scope))}</p>
+    <h2>Cycle du label PA</h2>
+    <p><strong>Type d’audit :</strong> ${escapeHtml(auditTypeLabel(out.mission?.audit_type))} · <strong>Validité label :</strong> ${escapeHtml(labelValidity(out.mission || {}))} · <strong>Surveillance :</strong> ${escapeHtml(surveillanceLabel(out.mission || {}))}</p>
+    <p><strong>Analyse what's new :</strong> ${out.mission?.whats_new_required ? "Requise" : "Non requise"} · <strong>Audit complémentaire :</strong> ${out.mission?.complementary_audit_required ? "À déclencher — facturation au temps passé" : "Non déclenché"}</p>
+    <p>${escapeHtml(out.mission?.lifecycle_notes || "")}</p>
     <h2>Réponses client et traductions françaises</h2>
     <table><thead><tr><th>Date</th><th>Langue</th><th>Réponse originale</th><th>Traduction française DGFiP</th><th>Validation</th></tr></thead>
     <tbody>${(out.client_replies || []).map((r) => `<tr><td>${formatDate(r.submitted_at)}</td><td>${escapeHtml(languageLabel(r.message_language))}</td><td>${escapeHtml(r.message)}</td><td>${escapeHtml(r.french_translation || "")}</td><td>${r.translation_validated ? "Validée" : "À valider"}</td></tr>`).join("") || `<tr><td colspan="5">Aucune réponse client enregistrée.</td></tr>`}</tbody></table>
@@ -830,6 +848,41 @@ function applicationStatusLabel(value) {
     UNKNOWN: "Non renseigné"
   })[value] || "Non renseigné";
 }
+function auditTypeLabel(value) {
+  return ({
+    INITIAL: "Audit initial",
+    SURVEILLANCE: "Audit de surveillance",
+    COMPLEMENTARY: "Audit complémentaire",
+    RENEWAL: "Audit de renouvellement"
+  })[value] || "Audit initial";
+}
+function lifecycleStatusLabel(value) {
+  return ({
+    INITIAL_LABEL: "Label initial",
+    SURVEILLANCE_YEAR_1: "Surveillance année 1",
+    SURVEILLANCE_YEAR_2: "Surveillance année 2",
+    COMPLEMENTARY_AUDIT_REQUIRED: "Audit complémentaire requis",
+    RENEWAL_REQUIRED: "Renouvellement requis",
+    LABEL_EXPIRED: "Label expiré"
+  })[value] || value || "-";
+}
+function labelValidity(mission) {
+  if (!mission?.label_valid_from && !mission?.label_valid_until) return "Non renseignée";
+  return `${formatDate(mission.label_valid_from) || "-"} → ${formatDate(mission.label_valid_until) || "-"}`;
+}
+function surveillanceLabel(mission) {
+  if (mission?.audit_type === "SURVEILLANCE") return `Année ${mission.surveillance_year || "?"} sur 2`;
+  if (mission?.audit_type === "INITIAL") return "À planifier sur 2 ans après l'initial";
+  if (mission?.audit_type === "RENEWAL") return "Nouveau cycle de 3 ans";
+  if (mission?.audit_type === "COMPLEMENTARY") return "Ciblée sur impact label";
+  return "-";
+}
+function d2fSuiteLabel(scope = {}) {
+  const clientId = scope.d2f_business_suite_client_id || "";
+  const caseUrl = scope.d2f_business_suite_case_url || "";
+  if (!clientId && !caseUrl) return "Non raccordé";
+  return [clientId, caseUrl].filter(Boolean).join(" · ");
+}
 function documentTypeLabel(value) {
   return ({
     QUALITY: "Qualité / ISO",
@@ -841,6 +894,7 @@ function documentTypeLabel(value) {
     REGULATORY_REFERENCE: "Nouveau référentiel applicable",
     REGULATORY_UPDATE: "Demande récente DGFiP/AIFE",
     DGFIP_MEETING_NOTE: "Compte rendu réunion DGFiP/AIFE",
+    D2F_BUSINESS_SUITE_EXPORT: "Export D2F Business Suite",
     EVIDENCE_EXPORT: "Export de logs / preuve",
     OTHER: "Autre"
   })[value] || value || "-";

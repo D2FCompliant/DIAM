@@ -200,6 +200,71 @@ async function listMissions(db, tenantId) {
   return enriched;
 }
 
+function addYears(date, years) {
+  const d = new Date(date);
+  d.setFullYear(d.getFullYear() + years);
+  return d;
+}
+
+function dateOnly(date) {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+function lifecycleStatusFor(auditType, labelValidUntil, surveillanceYear) {
+  if (auditType === "INITIAL") return "INITIAL_LABEL";
+  if (auditType === "COMPLEMENTARY") return "COMPLEMENTARY_AUDIT_REQUIRED";
+  if (auditType === "RENEWAL") return "RENEWAL_REQUIRED";
+  if (labelValidUntil && new Date(labelValidUntil) < new Date()) return "LABEL_EXPIRED";
+  return `SURVEILLANCE_YEAR_${surveillanceYear || 1}`;
+}
+
+async function determineAuditLifecycle(db, tenantId, clientId, requested = {}) {
+  const previous = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&client_id=eq.${clientId}&order=created_at.asc`);
+  if (!previous.length) {
+    const start = requested.label_valid_from || dateOnly(new Date());
+    return {
+      audit_type: requested.audit_type || "INITIAL",
+      parent_mission_id: null,
+      initial_mission_id: null,
+      label_valid_from: start,
+      label_valid_until: requested.label_valid_until || dateOnly(addYears(start, 3)),
+      surveillance_year: null,
+      lifecycle_status: "INITIAL_LABEL",
+      whats_new_required: false,
+      complementary_audit_required: false,
+      complementary_billing_mode: null,
+      lifecycle_notes: "Audit initial : création du label PA. Validité de principe 3 ans renouvelable."
+    };
+  }
+
+  const initial = previous.find((m) => m.audit_type === "INITIAL") || previous[0];
+  const labelStart = initial.label_valid_from || dateOnly(initial.created_at || new Date());
+  const labelEnd = initial.label_valid_until || dateOnly(addYears(labelStart, 3));
+  const now = new Date();
+  const expired = new Date(labelEnd) < now;
+  const surveillanceCount = previous.filter((m) => m.audit_type === "SURVEILLANCE").length;
+  const requestedType = requested.audit_type;
+  const auditType = requestedType || (expired ? "RENEWAL" : surveillanceCount < 2 ? "SURVEILLANCE" : "COMPLEMENTARY");
+  const surveillanceYear = auditType === "SURVEILLANCE" ? Math.min(surveillanceCount + 1, 2) : null;
+  return {
+    audit_type: auditType,
+    parent_mission_id: previous.at(-1)?.id || null,
+    initial_mission_id: initial.id,
+    label_valid_from: labelStart,
+    label_valid_until: labelEnd,
+    surveillance_year: surveillanceYear,
+    lifecycle_status: lifecycleStatusFor(auditType, labelEnd, surveillanceYear),
+    whats_new_required: auditType === "SURVEILLANCE",
+    complementary_audit_required: auditType === "COMPLEMENTARY",
+    complementary_billing_mode: auditType === "COMPLEMENTARY" ? "TIME_SPENT" : null,
+    lifecycle_notes: auditType === "SURVEILLANCE"
+      ? `Audit de surveillance année ${surveillanceYear || "?"} : analyser le what's new, les changements de périmètre, d'architecture, de sécurité, d'organisation et leur impact sur le label initial.`
+      : auditType === "RENEWAL"
+        ? "Cycle de trois ans arrivé à échéance : préparer un audit de renouvellement."
+        : "Audit complémentaire : déclenché par un changement ou un impact potentiel sur le label initial, facturable au temps passé."
+  };
+}
+
 function evidenceChecklist(text) {
   return String(text || "").split(/\s*;\s*/).filter(Boolean).map((item) => {
     const lower = item.toLowerCase();
@@ -377,8 +442,11 @@ async function analyzeWithAI(env, file, controls, context = {}) {
     "Méthode obligatoire : approche ISO/ISAE 3000, scepticisme professionnel, suffisance et caractère approprié des éléments probants, traçabilité, constat factuel, aucun avis définitif sans validation auditeur.",
     "Référentiel obligatoire : Guide pratique DGFiP audit de conformité v1.3, PDP Integrity v3.2 Label PA, exigences DGFiP/impots.gouv.fr vérifiées au 2026-09-02.",
     "Analyse le document au regard du référentiel et propose uniquement des éléments à examiner par l'auditeur.",
+    "Si la mission est un audit de surveillance, concentre l'analyse sur le what's new depuis l'audit initial : changements de périmètre, architecture, sous-traitance, sécurité, organisation, conformité, incidents, interopérabilité, exigences nouvelles et impacts possibles sur le label initial.",
+    "Si un changement paraît susceptible d'impacter le label initial, propose assessment_type=POTENTIAL_GAP ou MORE_INFO_REQUIRED selon le niveau de preuve, et recommande un audit complémentaire ciblé facturable au temps passé.",
     "Si le document est un dossier de candidature accepté DGFiP, identifie le périmètre PA déclaré, les activités effectivement couvertes, les zones non couvertes et les preuves manquantes pour encadrer l'audit.",
     "Si le document est un nouveau référentiel applicable, qualifie les impacts sur les contrôles existants, les nouvelles preuves attendues et les éventuels contrôles à créer.",
+    "Si le document est un export D2F Business Suite, exploite-le comme source interne de contexte : client, missions antérieures, historique des constats, périmètre contractuel, changements déclarés et éléments utiles à la comparaison d'une année sur l'autre.",
     "Si le document est une note D2F, réunion DGFiP/AIFE ou demande récente hors référentiel officiel publié, traite-la comme contexte d'audit D2F Compliant : mets en évidence les impacts, demandes complémentaires et preuves nouvelles à collecter, sans la confondre avec une norme officielle.",
     "Règle fondamentale : l'absence de preuve dans un document déposé n'est pas une non-conformité. Utilise assessment_type=INSUFFICIENT_EVIDENCE si la preuve est insuffisante, MORE_INFO_REQUIRED si une clarification est nécessaire, POTENTIAL_GAP seulement si un écart factuel est étayé.",
     "Pour chaque proposition, fournis la source normative exacte dans requirement_source, un extrait bref ou résumé du critère dans requirement_excerpt, et la preuve/document/page/section/paragraphe analysé dans evidence_locator.",
@@ -525,15 +593,30 @@ async function handleApi(request, env) {
         client_language: body.client_language || "fr",
         dgfip_application_status: body.dgfip_application_status || "UNKNOWN",
         declared_scope: body.declared_scope || "",
+        d2f_business_suite_client_id: body.d2f_business_suite_client_id || "",
+        d2f_business_suite_case_url: body.d2f_business_suite_case_url || "",
+        d2f_business_suite_sync_status: body.d2f_business_suite_client_id || body.d2f_business_suite_case_url ? "LINKED_MANUAL" : "NOT_LINKED",
         accepted_application_required: body.dgfip_application_status === "ACCEPTED"
       }
     }, "tenant_id,name");
+    const lifecycle = await determineAuditLifecycle(db, tenant.id, client.id, body);
     const mission = await db.insert("diam_missions", {
       tenant_id: tenant.id,
       client_id: client.id,
       number: `MIS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       title: body.title || "Audit conformité PA",
       client_language: body.client_language || "fr",
+      audit_type: lifecycle.audit_type,
+      parent_mission_id: lifecycle.parent_mission_id,
+      initial_mission_id: lifecycle.initial_mission_id,
+      label_valid_from: lifecycle.label_valid_from,
+      label_valid_until: lifecycle.label_valid_until,
+      surveillance_year: lifecycle.surveillance_year,
+      lifecycle_status: lifecycle.lifecycle_status,
+      whats_new_required: lifecycle.whats_new_required,
+      complementary_audit_required: lifecycle.complementary_audit_required,
+      complementary_billing_mode: lifecycle.complementary_billing_mode,
+      lifecycle_notes: lifecycle.lifecycle_notes,
       created_by: who
     });
     for (const c of BASE_CONTROLS) await db.insert("diam_questions", { tenant_id: tenant.id, mission_id: mission.id, ...c });
@@ -553,6 +636,9 @@ async function handleApi(request, env) {
       client_language: body.client_language || mission.client_language || currentScope.client_language || "fr",
       dgfip_application_status: body.dgfip_application_status || currentScope.dgfip_application_status || "UNKNOWN",
       declared_scope: body.declared_scope ?? currentScope.declared_scope ?? "",
+      d2f_business_suite_client_id: body.d2f_business_suite_client_id ?? currentScope.d2f_business_suite_client_id ?? "",
+      d2f_business_suite_case_url: body.d2f_business_suite_case_url ?? currentScope.d2f_business_suite_case_url ?? "",
+      d2f_business_suite_sync_status: body.d2f_business_suite_client_id || body.d2f_business_suite_case_url ? "LINKED_MANUAL" : currentScope.d2f_business_suite_sync_status || "NOT_LINKED",
       accepted_application_required: body.dgfip_application_status === "ACCEPTED" || currentScope.accepted_application_required === true
     };
     const updatedClient = await db.patch("diam_clients", `?id=eq.${client.id}&tenant_id=eq.${tenant.id}`, {
@@ -567,6 +653,7 @@ async function handleApi(request, env) {
     const updatedMission = await db.patch("diam_missions", `?id=eq.${mission.id}&tenant_id=eq.${tenant.id}`, {
       title: body.title || mission.title || "Audit conformité PA",
       client_language: body.client_language || mission.client_language || "fr",
+      lifecycle_notes: body.lifecycle_notes ?? mission.lifecycle_notes,
       updated_at: new Date().toISOString()
     });
     return json({ client: updatedClient, mission: updatedMission });
@@ -749,7 +836,15 @@ async function handleApi(request, env) {
           number: mission.number,
           title: mission.title,
           client_language: mission.client_language,
-          referential_version: mission.referential_version
+          referential_version: mission.referential_version,
+          audit_type: mission.audit_type,
+          initial_mission_id: mission.initial_mission_id,
+          label_valid_from: mission.label_valid_from,
+          label_valid_until: mission.label_valid_until,
+          surveillance_year: mission.surveillance_year,
+          lifecycle_status: mission.lifecycle_status,
+          whats_new_required: mission.whats_new_required,
+          complementary_audit_required: mission.complementary_audit_required
         },
         client: {
           name: client.name,
@@ -786,6 +881,19 @@ async function handleApi(request, env) {
           recommendation: s.recommendation,
           confidence: Math.max(0, Math.min(1, Number(s.confidence || 0)))
         }));
+      }
+      const labelImpact = (analysis.suggestions || []).some((s) =>
+        ["HIGH", "CRITICAL"].includes(s.suggested_qualification)
+        && ["POTENTIAL_GAP", "MORE_INFO_REQUIRED"].includes(s.assessment_type)
+      );
+      if (mission.audit_type === "SURVEILLANCE" && labelImpact) {
+        await db.patch("diam_missions", `?id=eq.${document.mission_id}&tenant_id=eq.${tenant.id}`, {
+          complementary_audit_required: true,
+          complementary_billing_mode: "TIME_SPENT",
+          lifecycle_status: "COMPLEMENTARY_AUDIT_REQUIRED",
+          lifecycle_notes: "Analyse de surveillance : changement ou information nouvelle susceptible d'impacter le label initial. Audit complémentaire ciblé à cadrer et facturer au temps passé.",
+          updated_at: new Date().toISOString()
+        });
       }
       await db.patch("diam_documents", `?id=eq.${document.id}&tenant_id=eq.${tenant.id}`, { analysis_status: "ANALYZED" });
       return json({ document, suggestions: saved }, 201);
