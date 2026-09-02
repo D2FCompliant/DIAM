@@ -92,6 +92,47 @@ le navigateur.
 
 `OPENAI_MODEL` peut être omis ; le Worker utilise alors `gpt-5`.
 
+## Raccordement SAE / LAE Stratow
+
+DIAM conserve Supabase comme base opérationnelle, mais les éléments probants
+doivent être figés dans un SAE/LAE lorsque l'archivage probatoire est requis :
+
+- preuves versées par l'auditeur ;
+- documents de candidature, qualité, sécurité et techniques ;
+- rapports DGFiP générés par DIAM.
+
+Le Worker prépare un dépôt SAE avec :
+
+- fichier ou rapport JSON ;
+- SHA-256 ;
+- identifiant tenant et mission ;
+- type d'objet : `EVIDENCE`, `DOCUMENT` ou `REPORT` ;
+- nom d'origine, taille, MIME type ;
+- reçu SAE conservé en base.
+
+Variables Cloudflare :
+
+```bash
+SAE_PROVIDER=STRATOW_SYLOW
+SAE_ENABLED=true
+wrangler secret put SAE_ENDPOINT
+wrangler secret put SAE_API_KEY
+```
+
+Tant que `SAE_ENABLED=false`, DIAM continue à fonctionner et marque les objets
+en `archive_status = DISABLED`. Dès que le SAE est activé, DIAM tente le dépôt
+automatique et conserve `archive_id`, `archive_receipt` et `archived_at`.
+
+À demander à Stratow/SYLOW avant passage production :
+
+1. endpoint de dépôt API ;
+2. méthode d'authentification ;
+3. format exact des métadonnées attendues ;
+4. champ retourné pour l'identifiant d'archive ;
+5. format de l'accusé de dépôt / preuve d'horodatage ;
+6. règles de classement : plan de classement, durées, sort final ;
+7. taille maximale par dépôt et stratégie de reprise.
+
 ## Test local
 
 ```bash

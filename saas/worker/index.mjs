@@ -165,6 +165,95 @@ function evidenceChecklist(text) {
   });
 }
 
+function archiveEnabled(env) {
+  return String(env.SAE_ENABLED || "").toLowerCase() === "true";
+}
+
+function saeProvider(env) {
+  return env.SAE_PROVIDER || "STRATOW_SYLOW";
+}
+
+async function archiveObject(db, env, tenant, payload) {
+  const provider = saeProvider(env);
+  const eventBase = {
+    tenant_id: tenant.id,
+    mission_id: payload.mission_id,
+    object_type: payload.object_type,
+    object_id: payload.object_id,
+    provider,
+    sha256: payload.sha256 || null,
+    request_payload: {
+      original_name: payload.original_name,
+      mime_type: payload.mime_type,
+      file_size: payload.file_size,
+      report_number: payload.report_number,
+      reference: payload.reference,
+      source: "DIAM SaaS"
+    }
+  };
+
+  const table = payload.object_type === "REPORT" ? "diam_reports" : payload.object_type === "DOCUMENT" ? "diam_documents" : "diam_evidences";
+  const query = `?id=eq.${payload.object_id}&tenant_id=eq.${tenant.id}`;
+
+  try {
+    if (!archiveEnabled(env)) {
+      await db.patch(table, query, { archive_status: "DISABLED", archive_provider: provider });
+      await db.insert("diam_archive_events", { ...eventBase, status: "DISABLED", error: "SAE_ENABLED n'est pas activé." });
+      return { status: "DISABLED", provider };
+    }
+
+    if (!env.SAE_ENDPOINT || !env.SAE_API_KEY) {
+      throw new Error("SAE activé mais SAE_ENDPOINT ou SAE_API_KEY manquant dans Cloudflare.");
+    }
+
+    const form = new FormData();
+    form.set("provider", provider);
+    form.set("source", "DIAM SaaS");
+    form.set("tenant_id", tenant.id);
+    form.set("mission_id", payload.mission_id);
+    form.set("object_type", payload.object_type);
+    form.set("object_id", payload.object_id);
+    form.set("original_name", payload.original_name || payload.report_number || payload.object_id);
+    form.set("sha256", payload.sha256 || "");
+    form.set("metadata", JSON.stringify(eventBase.request_payload));
+    if (payload.bytes) {
+      form.set("file", new Blob([payload.bytes], { type: payload.mime_type || "application/octet-stream" }), payload.original_name || "archive.bin");
+    } else {
+      form.set("file", new Blob([JSON.stringify(payload.payload || {}, null, 2)], { type: "application/json" }), `${payload.report_number || payload.object_id}.json`);
+    }
+
+    const response = await fetch(env.SAE_ENDPOINT, {
+      method: env.SAE_METHOD || "POST",
+      headers: { authorization: `Bearer ${env.SAE_API_KEY}` },
+      body: form
+    });
+    const receiptText = await response.text();
+    let receipt;
+    try { receipt = JSON.parse(receiptText); } catch { receipt = { raw: receiptText }; }
+    if (!response.ok) throw new Error(receiptText || `Erreur SAE HTTP ${response.status}`);
+    const archiveId = receipt.archive_id || receipt.id || receipt.reference || receipt.deposit_id || null;
+    const update = {
+      archive_status: "ARCHIVED",
+      archive_provider: provider,
+      archive_id: archiveId,
+      archive_receipt: receipt,
+      archived_at: new Date().toISOString()
+    };
+    await db.patch(table, query, update);
+    await db.insert("diam_archive_events", { ...eventBase, status: "ARCHIVED", archive_id: archiveId, receipt });
+    return { status: "ARCHIVED", provider, archive_id: archiveId, receipt };
+  } catch (e) {
+    const error = e.message || String(e);
+    try {
+      await db.patch(table, query, { archive_status: "FAILED", archive_provider: provider, archive_receipt: { error } });
+      await db.insert("diam_archive_events", { ...eventBase, status: "FAILED", error });
+    } catch {
+      // Do not block the audit workflow if the archive-status schema has not yet been upgraded.
+    }
+    return { status: "FAILED", provider, error };
+  }
+}
+
 function opinion(chain) {
   const total = chain.length;
   const answered = chain.filter((q) => q.reponse_statut !== "NOT_STARTED").length;
@@ -333,6 +422,9 @@ async function handleApi(request, env) {
       runtime: "cloudflare-worker",
       supabase_url_configured: Boolean(env.SUPABASE_URL),
       supabase_key_configured: Boolean(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY),
+      sae_enabled: archiveEnabled(env),
+      sae_provider: saeProvider(env),
+      sae_endpoint_configured: Boolean(env.SAE_ENDPOINT),
       baseline: REGULATORY_BASELINE
     });
   }
@@ -467,7 +559,17 @@ async function handleApi(request, env) {
       uploaded_by: who
     });
     if (findingId) await db.upsert("diam_finding_evidences", { finding_id: findingId, evidence_id: evidence.id }, "finding_id,evidence_id");
-    return json(evidence, 201);
+    const archive = await archiveObject(db, env, tenant, {
+      object_type: "EVIDENCE",
+      object_id: evidence.id,
+      mission_id: missionId,
+      original_name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      file_size: file.size,
+      sha256: hash,
+      bytes
+    });
+    return json({ ...evidence, archive }, 201);
   }
 
   if (path === "/api/documents" && request.method === "GET") {
@@ -496,7 +598,17 @@ async function handleApi(request, env) {
       sha256: hash,
       uploaded_by: who
     });
-    return json(document, 201);
+    const archive = await archiveObject(db, env, tenant, {
+      object_type: "DOCUMENT",
+      object_id: document.id,
+      mission_id: missionId,
+      original_name: file.name,
+      mime_type: file.type || "application/octet-stream",
+      file_size: file.size,
+      sha256: hash,
+      bytes
+    });
+    return json({ ...document, archive }, 201);
   }
 
   if (path.match(/^\/api\/documents\/[^/]+\/analyze$/) && request.method === "POST") {
@@ -573,7 +685,21 @@ async function handleApi(request, env) {
       payload: { baseline: REGULATORY_BASELINE, result, chain },
       generated_by: who
     });
-    return json({ report, result, chain }, 201);
+    const reportPayload = { baseline: REGULATORY_BASELINE, result, chain };
+    const reportBytes = new TextEncoder().encode(JSON.stringify(reportPayload));
+    const reportHash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", reportBytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
+    const archive = await archiveObject(db, env, tenant, {
+      object_type: "REPORT",
+      object_id: report.id,
+      mission_id: b.mission_id,
+      report_number: report.report_number,
+      original_name: `${report.report_number}.json`,
+      mime_type: "application/json",
+      file_size: reportBytes.length,
+      sha256: reportHash,
+      payload: reportPayload
+    });
+    return json({ report: { ...report, archive }, result, chain }, 201);
   }
 
   return json({ error: "Not found" }, 404);

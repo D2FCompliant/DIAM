@@ -85,6 +85,11 @@ create table if not exists public.diam_evidences (
   file_size bigint,
   sha256 text not null,
   expected_evidence_ref text,
+  archive_status text not null default 'PENDING' check (archive_status in ('PENDING','ARCHIVED','FAILED','DISABLED')),
+  archive_provider text,
+  archive_id text,
+  archive_receipt jsonb,
+  archived_at timestamptz,
   uploaded_by text,
   uploaded_at timestamptz not null default now(),
   unique(tenant_id, mission_id, sha256)
@@ -101,6 +106,11 @@ create table if not exists public.diam_documents (
   file_size bigint,
   sha256 text not null,
   analysis_status text not null default 'UPLOADED' check (analysis_status in ('UPLOADED','ANALYZED','FAILED')),
+  archive_status text not null default 'PENDING' check (archive_status in ('PENDING','ARCHIVED','FAILED','DISABLED')),
+  archive_provider text,
+  archive_id text,
+  archive_receipt jsonb,
+  archived_at timestamptz,
   uploaded_by text,
   uploaded_at timestamptz not null default now(),
   unique(tenant_id, mission_id, sha256)
@@ -188,8 +198,29 @@ create table if not exists public.diam_reports (
   report_number text not null,
   opinion text not null,
   payload jsonb not null,
+  archive_status text not null default 'PENDING' check (archive_status in ('PENDING','ARCHIVED','FAILED','DISABLED')),
+  archive_provider text,
+  archive_id text,
+  archive_receipt jsonb,
+  archived_at timestamptz,
   generated_by text,
   generated_at timestamptz not null default now()
+);
+
+create table if not exists public.diam_archive_events (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid references public.diam_tenants(id) on delete cascade,
+  mission_id uuid references public.diam_missions(id) on delete cascade,
+  object_type text not null,
+  object_id uuid not null,
+  provider text not null default 'SAE',
+  status text not null check (status in ('PENDING','ARCHIVED','FAILED','DISABLED')),
+  archive_id text,
+  sha256 text,
+  request_payload jsonb not null default '{}',
+  receipt jsonb,
+  error text,
+  created_at timestamptz not null default now()
 );
 
 create table if not exists public.diam_audit_events (
@@ -213,6 +244,7 @@ create index if not exists idx_diam_findings_question on public.diam_findings(qu
 create index if not exists idx_diam_ai_suggestions_mission on public.diam_ai_gap_suggestions(mission_id);
 create index if not exists idx_diam_nc_finding on public.diam_non_conformities(finding_id);
 create index if not exists idx_diam_actions_nc on public.diam_actions(non_conformity_id);
+create index if not exists idx_diam_archive_events_object on public.diam_archive_events(object_type, object_id);
 
 insert into storage.buckets (id, name, public)
 values ('diam-evidence', 'diam-evidence', false)
