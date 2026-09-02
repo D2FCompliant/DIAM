@@ -38,11 +38,22 @@
 
     <nav class="tabs" aria-label="Navigation DIAM">
       <button class="tab active" data-tab="dashboard" type="button">Pilotage</button>
+      <button class="tab" data-tab="mission_form" type="button">Fiche mission</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
       <button class="tab" data-tab="documents" type="button">Documents & IA</button>
       <button class="tab" data-tab="client" type="button">Espace client</button>
       <button class="tab" data-tab="report" type="button">Rapport DGFiP</button>
+    </nav>
+
+    <nav class="actionBar" aria-label="Actions rapides DIAM">
+      <button id="topNewMission" type="button">Nouvelle mission</button>
+      <button id="topCreateMission" type="button">Créer mission</button>
+      <button id="topSaveMission" class="secondary" type="button">Enregistrer fiche</button>
+      <button id="topOpenMission" class="secondary" type="button">Ouvrir existante</button>
+      <button id="topGlobalLibrary" class="secondary" type="button">Référentiels / CR</button>
+      <button id="topDgfipFile" class="secondary" type="button">Dossier DGFiP</button>
+      <button id="topReport" type="button">Rapport DGFiP</button>
     </nav>
 
     <main class="layout">
@@ -63,7 +74,7 @@
         <p class="notice" id="runtimeNotice" hidden></p>
       </section>
 
-      <section class="card" data-panel="dashboard">
+      <section class="card wide" data-panel="mission_form" hidden>
         <h2>Fiche mission / client</h2>
         <p class="muted">Crée une mission ou mets à jour la mission ouverte. Le programme d’audit pilote le questionnaire, les preuves attendues et le rapport.</p>
         <div class="grid">
@@ -256,41 +267,46 @@
           </div>
         </div>
         <p>Dépose le dossier de candidature DGFiP accepté, les nouveaux référentiels, les CR de réunion DGFiP/AIFE, les notes D2F Compliant et les documents qualité/techniques du client. Chaque fichier est haché SHA-256, rattaché à la mission et peut être analysé pour cadrer l’audit ou proposer des preuves manquantes.</p>
-        <div class="quickActions" aria-label="Types de dépôt rapides">
-          <button class="secondary" data-doc-type="DGFiP_APPLICATION_ACCEPTED" type="button">Dossier DGFiP accepté</button>
-          <button class="secondary" data-doc-type="REGULATORY_REFERENCE" type="button">Nouveau référentiel</button>
-          <button class="secondary" data-doc-type="DGFIP_MEETING_NOTE" type="button">CR réunion DGFiP/AIFE</button>
-          <button class="secondary" data-doc-type="D2F_REFERENCE" type="button">Note / exigence D2F</button>
-          <button class="secondary" data-doc-type="D2F_BUSINESS_SUITE_EXPORT" type="button">Export D2F Business Suite</button>
-          <button class="secondary" data-doc-type="OTHER" type="button">Document complémentaire</button>
-        </div>
-        <div class="grid">
-          <label>Type de document
-            <select id="auditDocumentType">
-              <option value="QUALITY">Qualité / ISO</option>
-              <option value="TECHNICAL">Technique / architecture</option>
-              <option value="SECURITY">Sécurité / IAM / journalisation</option>
-              <option value="DGFiP_APPLICATION_ACCEPTED">Dossier de candidature accepté DGFiP</option>
-              <option value="REGULATORY_REFERENCE">Nouveau référentiel applicable</option>
-              <option value="D2F_REFERENCE">Référentiel / note D2F Compliant</option>
-              <option value="D2F_BUSINESS_SUITE_EXPORT">Export D2F Business Suite</option>
-              <option value="REGULATORY_UPDATE">Demande récente DGFiP/AIFE</option>
-              <option value="DGFIP_MEETING_NOTE">Compte rendu réunion DGFiP/AIFE</option>
-              <option value="EVIDENCE_EXPORT">Export de logs / preuve</option>
-              <option value="OTHER">Autre</option>
-            </select>
-          </label>
-          <label>Document(s) à déposer <input id="auditDocumentFile" type="file" multiple /></label>
-        <div class="row">
-            <button id="uploadAuditDocument">Déposer</button>
-            <button id="analyzeAuditDocument">Analyser au regard du référentiel</button>
+        <div class="documentDropZone">
+          <h3>Bibliothèque d’actualisation de la mission</h3>
+          <p class="documentHint">À utiliser quand la DGFiP/AIFE publie un nouveau guide, un nouveau texte, un CR de réunion ou une exigence D2F : DIAM conserve le fichier dans la mission, calcule son SHA-256 et peut relancer l’analyse d’impact au regard du programme PA ou SC.</p>
+          <div class="quickActions" aria-label="Types de dépôt rapides">
+            <button class="secondary" data-doc-type="DGFiP_APPLICATION_ACCEPTED" type="button">Dossier DGFiP accepté</button>
+            <button class="secondary" data-doc-type="REGULATORY_REFERENCE" type="button">Nouveau référentiel / guide</button>
+            <button class="secondary" data-doc-type="REGULATORY_UPDATE" type="button">Nouveau texte / actualité</button>
+            <button class="secondary" data-doc-type="DGFIP_MEETING_NOTE" type="button">CR réunion DGFiP/AIFE</button>
+            <button class="secondary" data-doc-type="D2F_REFERENCE" type="button">Note / exigence D2F</button>
+            <button class="secondary" data-doc-type="OTHER" type="button">Document complémentaire</button>
+          </div>
+          <div class="grid">
+            <label>Type de document
+              <select id="auditDocumentType">
+                <option value="QUALITY">Qualité / ISO</option>
+                <option value="TECHNICAL">Technique / architecture</option>
+                <option value="SECURITY">Sécurité / IAM / journalisation</option>
+                <option value="DGFiP_APPLICATION_ACCEPTED">Dossier de candidature accepté DGFiP</option>
+                <option value="REGULATORY_REFERENCE">Nouveau référentiel / nouveau guide applicable</option>
+                <option value="D2F_REFERENCE">Référentiel / note D2F Compliant</option>
+                <option value="D2F_BUSINESS_SUITE_EXPORT">Export D2F Business Suite</option>
+                <option value="REGULATORY_UPDATE">Nouveau texte ou demande récente DGFiP/AIFE</option>
+                <option value="DGFIP_MEETING_NOTE">Compte rendu réunion DGFiP/AIFE</option>
+                <option value="EVIDENCE_EXPORT">Export de logs / preuve</option>
+                <option value="OTHER">Autre document complémentaire</option>
+              </select>
+            </label>
+            <label>Document(s) à déposer <input id="auditDocumentFile" type="file" multiple accept=".pdf,.doc,.docx,.txt,.md,.csv,.json,.xml,.xlsx,.xls,.png,.jpg,.jpeg" /></label>
+            <div class="row">
+              <button id="uploadAuditDocument">Déposer dans la mission</button>
+              <button id="uploadAndAnalyzeDocument">Déposer puis analyser</button>
+              <button id="analyzeAuditDocument" class="secondary">Analyser le document sélectionné</button>
+            </div>
           </div>
         </div>
         <p class="status" id="documentStatus"></p>
         <p class="muted" id="selectedDocument">Aucun document sélectionné.</p>
         <div class="tableWrap">
           <table id="documentsTable">
-            <thead><tr><th>Type</th><th>Fichier</th><th>Analyse</th><th>SHA-256</th></tr></thead>
+            <thead><tr><th>Portée</th><th>Type</th><th>Fichier</th><th>Analyse</th><th>SHA-256</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>

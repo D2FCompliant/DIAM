@@ -113,7 +113,8 @@ create table if not exists public.diam_evidences (
 create table if not exists public.diam_documents (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null references public.diam_tenants(id) on delete cascade,
-  mission_id uuid not null references public.diam_missions(id) on delete cascade,
+  mission_id uuid references public.diam_missions(id) on delete cascade,
+  document_scope text not null default 'MISSION' check (document_scope in ('MISSION','GLOBAL')),
   document_type text not null default 'TECHNICAL',
   original_name text not null,
   storage_path text not null,

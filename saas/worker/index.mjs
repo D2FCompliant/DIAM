@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "0.3.6",
-  release: "SC Audit Program",
-  schemaVersion: "202609020009_security_baseline",
+  version: "0.3.8",
+  release: "Audit Cockpit UX",
+  schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-02",
-  lastChange: "Ajout des missions d'audit SC/RLF-C, choix PA ou SC, questionnaire SC dédié et synchronisation client internationale"
+  lastChange: "Cockpit auditeur compact avec barre d'actions haute, fiche mission dédiée et bibliothèque transverse des référentiels/CR"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -742,7 +742,7 @@ async function archiveObject(db, env, tenant, payload) {
     form.set("provider", provider);
     form.set("source", "DIAM SaaS");
     form.set("tenant_id", tenant.id);
-    form.set("mission_id", payload.mission_id);
+    form.set("mission_id", payload.mission_id || "");
     form.set("object_type", payload.object_type);
     form.set("object_id", payload.object_id);
     form.set("original_name", payload.original_name || payload.report_number || payload.object_id);
@@ -1082,6 +1082,7 @@ async function handleApi(request, env) {
       number: `MIS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       title: body.title || program.defaultTitle,
       referential_version: program.referentialVersion,
+      client_access_token: crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""),
       client_language: body.client_language || "fr",
       audit_type: lifecycle.audit_type,
       parent_mission_id: lifecycle.parent_mission_id,
@@ -1260,30 +1261,48 @@ async function handleApi(request, env) {
 
   if (path === "/api/documents" && request.method === "GET") {
     const missionId = url.searchParams.get("mission_id");
+    const includeGlobal = url.searchParams.get("include_global") === "true";
+    const scope = url.searchParams.get("scope");
+    if (scope === "global" || (!missionId && includeGlobal)) {
+      return json(await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&document_scope=eq.GLOBAL&order=uploaded_at.desc`));
+    }
+    if (!missionId) return json({ error: "Mission obligatoire pour lister les documents de mission. Utilise scope=global pour les référentiels transverses." }, 400);
+    if (includeGlobal) {
+      return json(await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&or=(mission_id.eq.${missionId},document_scope.eq.GLOBAL)&order=uploaded_at.desc`));
+    }
     return json(await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=uploaded_at.desc`));
   }
 
   if (path === "/api/documents" && request.method === "POST") {
     const form = await request.formData();
     const file = form.get("file");
-    const missionId = form.get("mission_id");
+    const requestedMissionId = form.get("mission_id") || "";
     const documentType = form.get("document_type") || "TECHNICAL";
-    if (!file || !missionId) return json({ error: "Fichier et mission obligatoires." }, 400);
+    const transverseTypes = new Set(["REGULATORY_REFERENCE", "REGULATORY_UPDATE", "DGFIP_MEETING_NOTE", "D2F_REFERENCE"]);
+    const documentScope = form.get("document_scope") === "GLOBAL" || transverseTypes.has(documentType) ? "GLOBAL" : "MISSION";
+    const missionId = documentScope === "GLOBAL" ? null : requestedMissionId;
+    if (!file) return json({ error: "Fichier obligatoire." }, 400);
+    if (documentScope === "MISSION" && !missionId) return json({ error: "Mission obligatoire pour un document client ou une preuve de mission." }, 400);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
-    const existing = (await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&sha256=eq.${hash}`))[0];
+    const existingQuery = documentScope === "GLOBAL"
+      ? `?tenant_id=eq.${tenant.id}&document_scope=eq.GLOBAL&sha256=eq.${hash}`
+      : `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&sha256=eq.${hash}`;
+    const existing = (await db.select("diam_documents", existingQuery))[0];
     if (existing) {
       const updated = await db.patch("diam_documents", `?id=eq.${existing.id}&tenant_id=eq.${tenant.id}`, {
         document_type: documentType || existing.document_type,
+        document_scope: documentScope,
         updated_at: new Date().toISOString()
       });
-      return json({ ...(updated || existing), duplicate: true, message: "Document déjà présent dans cette mission : il a été sélectionné pour analyse." }, 200);
+      return json({ ...(updated || existing), duplicate: true, message: documentScope === "GLOBAL" ? "Document déjà présent dans la bibliothèque transverse." : "Document déjà présent dans cette mission : il a été sélectionné pour analyse." }, 200);
     }
-    const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${file.name}`;
+    const storagePath = `${tenant.id}/${documentScope.toLowerCase()}/${missionId || "global"}/${crypto.randomUUID()}-${file.name}`;
     await db.uploadToBucket("diam-documents", storagePath, bytes, file.type || "application/octet-stream");
     const document = await db.insert("diam_documents", {
       tenant_id: tenant.id,
       mission_id: missionId,
+      document_scope: documentScope,
       document_type: documentType,
       original_name: file.name,
       storage_path: storagePath,
@@ -1311,14 +1330,16 @@ async function handleApi(request, env) {
     const document = docs[0];
     if (!document) return json({ error: "Document introuvable." }, 404);
     const form = await request.formData();
+    const analysisMissionId = form.get("mission_id") || document.mission_id;
+    if (!analysisMissionId) return json({ error: "Ouvre une mission pour analyser ce document au regard d'un programme d'audit." }, 400);
     let file = form.get("file");
     if (!file) {
       const bytes = await db.downloadFromBucket("diam-documents", document.storage_path);
       file = new File([bytes], document.original_name || "document-audit", { type: document.mime_type || "application/octet-stream" });
     }
     try {
-      const controls = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${document.mission_id}&order=reference.asc`);
-      const mission = (await db.select("diam_missions", `?id=eq.${document.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};
+      const controls = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${analysisMissionId}&order=reference.asc`);
+      const mission = (await db.select("diam_missions", `?id=eq.${analysisMissionId}&tenant_id=eq.${tenant.id}`))[0] || {};
       const client = mission.client_id ? (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0] || {} : {};
       const analysis = await analyzeWithAI(env, file, controls, {
         mission: {
@@ -1352,7 +1373,7 @@ async function handleApi(request, env) {
         const q = controls.find((c) => c.reference === s.reference);
         saved.push(await db.insert("diam_ai_gap_suggestions", {
           tenant_id: tenant.id,
-          mission_id: document.mission_id,
+          mission_id: analysisMissionId,
           document_id: document.id,
           question_id: q?.id || null,
           reference: s.reference,
@@ -1376,7 +1397,7 @@ async function handleApi(request, env) {
         && ["POTENTIAL_GAP", "MORE_INFO_REQUIRED"].includes(s.assessment_type)
       );
       if (mission.audit_type === "SURVEILLANCE" && labelImpact) {
-        await db.patch("diam_missions", `?id=eq.${document.mission_id}&tenant_id=eq.${tenant.id}`, {
+        await db.patch("diam_missions", `?id=eq.${analysisMissionId}&tenant_id=eq.${tenant.id}`, {
           complementary_audit_required: true,
           complementary_billing_mode: "TIME_SPENT",
           lifecycle_status: "COMPLEMENTARY_AUDIT_REQUIRED",

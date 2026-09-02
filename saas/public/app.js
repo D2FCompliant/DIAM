@@ -8,9 +8,9 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.3.6",
-  release: "SC Audit Program",
-  schemaVersion: "202609020009_security_baseline",
+  version: "0.3.8",
+  release: "Audit Cockpit UX",
+  schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
 
@@ -106,9 +106,20 @@ async function api(path, options = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (data.auth_required || res.status === 401) showLogin(data);
-    throw new Error(data.error || JSON.stringify(data));
+    throw new Error(friendlyApiError(data, res.status));
   }
   return data;
+}
+
+function friendlyApiError(data, status) {
+  const raw = String(data?.error || data?.message || data?.details || JSON.stringify(data || {}));
+  if (/client_access_token/i.test(raw)) return "Impossible de créer la mission : la migration Supabase du token client manque. Applique 202609020010_global_reference_documents.sql puis réessaie.";
+  if (/document_scope/i.test(raw)) return "Impossible de gérer les référentiels transverses : la migration Supabase 202609020010_global_reference_documents.sql n’est pas encore appliquée.";
+  if (/duplicate key|23505|already exists/i.test(raw)) return "Ce document existe déjà. Sélectionne sa ligne dans le registre puis clique “Analyser le document sélectionné”.";
+  if (/OPENAI_API_KEY|OpenAI/i.test(raw)) return "Analyse assistée indisponible : clé OpenAI absente ou invalide côté Cloudflare.";
+  if (/storage|bucket|diam-documents/i.test(raw)) return "Dépôt impossible : vérifie que le bucket Supabase Storage `diam-documents` existe et que la clé service role est configurée côté Cloudflare.";
+  if (/relation .* does not exist|42P01/i.test(raw)) return "Base Supabase incomplète : applique les migrations SQL DIAM dans l’ordre depuis le dossier saas/supabase/migrations.";
+  return raw || `Erreur API ${status}`;
 }
 
 function setStatus(text, type = "info", targetId = "actionStatus") {
@@ -166,6 +177,13 @@ function bindEvents() {
     tab.onclick = () => showTab(tab.dataset.tab);
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
+  $("topNewMission").onclick = () => prepareNewMission();
+  $("topCreateMission").onclick = () => run(createMission, "createStatus");
+  $("topSaveMission").onclick = () => run(updateMissionProfile, "createStatus");
+  $("topOpenMission").onclick = () => focusExistingMissions();
+  $("topGlobalLibrary").onclick = () => prepareGlobalLibrary();
+  $("topDgfipFile").onclick = () => run(prepareDgfipAnalysis, "createStatus");
+  $("topReport").onclick = () => run(generateReport, "createStatus");
   $("updateMissionProfile").onclick = () => run(updateMissionProfile, "createStatus");
   $("prepareDgfipAnalysis").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
@@ -182,6 +200,7 @@ function bindEvents() {
   $("uploadEvidence").onclick = () => run(uploadEvidence);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
   $("uploadAuditDocument").onclick = () => run(uploadAuditDocument, "documentStatus");
+  $("uploadAndAnalyzeDocument").onclick = () => run(uploadAndAnalyzeDocument, "documentStatus");
   $("analyzeAuditDocument").onclick = () => run(analyzeAuditDocument, "documentStatus");
   $("promoteSuggestion").onclick = () => run(promoteSuggestion, "documentStatus");
   $("rejectSuggestion").onclick = () => run(rejectSuggestion, "documentStatus");
@@ -207,6 +226,25 @@ function bindEvents() {
   }
   syncCountryIdentifierFields();
   showTab("dashboard", { scroll: false });
+}
+
+function prepareNewMission() {
+  showTab("mission_form");
+  $("clientName")?.focus();
+  setStatus("Mode création : renseigne/import le client, choisis le programme PA ou SC, puis clique “Créer mission + questionnaire”.", "info", "createStatus");
+}
+
+function focusExistingMissions() {
+  showTab("dashboard");
+  $("missionSelect")?.focus();
+  setStatus("Sélectionne une mission existante puis clique “Ouvrir mission”. Le portefeuille en bas liste aussi toutes les missions.", "info", "createStatus");
+}
+
+function prepareGlobalLibrary() {
+  $("auditDocumentType").value = "REGULATORY_REFERENCE";
+  showTab("documents");
+  setStatus("Bibliothèque transverse : dépose ici nouveau guide DGFiP, texte, CR DGFiP/AIFE ou référentiel D2F applicable à tous les audits.", "info", "documentStatus");
+  $("auditDocumentFile")?.focus();
 }
 
 function showLogin(details = {}) {
@@ -618,7 +656,7 @@ async function updateMissionProfile() {
   state.missionId = out.mission.id;
   await loadMissions();
   setStatus("Fiche mission active mise à jour : client, langue, programme d’audit et périmètre sont enregistrés.", "success", "createStatus");
-  showTab("dashboard", { scroll: false });
+  showTab("mission_form", { preserveScroll: true });
 }
 
 function prepareDgfipAnalysis() {
@@ -814,7 +852,8 @@ async function uploadEvidence() {
 }
 
 async function loadDocuments() {
-  state.documents = await api(`/api/documents?mission_id=${state.missionId}`);
+  const query = state.missionId ? `?mission_id=${state.missionId}&include_global=true` : "?scope=global";
+  state.documents = await api(`/api/documents${query}`);
   renderDocuments();
 }
 
@@ -822,14 +861,14 @@ function renderDocuments() {
   if (!state.documents.length) {
     $("documentsTable").querySelector("tbody").innerHTML = `
       <tr class="noRows">
-        <td colspan="4">Aucun document déposé pour cette mission.</td>
+        <td colspan="5">Aucun document déposé. Ajoute un document de mission ou un document transverse : guide DGFiP, texte, CR DGFiP/AIFE, référentiel D2F.</td>
       </tr>`;
     renderDocumentsSelection();
     return;
   }
   $("documentsTable").querySelector("tbody").innerHTML = state.documents.map((d, i) => `
     <tr data-index="${i}" class="${state.documentId === d.id ? "selected" : ""}">
-      <td>${escapeHtml(documentTypeLabel(d.document_type))}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(analysisStatusLabel(d.analysis_status))}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
+      <td>${d.document_scope === "GLOBAL" ? badge("Transverse") : badge("Mission")}</td><td>${escapeHtml(documentTypeLabel(d.document_type))}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(analysisStatusLabel(d.analysis_status))}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
     </tr>`).join("");
   for (const row of $("documentsTable").querySelectorAll("tbody tr")) {
     row.onclick = () => { state.documentId = state.documents[Number(row.dataset.index)].id; renderDocumentsSelection(); };
@@ -840,12 +879,18 @@ function renderDocuments() {
 function renderDocumentsSelection() {
   const selected = state.documents.find((d) => d.id === state.documentId);
   $("selectedDocument").textContent = selected
-    ? `Document sélectionné : ${selected.original_name}. Clique “Analyser au regard du référentiel” pour l’analyser sans le redéposer.`
+    ? `Document sélectionné : ${selected.original_name}${selected.document_scope === "GLOBAL" ? " — référentiel/CR transverse applicable à toutes les missions" : ""}. Clique “Analyser le document sélectionné” pour l’analyser sans le redéposer.`
     : "Aucun document sélectionné. Dépose un document ou sélectionne une ligne déjà présente.";
 }
 
-async function uploadAuditDocument() {
-  requireMission();
+function isGlobalDocumentType(type) {
+  return ["REGULATORY_REFERENCE", "REGULATORY_UPDATE", "DGFIP_MEETING_NOTE", "D2F_REFERENCE"].includes(type);
+}
+
+async function uploadAuditDocument(options = {}) {
+  const documentType = $("auditDocumentType").value;
+  const globalScope = isGlobalDocumentType(documentType);
+  if (!globalScope) requireMission();
   if (state.demo) return demoOnly("Le dépôt documentaire nécessite l’API Cloudflare Worker et Supabase Storage.");
   const files = [...$("auditDocumentFile").files];
   if (!files.length) throw new Error("Choisis un ou plusieurs documents à déposer : dossier DGFiP accepté, nouveau référentiel, CR réunion, note D2F, document qualité, technique ou sécurité.");
@@ -853,37 +898,59 @@ async function uploadAuditDocument() {
   setStatus(`Dépôt documentaire en cours (${files.length} fichier(s))...`, "info", "documentStatus");
   for (const file of files) {
     const fd = new FormData();
-    fd.set("mission_id", state.missionId);
-    fd.set("document_type", $("auditDocumentType").value);
+    if (state.missionId && !globalScope) fd.set("mission_id", state.missionId);
+    fd.set("document_type", documentType);
+    fd.set("document_scope", globalScope ? "GLOBAL" : "MISSION");
     fd.set("file", file);
     uploaded.push(await api("/api/documents", { method: "POST", body: fd }));
   }
   state.documentId = uploaded.at(-1)?.id || state.documentId;
   const duplicates = uploaded.filter((doc) => doc.duplicate).length;
   const created = uploaded.length - duplicates;
-  setStatus(`${created} document(s) déposé(s), ${duplicates} déjà présent(s). Sélectionne une ligne puis clique “Analyser au regard du référentiel”.`, "success", "documentStatus");
+  if (!options.silent) {
+    const scopeLabel = globalScope ? "dans la bibliothèque transverse" : "dans la mission";
+    setStatus(`${created} document(s) déposé(s) ${scopeLabel}, ${duplicates} déjà présent(s).`, "success", "documentStatus");
+  }
   $("auditDocumentFile").value = "";
   await loadDocuments();
-  showTab("documents");
+  showTab("documents", { preserveScroll: true });
+  return uploaded;
+}
+
+async function analyzeDocumentById(documentId) {
+  const selected = state.documents.find((d) => d.id === documentId);
+  if (!selected) throw new Error("Sélectionne une ligne documentaire existante à analyser.");
+  if (!state.missionId) throw new Error("Ouvre une mission pour analyser ce document au regard du programme d’audit PA ou SC.");
+  const fd = new FormData();
+  fd.set("mission_id", state.missionId);
+  setStatus(`Analyse au regard du référentiel en cours : ${selected.original_name}...`, "info", "documentStatus");
+  return api(`/api/documents/${documentId}/analyze`, { method: "POST", body: fd });
+}
+
+async function uploadAndAnalyzeDocument() {
+  if (!state.missionId) throw new Error("Ouvre une mission avant l’analyse. Les référentiels/CR peuvent être déposés en bibliothèque transverse, mais l’analyse se fait toujours contre un programme d’audit.");
+  const uploaded = await uploadAuditDocument({ silent: true });
+  let total = 0;
+  for (const doc of uploaded) {
+    const out = await analyzeDocumentById(doc.id);
+    total += out.suggestions?.length || 0;
+  }
+  setStatus(`${uploaded.length} document(s) déposé(s) puis analysé(s). ${total} proposition(s) générée(s) ou mise(s) à disposition pour revue auditeur.`, "success", "documentStatus");
+  await Promise.all([loadDocuments(), loadSuggestions()]);
+  showTab("documents", { preserveScroll: true });
 }
 
 async function analyzeAuditDocument() {
   requireMission();
   if (state.demo) return demoOnly("L’analyse IA réelle nécessite l’API Worker, Supabase et une clé OpenAI configurée.");
-  let file = $("auditDocumentFile").files[0];
-  if (!state.documentId) {
-    if (!file) throw new Error("Choisis un document à déposer/analyser.");
-    await uploadAuditDocument();
-    file = null;
+  if ($("auditDocumentFile").files.length) {
+    throw new Error("Un nouveau fichier est choisi mais pas encore déposé. Clique “Déposer puis analyser”. Pour analyser un document déjà présent, sélectionne sa ligne dans le registre.");
   }
-  const fd = new FormData();
-  if (file) fd.set("file", file);
-  const selected = state.documents.find((d) => d.id === state.documentId);
-  setStatus(`Analyse au regard du référentiel en cours${selected ? ` : ${selected.original_name}` : ""}...`, "info", "documentStatus");
-  const out = await api(`/api/documents/${state.documentId}/analyze`, { method: "POST", body: fd });
+  if (!state.documentId) throw new Error("Sélectionne un document déjà présent dans le registre, ou choisis un fichier puis clique “Déposer puis analyser”.");
+  const out = await analyzeDocumentById(state.documentId);
   setStatus(`${out.suggestions.length} proposition(s) d'écart générée(s). Validation auditeur requise.`, "success", "documentStatus");
   await Promise.all([loadDocuments(), loadSuggestions()]);
-  showTab("documents");
+  showTab("documents", { preserveScroll: true });
 }
 
 async function loadSuggestions() {
@@ -1055,22 +1122,29 @@ function requireSelection() { if (!state.selected) throw new Error("Sélectionne
 function requireMission() { if (!state.missionId) throw new Error("Crée ou sélectionne d'abord une mission. Sans mission, DIAM ne peut pas rattacher le questionnaire, les preuves et le rapport."); }
 function showTab(name, options = {}) {
   state.activeTab = name;
-  document.querySelector(".layout")?.classList.toggle("dashboardMode", name === "dashboard");
+  const layout = document.querySelector(".layout");
+  layout?.classList.toggle("dashboardMode", name === "dashboard");
   for (const panel of document.querySelectorAll("[data-panel]")) {
     panel.hidden = panel.dataset.panel !== name;
+    if (!panel.hidden && options.preserveScroll !== true) panel.scrollTop = 0;
   }
   for (const tab of document.querySelectorAll("[data-tab]")) {
     const active = tab.dataset.tab === name;
     tab.classList.toggle("active", active);
     tab.setAttribute("aria-selected", active ? "true" : "false");
   }
-  if (options.scroll !== false) document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (options.preserveScroll !== true) {
+    if (layout) layout.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply"]) {
+  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topSaveMission", "topDgfipFile", "topReport"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }
+  const upload = $("uploadAuditDocument");
+  if (upload) upload.disabled = false;
 }
 function renderVersionStack(app = appRelease) {
   const schema = app.schema || {};
