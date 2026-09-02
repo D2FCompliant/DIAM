@@ -4,21 +4,39 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DIAM SaaS - Audit PA DGFiP</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="topbar">
-      <div>
-        <p class="eyebrow">D2F Compliant</p>
-        <h1>DIAM SaaS</h1>
+      <div class="brandBlock">
+        <div class="brandMark">D2F</div>
+        <div>
+          <p class="eyebrow">D2F Compliant · Audit & conformité</p>
+          <h1>DIAM SaaS</h1>
+          <p class="tagline">Plateforme d’audit PA/PDP — questionnaire, preuves, constats, IA et rapport DGFiP.</p>
+        </div>
       </div>
-      <div class="baseline" id="baseline">Chargement du référentiel...</div>
+      <div class="topPanel">
+        <div class="modePill" id="runtimeMode">Connexion API…</div>
+        <div class="baseline" id="baseline">Chargement du référentiel...</div>
+      </div>
     </header>
 
     <main class="layout">
       <section class="card wide">
-        <h2>Méthode d'audit obligatoire</h2>
+        <div class="sectionHeader">
+          <div>
+            <p class="eyebrow dark">Méthode obligatoire</p>
+            <h2>Chaîne d’assurance DGFiP / PDP Integrity</h2>
+          </div>
+          <div class="kpis">
+            <span>33 contrôles socle</span>
+            <span>Preuves SHA-256</span>
+            <span>Validation auditeur</span>
+          </div>
+        </div>
         <p>DIAM applique une approche d'assurance inspirée ISO/ISAE 3000 : critères explicites, preuves suffisantes et appropriées, scepticisme professionnel, traçabilité, revue humaine et rapport final. L'IA analyse les documents et propose des écarts potentiels ; elle ne remplace jamais la décision de l'auditeur.</p>
+        <p class="notice" id="runtimeNotice" hidden></p>
       </section>
 
       <section class="card">
@@ -164,6 +182,6 @@
       </section>
     </main>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="./app.js"></script>
   </body>
 </html>

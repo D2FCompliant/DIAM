@@ -1,7 +1,82 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [] };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], demo: false };
+
+const DEMO_BASELINE = {
+  label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
+  checkedAt: "2026-09-02"
+};
+
+const DEMO_CHAIN = [
+  {
+    question_id: "demo-dgfip-gouvernance",
+    reference: "DGFiP-1.1",
+    question: "Gouvernance du dispositif PA",
+    attendu_dgfip: "La plateforme doit démontrer que le périmètre, les responsabilités, les habilitations et le pilotage du dispositif sont maîtrisés et documentés.",
+    preuves_attendues: "Dossier de candidature DGFiP, organigramme, RACI, procédures de gouvernance, comités, délégations, registre des habilitations, comptes rendus de revue.",
+    checklist: [
+      "Vérifier que le périmètre déclaré correspond aux services réellement opérés.",
+      "Contrôler la cohérence entre responsabilités, procédures et preuves opérationnelles.",
+      "Identifier les écarts entre candidature DGFiP et fonctionnement observé."
+    ],
+    qualification_base: "HIGH",
+    qualification_retenue: "HIGH",
+    reponse_statut: "NOT_STARTED",
+    reponse_client: "",
+    analyse_auditeur: "",
+    constat: "",
+    synthese_constat: "",
+    statut_constat: "",
+    recommandation: "",
+    preuves_associees: ""
+  },
+  {
+    question_id: "demo-tracabilite",
+    reference: "DGFiP-2.3",
+    question: "Traçabilité, journaux et piste d’audit",
+    attendu_dgfip: "Les événements significatifs doivent être journalisés, horodatés, protégés, exploitables et conservés pour permettre la reconstitution des traitements.",
+    preuves_attendues: "Politique de journalisation, exports de logs, schéma des événements, preuve d’horodatage, matrice d’accès aux journaux, tests de restitution, procédure de conservation.",
+    checklist: [
+      "Comparer les journaux disponibles avec les événements attendus.",
+      "Vérifier l’intégrité et la non-altération des journaux.",
+      "Tester la capacité à restituer une chaîne de traitement complète."
+    ],
+    qualification_base: "CRITICAL",
+    qualification_retenue: "CRITICAL",
+    reponse_statut: "PARTIALLY_COMPLIANT",
+    reponse_client: "Le client indique disposer de journaux applicatifs et de journaux d’accès.",
+    analyse_auditeur: "À compléter avec exports réels et test de reconstitution.",
+    constat: "Ouvert",
+    synthese_constat: "Preuves de restitution de piste d’audit non encore versées.",
+    statut_constat: "OPEN",
+    recommandation: "Fournir un export horodaté complet et une procédure de conservation.",
+    preuves_associees: "Aucune preuve liée"
+  },
+  {
+    question_id: "demo-rapport",
+    reference: "DGFiP-RAPPORT",
+    question: "Rapport final et evidence book",
+    attendu_dgfip: "Le rapport doit présenter la méthode, le périmètre, les travaux réalisés, les constats, l’opinion, les réserves éventuelles et les preuves associées.",
+    preuves_attendues: "Plan de mission, matrice des contrôles, réponses client, constats validés, evidence book, certificat, revue qualité, lettre d’affirmation si applicable.",
+    checklist: [
+      "S’assurer que chaque opinion est rattachée à des preuves.",
+      "Vérifier que les réserves et non-conformités sont explicites.",
+      "Contrôler la lisibilité du rapport pour une revue DGFiP."
+    ],
+    qualification_base: "HIGH",
+    qualification_retenue: "HIGH",
+    reponse_statut: "NOT_STARTED",
+    reponse_client: "",
+    analyse_auditeur: "",
+    constat: "",
+    synthese_constat: "",
+    statut_constat: "",
+    recommandation: "",
+    preuves_associees: ""
+  }
+];
 
 async function api(path, options = {}) {
+  if (state.demo) throw new Error("Mode aperçu local : lance l'API Cloudflare Worker pour utiliser la base Supabase et les exports réels.");
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || JSON.stringify(data));
@@ -14,10 +89,16 @@ function setStatus(text, type = "info") {
 }
 
 async function init() {
-  const boot = await api("/api/bootstrap");
-  $("baseline").textContent = `${boot.baseline.label} - sources vérifiées ${boot.baseline.checkedAt}`;
-  await loadMissions();
   bindEvents();
+  try {
+    const boot = await api("/api/bootstrap");
+    $("runtimeMode").textContent = "API connectée";
+    $("runtimeMode").className = "modePill ok";
+    $("baseline").textContent = `${boot.baseline.label} - sources vérifiées ${boot.baseline.checkedAt}`;
+    await loadMissions();
+  } catch (e) {
+    enableDemoMode(e);
+  }
 }
 
 function bindEvents() {
@@ -45,6 +126,7 @@ async function loadMissions() {
 }
 
 async function createMission() {
+  if (state.demo) return demoOnly("Création réelle indisponible en aperçu local. Lance `npm run dev` dans `DIAM/saas` avec Supabase configuré.");
   $("createStatus").textContent = "Création en cours...";
   const out = await api("/api/missions", {
     method: "POST",
@@ -61,6 +143,10 @@ async function createMission() {
 
 async function refreshAll() {
   if (!state.missionId) return;
+  if (state.demo) {
+    renderDemo();
+    return;
+  }
   await Promise.all([loadChain(), loadDocuments(), loadSuggestions()]);
 }
 
@@ -107,6 +193,14 @@ function selectQuestion(index) {
 
 async function saveAnswer() {
   requireSelection();
+  if (state.demo) {
+    state.selected.reponse_statut = $("answerStatus").value;
+    state.selected.reponse_client = $("clientAnswer").value;
+    state.selected.analyse_auditeur = $("auditorAnalysis").value;
+    setStatus("Aperçu local : réponse simulée à l’écran. Non enregistrée en base.", "success");
+    renderChain();
+    return;
+  }
   await api("/api/answers", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -123,6 +217,17 @@ async function saveAnswer() {
 
 async function saveFinding() {
   requireSelection();
+  if (state.demo) {
+    state.selected.constat_id = state.selected.constat_id || `demo-finding-${state.selected.question_id}`;
+    state.selected.constat = "Constat auditeur";
+    state.selected.synthese_constat = $("findingSummary").value;
+    state.selected.qualification_retenue = $("retainedQualification").value;
+    state.selected.recommandation = $("recommendation").value;
+    state.selected.statut_constat = $("findingStatus").value || "OPEN";
+    setStatus("Aperçu local : constat simulé. Non enregistré en base.", "success");
+    renderChain();
+    return;
+  }
   await api("/api/findings", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -139,6 +244,13 @@ async function saveFinding() {
 
 async function updateFindingStatus() {
   requireSelection();
+  if (state.demo) {
+    state.selected.statut_constat = $("findingStatus").value;
+    state.selected.qualification_retenue = $("retainedQualification").value;
+    setStatus("Aperçu local : traitement simulé. Non enregistré en base.", "success");
+    renderChain();
+    return;
+  }
   if (!state.selected.constat_id) throw new Error("Crée d'abord le constat.");
   await api(`/api/findings/${state.selected.constat_id}/status`, {
     method: "PATCH",
@@ -155,6 +267,7 @@ async function updateFindingStatus() {
 
 async function uploadEvidence() {
   requireSelection();
+  if (state.demo) return demoOnly("Le versement de preuve nécessite l’API, Supabase Storage et le hachage côté Worker.");
   if (!state.selected.constat_id) await saveFinding();
   await loadChain();
   state.selected = state.chain.find((x) => x.question_id === state.selected.question_id);
@@ -189,6 +302,7 @@ function renderDocumentsSelection() {
 }
 
 async function uploadAuditDocument() {
+  if (state.demo) return demoOnly("Le dépôt documentaire nécessite l’API Cloudflare Worker et Supabase Storage.");
   const file = $("auditDocumentFile").files[0];
   if (!file) throw new Error("Choisis un document qualité/technique.");
   const fd = new FormData();
@@ -203,6 +317,7 @@ async function uploadAuditDocument() {
 }
 
 async function analyzeAuditDocument() {
+  if (state.demo) return demoOnly("L’analyse IA réelle nécessite l’API Worker, Supabase et une clé OpenAI configurée.");
   if (!state.documentId) throw new Error("Sélectionne un document à analyser.");
   const file = $("auditDocumentFile").files[0];
   if (!file) throw new Error("Pour cette version Worker, relance l'analyse avec le fichier original choisi dans le champ fichier.");
@@ -226,6 +341,7 @@ async function loadSuggestions() {
 }
 
 async function promoteSuggestion() {
+  if (state.demo) return demoOnly("La promotion IA en constat nécessite une mission enregistrée en base.");
   if (!state.suggestionId) throw new Error("Sélectionne une proposition IA.");
   await api(`/api/ai-suggestions/${state.suggestionId}/promote`, { method: "POST" });
   setStatus("Proposition IA promue en constat auditeur à valider.", "success");
@@ -233,6 +349,15 @@ async function promoteSuggestion() {
 }
 
 async function generateReport() {
+  if (state.demo) {
+    $("reportCard").hidden = false;
+    $("report").innerHTML = reportHtml({
+      result: { opinion: "APERÇU — non opposable", reason: "Mode local sans base Supabase : rapport de démonstration visuelle uniquement." },
+      chain: state.chain
+    });
+    $("reportCard").scrollIntoView({ behavior: "smooth" });
+    return;
+  }
   const out = await api("/api/reports", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -257,6 +382,30 @@ function reportHtml(out) {
 
 function REG_LABEL() { return $("baseline").textContent; }
 function requireSelection() { if (!state.selected) throw new Error("Sélectionne d'abord une question dans la chaîne d'audit."); }
+function enableDemoMode(error) {
+  state.demo = true;
+  state.missions = [{ id: "demo-mission", number: "APERÇU-LOCAL", title: "Audit PA — aperçu visuel" }];
+  state.missionId = "demo-mission";
+  state.chain = structuredClone(DEMO_CHAIN);
+  $("runtimeMode").textContent = "Aperçu local";
+  $("runtimeMode").className = "modePill warn";
+  $("baseline").textContent = `${DEMO_BASELINE.label} - sources vérifiées ${DEMO_BASELINE.checkedAt}`;
+  $("runtimeNotice").hidden = false;
+  $("runtimeNotice").textContent = `Tu consultes l’interface hors API (${location.protocol}). Les écrans sont interactifs pour validation visuelle, mais les données ne sont pas enregistrées. Pour tester le vrai SaaS : lancer le Worker Cloudflare avec Supabase configuré. Détail technique : ${error.message}`;
+  $("missionSelect").innerHTML = `<option value="demo-mission">APERÇU-LOCAL - Audit PA — aperçu visuel</option>`;
+  $("opinion").innerHTML = "<strong>APERÇU LOCAL</strong><br>Interface chargée sans base Supabase. Les contrôles ci-dessous servent à valider l’ergonomie.";
+  state.documents = [];
+  state.suggestions = [];
+  renderDemo();
+}
+function renderDemo() {
+  renderChain();
+  $("documentsTable").querySelector("tbody").innerHTML = "";
+  $("suggestionsTable").querySelector("tbody").innerHTML = `<tr><td>DGFiP-2.3</td><td>CRITICAL</td><td>Exemple : absence de preuve de restitution complète de la piste d’audit.</td><td>82%</td><td>DEMO</td></tr>`;
+}
+function demoOnly(message) {
+  setStatus(message, "error");
+}
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 }
