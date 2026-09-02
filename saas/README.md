@@ -48,13 +48,29 @@ La logique suit une approche d'assurance de type ISO/ISAE 3000 :
 ```bash
 cd saas
 npm install
-wrangler secret put SUPABASE_URL
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 wrangler secret put DIAM_OWNER_EMAIL
 wrangler secret put OPENAI_API_KEY
 wrangler secret put OPENAI_MODEL
 npm run deploy:cloudflare
 ```
+
+Le projet Supabase configuré dans `wrangler.toml` est :
+
+```text
+https://wyvdcuhqewvvcqmdhtqt.supabase.co
+```
+
+Pour un environnement de développement seulement, si les politiques Supabase
+l'autorisent, le Worker accepte aussi :
+
+```bash
+wrangler secret put SUPABASE_PUBLISHABLE_KEY
+```
+
+La clé `SUPABASE_SERVICE_ROLE_KEY` reste le mode recommandé côté Worker, car
+elle reste côté serveur Cloudflare et évite d'exposer les droits d'écriture dans
+le navigateur.
 
 `OPENAI_MODEL` peut être omis ; le Worker utilise alors `gpt-5`.
 

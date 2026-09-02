@@ -9,9 +9,11 @@ binding = "ASSETS"
 [vars]
 APP_NAME = "DIAM SaaS"
 OPENAI_MODEL = "gpt-5"
+SUPABASE_URL = "https://wyvdcuhqewvvcqmdhtqt.supabase.co"
 
 # Secrets à définir avant déploiement :
-# wrangler secret put SUPABASE_URL
 # wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# ou, en développement seulement si les politiques Supabase l'autorisent :
+# wrangler secret put SUPABASE_PUBLISHABLE_KEY
 # wrangler secret put DIAM_OWNER_EMAIL
 # wrangler secret put OPENAI_API_KEY

@@ -77,13 +77,14 @@ function actor(request, env) {
 }
 
 function supabase(env) {
-  if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Supabase non configuré. Définir SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY dans Cloudflare.");
+  const key = env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY;
+  if (!env.SUPABASE_URL || !key) {
+    throw new Error("Supabase non configuré. Définir SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY côté Cloudflare. SUPABASE_PUBLISHABLE_KEY est accepté en développement si les politiques Supabase l'autorisent.");
   }
   const base = env.SUPABASE_URL.replace(/\/$/, "");
   const headers = {
-    apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-    authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+    apikey: key,
+    authorization: `Bearer ${key}`,
     "content-type": "application/json",
     prefer: "return=representation"
   };
@@ -114,8 +115,8 @@ function supabase(env) {
       const r = await fetch(`${base}/storage/v1/object/diam-evidence/${path}`, {
         method: "POST",
         headers: {
-          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-          authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: key,
+          authorization: `Bearer ${key}`,
           "content-type": mimeType,
           "x-upsert": "false"
         },
@@ -128,8 +129,8 @@ function supabase(env) {
       const r = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {
         method: "POST",
         headers: {
-          apikey: env.SUPABASE_SERVICE_ROLE_KEY,
-          authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+          apikey: key,
+          authorization: `Bearer ${key}`,
           "content-type": mimeType,
           "x-upsert": "false"
         },
