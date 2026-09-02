@@ -13,7 +13,7 @@
         <div>
           <p class="eyebrow">D2F Compliant · Audit & conformité</p>
           <h1>DIAM SaaS</h1>
-          <p class="tagline">Plateforme d’audit PA/PDP — questionnaire, preuves, constats, IA et rapport DGFiP.</p>
+          <p class="tagline">Plateforme d’audit PA — questionnaire, preuves, constats, analyse assistée et rapport DGFiP.</p>
         </div>
       </div>
       <div class="topPanel">
@@ -50,13 +50,13 @@
 
       <section class="card" data-panel="dashboard">
         <h2>Nouvelle mission</h2>
-        <p class="muted">Étape 1 obligatoire : crée une mission pour générer le questionnaire DGFiP/PDP et activer les dépôts documentaires.</p>
+        <p class="muted">Étape 1 obligatoire : crée une mission pour générer le questionnaire PA/DGFiP et activer les dépôts documentaires.</p>
         <div class="grid">
           <label>Client audité <input id="clientName" value="Client PA" /></label>
           <label>SIREN <input id="siren" placeholder="123456789" /></label>
           <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
         </div>
-        <button id="createMission">Créer mission + questionnaire DGFiP/PDP</button>
+        <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>
         <p class="status" id="createStatus"></p>
       </section>
 
@@ -66,6 +66,7 @@
         <div class="row">
           <select id="missionSelect"></select>
           <button id="openMission">Ouvrir mission</button>
+          <button id="copyClientLink">Copier lien client</button>
           <button id="reload">Rafraîchir</button>
           <button id="generateReport">Générer rapport DGFiP</button>
           <button id="deleteMission" class="secondary">Supprimer mission</button>
@@ -94,7 +95,7 @@
 
       <section class="card wide" data-panel="audit" hidden>
         <h2>Chaîne d'audit</h2>
-        <p>Une ligne = attendu DGFiP + qualification PDP + réponse client + constat + preuves.</p>
+        <p>Une ligne = attendu DGFiP + qualification de base + réponse client + constat + preuves.</p>
         <div class="tableWrap">
           <table id="chainTable">
             <thead>

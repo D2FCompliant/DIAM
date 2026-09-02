@@ -24,6 +24,7 @@ test("frontend contains document AI review and report workflow controls", async 
     "generateReport",
     "missionsTable",
     "openMission",
+    "copyClientLink",
     "refreshMissions",
     "evidenceFile",
     "uploadEvidence"

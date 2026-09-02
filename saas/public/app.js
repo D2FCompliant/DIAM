@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, demo: false, activeTab: "dashboard" };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
@@ -92,12 +92,24 @@ function setStatus(text, type = "info", targetId = "actionStatus") {
 
 async function init() {
   bindEvents();
+  const params = new URLSearchParams(location.search);
+  if (params.get("portal") === "client") {
+    state.clientPortal = true;
+    state.missionId = params.get("mission_id") || "";
+    state.clientToken = params.get("token") || "";
+    enterClientPortalMode();
+  }
   try {
     const boot = await api("/api/bootstrap");
     $("runtimeMode").textContent = "API connectée";
     $("runtimeMode").className = "modePill ok";
     $("baseline").textContent = `${boot.baseline.label} - sources vérifiées ${boot.baseline.checkedAt}`;
-    await loadMissions();
+    if (state.clientPortal) {
+      await loadClientFindings();
+      showTab("client", { scroll: false });
+    } else {
+      await loadMissions();
+    }
   } catch (e) {
     enableDemoMode(e);
   }
@@ -109,6 +121,7 @@ function bindEvents() {
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
+  $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
   $("refreshMissions").onclick = () => run(loadMissions, "createStatus");
   $("reload").onclick = () => run(refreshAll, "createStatus");
   $("deleteMission").onclick = () => run(deleteMission, "createStatus");
@@ -140,7 +153,7 @@ async function loadMissions() {
     state.selected = null;
     state.selectedClientFinding = null;
     $("missionSelect").innerHTML = `<option value="">Aucune mission — crée d’abord une mission</option>`;
-    $("opinion").innerHTML = "<strong>Aucune mission active</strong><br>Crée une mission pour générer automatiquement les 33 contrôles DGFiP/PDP.";
+    $("opinion").innerHTML = "<strong>Aucune mission active</strong><br>Crée une mission pour générer automatiquement les 33 contrôles PA/DGFiP.";
     $("detailEmpty").hidden = false;
     $("detail").hidden = true;
     $("selectedDocument").textContent = "Aucune mission active : dépôt documentaire bloqué tant qu’une mission n’est pas créée.";
@@ -168,7 +181,7 @@ function renderMissionList() {
       <tr class="noRows">
         <td colspan="5">
           <strong>Aucune mission créée.</strong><br>
-          Crée une mission pour initialiser les 33 contrôles DGFiP/PDP.
+          Crée une mission pour initialiser les 33 contrôles PA/DGFiP.
         </td>
       </tr>`;
     return;
@@ -228,6 +241,14 @@ async function deleteMission() {
   await loadMissions();
 }
 
+async function copyClientLink() {
+  requireMission();
+  if (state.demo) return demoOnly("Lien client indisponible en aperçu local.");
+  const out = await api(`/api/client-link?mission_id=${state.missionId}`);
+  await navigator.clipboard.writeText(out.link);
+  setStatus("Lien client copié. Tu peux l’envoyer au client audité.", "success", "createStatus");
+}
+
 async function refreshAll() {
   if (!state.missionId) {
     renderChain();
@@ -253,7 +274,7 @@ function renderChain() {
       <tr class="noRows">
         <td colspan="7">
           <strong>Aucune ligne d’audit à afficher.</strong><br>
-          Crée une mission : DIAM générera alors le questionnaire DGFiP/PDP, les preuves attendues et la chaîne d’audit.
+          Crée une mission : DIAM générera alors le questionnaire PA/DGFiP, les preuves attendues et la chaîne d’audit.
         </td>
       </tr>`;
     return;
@@ -511,7 +532,10 @@ async function rejectSuggestion() {
 }
 
 async function loadClientFindings() {
-  state.clientFindings = await api(`/api/client/findings?mission_id=${state.missionId}`);
+  const query = state.clientPortal
+    ? `mission_id=${encodeURIComponent(state.missionId)}&token=${encodeURIComponent(state.clientToken)}`
+    : `mission_id=${encodeURIComponent(state.missionId)}`;
+  state.clientFindings = await api(`/api/client/findings?${query}`);
   renderClientFindings();
 }
 
@@ -551,7 +575,8 @@ async function submitClientReply() {
   const file = $("clientReplyFile").files[0];
   if (file) fd.set("file", file);
   setStatus("Envoi de la réponse client...", "info", "clientStatus");
-  await api(`/api/client/findings/${state.selectedClientFinding.constat_id}/reply`, { method: "POST", body: fd });
+  const suffix = state.clientPortal ? `?mission_id=${encodeURIComponent(state.missionId)}&token=${encodeURIComponent(state.clientToken)}` : `?mission_id=${encodeURIComponent(state.missionId)}`;
+  await api(`/api/client/findings/${state.selectedClientFinding.constat_id}/reply${suffix}`, { method: "POST", body: fd });
   setStatus("Réponse client enregistrée, preuve liée au constat.", "success", "clientStatus");
   $("clientReplyMessage").value = "";
   $("clientReplyFile").value = "";
@@ -607,10 +632,18 @@ function showTab(name, options = {}) {
   if (options.scroll !== false) document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply"]) {
+  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }
+}
+function enterClientPortalMode() {
+  document.body.classList.add("clientPortal");
+  for (const tab of document.querySelectorAll("[data-tab]")) {
+    tab.hidden = tab.dataset.tab !== "client";
+  }
+  $("runtimeMode").textContent = "Portail client";
+  $("baseline").textContent = "Réponse client aux constats — accès limité à la mission partagée";
 }
 async function run(fn, targetId = "actionStatus") {
   try {

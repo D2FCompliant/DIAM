@@ -154,6 +154,23 @@ async function ensureTenant(db, env, request) {
   return db.upsert("diam_tenants", { slug, name: "D2F Compliant DIAM", owner_email: email }, "slug");
 }
 
+async function ensureClientMissionAccess(db, tenant, request) {
+  const url = new URL(request.url);
+  const missionId = url.searchParams.get("mission_id") || (request.headers.get("x-diam-mission-id") || "");
+  const token = url.searchParams.get("token") || request.headers.get("x-diam-client-token") || "";
+  if (!missionId) throw new Error("Mission manquante.");
+  if (!token) {
+    const internalMission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`))[0];
+    if (!internalMission) throw new Error("Mission introuvable.");
+    return internalMission;
+  }
+  const missions = await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}&client_access_token=eq.${encodeURIComponent(token)}`);
+  const mission = missions[0];
+  if (!mission || !mission.client_access_enabled) throw new Error("Accès client refusé ou désactivé.");
+  if (mission.client_access_expires_at && new Date(mission.client_access_expires_at) < new Date()) throw new Error("Lien client expiré.");
+  return mission;
+}
+
 function evidenceChecklist(text) {
   return String(text || "").split(/\s*;\s*/).filter(Boolean).map((item) => {
     const lower = item.toLowerCase();
@@ -492,6 +509,14 @@ async function handleApi(request, env) {
     return json({ chain, result: opinion(chain) });
   }
 
+  if (path === "/api/client-link" && request.method === "GET") {
+    const missionId = url.searchParams.get("mission_id");
+    const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`))[0];
+    if (!mission) return json({ error: "Mission introuvable." }, 404);
+    const link = `${url.origin}/?portal=client&mission_id=${encodeURIComponent(mission.id)}&token=${encodeURIComponent(mission.client_access_token)}`;
+    return json({ link, mission_id: mission.id, enabled: mission.client_access_enabled, expires_at: mission.client_access_expires_at });
+  }
+
   if (path === "/api/answers" && request.method === "POST") {
     const b = await readBody(request);
     const answer = await db.upsert("diam_answers", {
@@ -726,16 +751,18 @@ async function handleApi(request, env) {
   }
 
   if (path === "/api/client/findings" && request.method === "GET") {
-    const missionId = url.searchParams.get("mission_id");
-    const chain = await auditChain(db, tenant.id, missionId);
+    const mission = await ensureClientMissionAccess(db, tenant, request);
+    const chain = await auditChain(db, tenant.id, mission.id);
     return json(chain.filter((row) => row.constat_id && row.statut_constat !== "CLOSED"));
   }
 
   if (path.match(/^\/api\/client\/findings\/[^/]+\/reply$/) && request.method === "POST") {
+    const mission = await ensureClientMissionAccess(db, tenant, request);
     const findingId = path.split("/")[4];
     const finding = (await db.select("diam_findings", `?id=eq.${findingId}&tenant_id=eq.${tenant.id}`))[0];
     if (!finding) return json({ error: "Constat introuvable." }, 404);
     const question = (await db.select("diam_questions", `?id=eq.${finding.question_id}&tenant_id=eq.${tenant.id}`))[0];
+    if (question.mission_id !== mission.id) return json({ error: "Constat hors périmètre du lien client." }, 403);
     const form = await request.formData();
     const file = form.get("file");
     const message = form.get("message") || "";
