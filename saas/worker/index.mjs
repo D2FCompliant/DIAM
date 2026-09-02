@@ -209,7 +209,7 @@ async function uploadOpenAIFile(env, file) {
     headers: { authorization: `Bearer ${env.OPENAI_API_KEY}` },
     body: fd
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw new Error(openAiFriendlyError(await r.text()));
   return r.json();
 }
 
@@ -261,10 +261,26 @@ async function analyzeWithAI(env, file, controls) {
       }
     })
   });
-  if (!r.ok) throw new Error(await r.text());
+  if (!r.ok) throw new Error(openAiFriendlyError(await r.text()));
   const data = await r.json();
   const output = data.output_text || data.output?.flatMap((o) => o.content || []).find((c) => c.text)?.text || "{}";
   return JSON.parse(output);
+}
+
+function openAiFriendlyError(raw) {
+  try {
+    const parsed = JSON.parse(raw);
+    const err = parsed.error || {};
+    if (err.code === "credit_balance_exhausted" || err.type === "insufficient_quota") {
+      return "Analyse IA indisponible : le compte API OpenAI n'a plus de crédits. Ajouter des crédits/billing sur platform.openai.com, puis relancer l'analyse.";
+    }
+    if (err.code === "invalid_api_key") {
+      return "Analyse IA indisponible : la clé OPENAI_API_KEY configurée dans Cloudflare est invalide.";
+    }
+    return `Analyse IA indisponible : ${err.message || raw}`;
+  } catch {
+    return `Analyse IA indisponible : ${raw}`;
+  }
 }
 
 async function auditChain(db, tenantId, missionId) {

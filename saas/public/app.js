@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], demo: false };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], demo: false, activeTab: "dashboard" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
@@ -104,6 +104,9 @@ async function init() {
 }
 
 function bindEvents() {
+  for (const tab of document.querySelectorAll("[data-tab]")) {
+    tab.onclick = () => showTab(tab.dataset.tab);
+  }
   $("createMission").onclick = () => run(createMission, "createStatus");
   $("reload").onclick = () => run(refreshAll, "createStatus");
   $("deleteMission").onclick = () => run(deleteMission, "createStatus");
@@ -119,6 +122,7 @@ function bindEvents() {
     state.missionId = $("missionSelect").value;
     run(refreshAll, "createStatus");
   };
+  showTab("dashboard", { scroll: false });
 }
 
 async function loadMissions() {
@@ -160,6 +164,7 @@ async function createMission() {
   });
   $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles.`;
   await loadMissions();
+  showTab("audit");
 }
 
 async function deleteMission() {
@@ -234,6 +239,7 @@ function selectQuestion(index) {
   $("recommendation").value = state.selected.recommandation || "";
   $("findingStatus").value = state.selected.statut_constat || "OPEN";
   renderChain();
+  showTab("detail");
 }
 
 async function saveAnswer() {
@@ -258,6 +264,7 @@ async function saveAnswer() {
   });
   setStatus("Réponse enregistrée.", "success");
   await loadChain();
+  showTab("detail");
 }
 
 async function saveFinding() {
@@ -285,6 +292,7 @@ async function saveFinding() {
   });
   setStatus("Constat créé/mis à jour. La qualification retenue est tracée.", "success");
   await loadChain();
+  showTab("detail");
 }
 
 async function updateFindingStatus() {
@@ -308,6 +316,7 @@ async function updateFindingStatus() {
   });
   setStatus("Traitement du constat mis à jour.", "success");
   await loadChain();
+  showTab("detail");
 }
 
 async function uploadEvidence() {
@@ -328,6 +337,7 @@ async function uploadEvidence() {
   setStatus("Preuve versée, hachée et liée au constat.", "success");
   $("evidenceFile").value = "";
   await loadChain();
+  showTab("detail");
 }
 
 async function loadDocuments() {
@@ -372,13 +382,17 @@ async function uploadAuditDocument() {
   state.documentId = doc.id;
   setStatus("Document déposé et haché. Tu peux lancer l'analyse IA.", "success", "documentStatus");
   await loadDocuments();
+  showTab("documents");
 }
 
 async function analyzeAuditDocument() {
   requireMission();
   if (state.demo) return demoOnly("L’analyse IA réelle nécessite l’API Worker, Supabase et une clé OpenAI configurée.");
-  if (!state.documentId) throw new Error("Sélectionne un document à analyser.");
   const file = $("auditDocumentFile").files[0];
+  if (!state.documentId) {
+    if (!file) throw new Error("Choisis un document à déposer/analyser.");
+    await uploadAuditDocument();
+  }
   if (!file) throw new Error("Pour cette version Worker, relance l'analyse avec le fichier original choisi dans le champ fichier.");
   const fd = new FormData();
   fd.set("file", file);
@@ -386,6 +400,7 @@ async function analyzeAuditDocument() {
   const out = await api(`/api/documents/${state.documentId}/analyze`, { method: "POST", body: fd });
   setStatus(`${out.suggestions.length} proposition(s) d'écart générée(s). Validation auditeur requise.`, "success", "documentStatus");
   await Promise.all([loadDocuments(), loadSuggestions()]);
+  showTab("documents");
 }
 
 async function loadSuggestions() {
@@ -417,6 +432,7 @@ async function promoteSuggestion() {
   await api(`/api/ai-suggestions/${state.suggestionId}/promote`, { method: "POST" });
   setStatus("Proposition IA promue en constat auditeur à valider.", "success");
   await Promise.all([loadChain(), loadSuggestions()]);
+  showTab("audit");
 }
 
 async function generateReport() {
@@ -427,7 +443,7 @@ async function generateReport() {
       result: { opinion: "APERÇU — non opposable", reason: "Mode local sans base Supabase : rapport de démonstration visuelle uniquement." },
       chain: state.chain
     });
-    $("reportCard").scrollIntoView({ behavior: "smooth" });
+    showTab("report");
     return;
   }
   const out = await api("/api/reports", {
@@ -437,7 +453,7 @@ async function generateReport() {
   });
   $("reportCard").hidden = false;
   $("report").innerHTML = reportHtml(out);
-  $("reportCard").scrollIntoView({ behavior: "smooth" });
+  showTab("report");
 }
 
 function reportHtml(out) {
@@ -455,6 +471,18 @@ function reportHtml(out) {
 function REG_LABEL() { return $("baseline").textContent; }
 function requireSelection() { if (!state.selected) throw new Error("Sélectionne d'abord une question dans la chaîne d'audit."); }
 function requireMission() { if (!state.missionId) throw new Error("Crée ou sélectionne d'abord une mission. Sans mission, DIAM ne peut pas rattacher le questionnaire, les preuves et le rapport."); }
+function showTab(name, options = {}) {
+  state.activeTab = name;
+  for (const panel of document.querySelectorAll("[data-panel]")) {
+    panel.hidden = panel.dataset.panel !== name;
+  }
+  for (const tab of document.querySelectorAll("[data-tab]")) {
+    const active = tab.dataset.tab === name;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  if (options.scroll !== false) document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
 function setMissionDependentEnabled(enabled) {
   for (const id of ["reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion"]) {
     const el = $(id);

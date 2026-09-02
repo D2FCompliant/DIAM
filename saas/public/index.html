@@ -22,8 +22,16 @@
       </div>
     </header>
 
+    <nav class="tabs" aria-label="Navigation DIAM">
+      <button class="tab active" data-tab="dashboard" type="button">Pilotage</button>
+      <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
+      <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
+      <button class="tab" data-tab="documents" type="button">Documents & IA</button>
+      <button class="tab" data-tab="report" type="button">Rapport DGFiP</button>
+    </nav>
+
     <main class="layout">
-      <section class="card wide">
+      <section class="card wide" data-panel="dashboard">
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Méthode obligatoire</p>
@@ -39,7 +47,7 @@
         <p class="notice" id="runtimeNotice" hidden></p>
       </section>
 
-      <section class="card">
+      <section class="card" data-panel="dashboard">
         <h2>Nouvelle mission</h2>
         <p class="muted">Étape 1 obligatoire : crée une mission pour générer le questionnaire DGFiP/PDP et activer les dépôts documentaires.</p>
         <div class="grid">
@@ -51,7 +59,7 @@
         <p class="status" id="createStatus"></p>
       </section>
 
-      <section class="card">
+      <section class="card" data-panel="dashboard">
         <h2>Mission</h2>
         <p class="muted">La mission sélectionnée pilote toute la chaîne : questionnaire, réponses, constats, preuves, documents et rapport.</p>
         <div class="row">
@@ -63,7 +71,7 @@
         <div class="opinion" id="opinion"></div>
       </section>
 
-      <section class="card wide">
+      <section class="card wide" data-panel="audit" hidden>
         <h2>Chaîne d'audit</h2>
         <p>Une ligne = attendu DGFiP + qualification PDP + réponse client + constat + preuves.</p>
         <div class="tableWrap">
@@ -78,7 +86,7 @@
         </div>
       </section>
 
-      <section class="card wide" id="detailCard">
+      <section class="card wide" id="detailCard" data-panel="detail" hidden>
         <h2>Détail du contrôle sélectionné</h2>
         <div id="detailEmpty" class="muted">Sélectionne une ligne dans la chaîne d'audit.</div>
         <div id="detail" hidden>
@@ -139,7 +147,7 @@
         </div>
       </section>
 
-      <section class="card wide">
+      <section class="card wide" data-panel="documents" hidden>
         <h2>Dépôt documentaire et analyse IA</h2>
         <p>Dépose les documents qualité, sécurité, techniques, architecture, procédures, journaux exportés ou dossiers de candidature. L'IA analyse les documents contre le référentiel et propose des écarts potentiels à valider par l'auditeur.</p>
         <div class="grid">
@@ -179,7 +187,7 @@
         <button id="promoteSuggestion">Promouvoir la proposition sélectionnée en constat</button>
       </section>
 
-      <section class="card wide" id="reportCard" hidden>
+      <section class="card wide" id="reportCard" data-panel="report" hidden>
         <h2>Rapport DGFiP</h2>
         <button onclick="window.print()">Imprimer / exporter PDF</button>
         <div id="report"></div>

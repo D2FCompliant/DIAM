@@ -14,6 +14,11 @@ conformité de plateformes agréées.
 - OpenAI Responses API optionnelle côté Worker : analyse structurée des
   documents et propositions d'écarts. L'IA ne décide pas : l'auditeur valide.
 
+Note facturation : l'analyse IA automatisée utilise l'API OpenAI côté SaaS.
+La facturation API est séparée d'un abonnement ChatGPT Pro/Plus. Si le compte
+API n'a plus de crédits, les dépôts documentaires restent possibles mais
+l'analyse IA renvoie un message explicite de quota.
+
 ## Référentiel et méthode
 
 Baseline intégrée au 2026-09-02 :
