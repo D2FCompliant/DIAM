@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.3.8",
-  release: "Audit Cockpit UX",
+  version: "0.3.9",
+  release: "Actions cockpit clarifiées",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -177,10 +177,8 @@ function bindEvents() {
     tab.onclick = () => showTab(tab.dataset.tab);
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
-  $("topNewMission").onclick = () => prepareNewMission();
-  $("topCreateMission").onclick = () => run(createMission, "createStatus");
-  $("topSaveMission").onclick = () => run(updateMissionProfile, "createStatus");
-  $("topOpenMission").onclick = () => focusExistingMissions();
+  $("topMissionForm").onclick = () => prepareNewMission();
+  $("topOpenMission").onclick = () => run(openSelectedMissionFromTopBar, "createStatus");
   $("topGlobalLibrary").onclick = () => prepareGlobalLibrary();
   $("topDgfipFile").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("topReport").onclick = () => run(generateReport, "createStatus");
@@ -238,6 +236,15 @@ function focusExistingMissions() {
   showTab("dashboard");
   $("missionSelect")?.focus();
   setStatus("Sélectionne une mission existante puis clique “Ouvrir mission”. Le portefeuille en bas liste aussi toutes les missions.", "info", "createStatus");
+}
+
+async function openSelectedMissionFromTopBar() {
+  const selectedMissionId = $("missionSelect")?.value || state.missionId;
+  if (!selectedMissionId) {
+    focusExistingMissions();
+    throw new Error("Aucune mission sélectionnée. Choisis une mission dans la liste puis relance l’ouverture.");
+  }
+  await openMission(selectedMissionId);
 }
 
 function prepareGlobalLibrary() {
@@ -1139,7 +1146,7 @@ function showTab(name, options = {}) {
   }
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topSaveMission", "topDgfipFile", "topReport"]) {
+  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topOpenMission", "topDgfipFile", "topReport"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }
