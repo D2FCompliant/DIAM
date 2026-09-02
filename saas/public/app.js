@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], demo: false, activeTab: "dashboard" };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, demo: false, activeTab: "dashboard" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
@@ -120,6 +120,8 @@ function bindEvents() {
   $("uploadAuditDocument").onclick = () => run(uploadAuditDocument, "documentStatus");
   $("analyzeAuditDocument").onclick = () => run(analyzeAuditDocument, "documentStatus");
   $("promoteSuggestion").onclick = () => run(promoteSuggestion, "documentStatus");
+  $("rejectSuggestion").onclick = () => run(rejectSuggestion, "documentStatus");
+  $("submitClientReply").onclick = () => run(submitClientReply, "clientStatus");
   $("missionSelect").onchange = () => {
     state.missionId = $("missionSelect").value;
     run(refreshAll, "createStatus");
@@ -134,7 +136,9 @@ async function loadMissions() {
     state.chain = [];
     state.documents = [];
     state.suggestions = [];
+    state.clientFindings = [];
     state.selected = null;
+    state.selectedClientFinding = null;
     $("missionSelect").innerHTML = `<option value="">Aucune mission — crée d’abord une mission</option>`;
     $("opinion").innerHTML = "<strong>Aucune mission active</strong><br>Crée une mission pour générer automatiquement les 33 contrôles DGFiP/PDP.";
     $("detailEmpty").hidden = false;
@@ -144,6 +148,7 @@ async function loadMissions() {
     renderMissionList();
     renderDocuments();
     renderSuggestions();
+    renderClientFindings();
     setMissionDependentEnabled(false);
     return;
   }
@@ -232,7 +237,7 @@ async function refreshAll() {
     renderDemo();
     return;
   }
-  await Promise.all([loadChain(), loadDocuments(), loadSuggestions()]);
+  await Promise.all([loadChain(), loadDocuments(), loadSuggestions(), loadClientFindings()]);
 }
 
 async function loadChain() {
@@ -401,7 +406,7 @@ function renderDocuments() {
   }
   $("documentsTable").querySelector("tbody").innerHTML = state.documents.map((d, i) => `
     <tr data-index="${i}" class="${state.documentId === d.id ? "selected" : ""}">
-      <td>${escapeHtml(d.document_type)}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(d.analysis_status)}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
+      <td>${escapeHtml(d.document_type)}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(analysisStatusLabel(d.analysis_status))}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
     </tr>`).join("");
   for (const row of $("documentsTable").querySelectorAll("tbody tr")) {
     row.onclick = () => { state.documentId = state.documents[Number(row.dataset.index)].id; renderDocumentsSelection(); };
@@ -457,13 +462,20 @@ function renderSuggestions() {
   if (!state.suggestions.length) {
     $("suggestionsTable").querySelector("tbody").innerHTML = `
       <tr class="noRows">
-        <td colspan="5">Aucune proposition IA. Dépose un document dans une mission, puis lance l’analyse.</td>
+        <td colspan="8">Aucune proposition IA. Dépose un document dans une mission, puis lance l’analyse au regard du référentiel.</td>
       </tr>`;
     return;
   }
   $("suggestionsTable").querySelector("tbody").innerHTML = state.suggestions.map((s, i) => `
     <tr data-index="${i}" class="${state.suggestionId === s.id ? "selected" : ""}">
-      <td>${escapeHtml(s.reference || "-")}</td><td>${escapeHtml(s.suggested_qualification)}</td><td>${escapeHtml(s.potential_gap)}</td><td>${Math.round((s.confidence || 0) * 100)}%</td><td>${escapeHtml(s.status)}</td>
+      <td>${escapeHtml(assessmentLabel(s.assessment_type))}</td>
+      <td>${escapeHtml(s.reference || "-")}</td>
+      <td><strong>${escapeHtml(s.requirement_source || "-")}</strong><br>${escapeHtml(s.requirement_excerpt || "")}</td>
+      <td>${escapeHtml(s.evidence_document_name || "-")}<br><span class="muted">${escapeHtml(s.evidence_locator || "")}</span><br><span class="mono">${escapeHtml((s.evidence_sha256 || "").slice(0, 16))}${s.evidence_sha256 ? "..." : ""}</span></td>
+      <td>${escapeHtml(s.potential_gap)}<br><span class="muted">${escapeHtml(s.missing_evidence || "")}</span></td>
+      <td>${escapeHtml(s.suggested_qualification)}</td>
+      <td>${Math.round((s.confidence || 0) * 100)}%</td>
+      <td>${escapeHtml(s.status)}${s.reviewer_justification ? `<br><span class="muted">${escapeHtml(s.reviewer_justification)}</span>` : ""}</td>
     </tr>`).join("");
   for (const row of $("suggestionsTable").querySelectorAll("tbody tr")) {
     row.onclick = () => { state.suggestionId = state.suggestions[Number(row.dataset.index)].id; loadSuggestions(); };
@@ -474,10 +486,76 @@ async function promoteSuggestion() {
   requireMission();
   if (state.demo) return demoOnly("La promotion IA en constat nécessite une mission enregistrée en base.");
   if (!state.suggestionId) throw new Error("Sélectionne une proposition IA.");
-  await api(`/api/ai-suggestions/${state.suggestionId}/promote`, { method: "POST" });
+  await api(`/api/ai-suggestions/${state.suggestionId}/promote`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ justification: $("suggestionJustification").value })
+  });
   setStatus("Proposition IA promue en constat auditeur à valider.", "success");
   await Promise.all([loadChain(), loadSuggestions()]);
   showTab("audit");
+}
+
+async function rejectSuggestion() {
+  requireMission();
+  if (state.demo) return demoOnly("Le rejet d’une proposition nécessite une mission enregistrée en base.");
+  if (!state.suggestionId) throw new Error("Sélectionne une proposition IA.");
+  await api(`/api/ai-suggestions/${state.suggestionId}/reject`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ justification: $("suggestionJustification").value })
+  });
+  setStatus("Proposition rejetée et décision tracée.", "success", "documentStatus");
+  $("suggestionJustification").value = "";
+  await loadSuggestions();
+}
+
+async function loadClientFindings() {
+  state.clientFindings = await api(`/api/client/findings?mission_id=${state.missionId}`);
+  renderClientFindings();
+}
+
+function renderClientFindings() {
+  const tbody = $("clientFindingsTable")?.querySelector("tbody");
+  if (!tbody) return;
+  if (!state.clientFindings.length) {
+    tbody.innerHTML = `
+      <tr class="noRows">
+        <td colspan="5">Aucun constat ouvert pour l’espace client.</td>
+      </tr>`;
+    $("clientFindingSelected").textContent = "Aucun constat ouvert à traiter.";
+    return;
+  }
+  tbody.innerHTML = state.clientFindings.map((r, i) => `
+    <tr data-index="${i}" class="${state.selectedClientFinding?.constat_id === r.constat_id ? "selected" : ""}">
+      <td>${escapeHtml(r.reference)}<br>${escapeHtml(r.question)}</td>
+      <td><strong>${escapeHtml(r.constat || "Constat")}</strong><br>${escapeHtml(r.synthese_constat || "")}</td>
+      <td>${escapeHtml(r.attendu_dgfip)}</td>
+      <td>${escapeHtml(r.preuves_attendues)}</td>
+      <td>${escapeHtml(r.preuves_associees || "Aucune preuve liée")}</td>
+    </tr>`).join("");
+  for (const row of tbody.querySelectorAll("tr[data-index]")) {
+    row.onclick = () => {
+      state.selectedClientFinding = state.clientFindings[Number(row.dataset.index)];
+      $("clientFindingSelected").textContent = `${state.selectedClientFinding.reference} — ${state.selectedClientFinding.synthese_constat || state.selectedClientFinding.question}`;
+      renderClientFindings();
+    };
+  }
+}
+
+async function submitClientReply() {
+  requireMission();
+  if (!state.selectedClientFinding?.constat_id) throw new Error("Sélectionne un constat ouvert à traiter.");
+  const fd = new FormData();
+  fd.set("message", $("clientReplyMessage").value);
+  const file = $("clientReplyFile").files[0];
+  if (file) fd.set("file", file);
+  setStatus("Envoi de la réponse client...", "info", "clientStatus");
+  await api(`/api/client/findings/${state.selectedClientFinding.constat_id}/reply`, { method: "POST", body: fd });
+  setStatus("Réponse client enregistrée, preuve liée au constat.", "success", "clientStatus");
+  $("clientReplyMessage").value = "";
+  $("clientReplyFile").value = "";
+  await Promise.all([loadChain(), loadClientFindings()]);
 }
 
 async function generateReport() {
@@ -529,7 +607,7 @@ function showTab(name, options = {}) {
   if (options.scroll !== false) document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion"]) {
+  for (const id of ["openMission", "reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }
@@ -562,8 +640,10 @@ function enableDemoMode(error) {
 function renderDemo() {
   renderChain();
   renderDocuments();
-  state.suggestions = [{ id: "demo-suggestion", reference: "DGFiP-2.3", suggested_qualification: "CRITICAL", potential_gap: "Exemple : absence de preuve de restitution complète de la piste d’audit.", confidence: 0.82, status: "DEMO" }];
+  state.suggestions = [{ id: "demo-suggestion", reference: "DGFiP-2.3", requirement_source: "DGFiP v1.3 §7.3 / PDP Integrity EX-19.7", requirement_excerpt: "Preuve opposable de chaque traitement.", evidence_document_name: "Exemple.pdf", evidence_sha256: "demo", evidence_locator: "page 12 / section journalisation", assessment_type: "INSUFFICIENT_EVIDENCE", suggested_qualification: "CRITICAL", potential_gap: "Exemple : preuve de restitution complète de la piste d’audit insuffisante.", missing_evidence: "Export horodaté et manifest d’intégrité.", confidence: 0.82, status: "DEMO" }];
   renderSuggestions();
+  state.clientFindings = state.chain.filter((row) => row.constat_id);
+  renderClientFindings();
 }
 function demoOnly(message) {
   setStatus(message, "error");
@@ -573,6 +653,20 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 }
 function badge(value) { return `<strong>${escapeHtml(value)}</strong>`; }
+function assessmentLabel(value) {
+  return ({
+    POTENTIAL_GAP: "Écart potentiel",
+    INSUFFICIENT_EVIDENCE: "Preuve insuffisante",
+    MORE_INFO_REQUIRED: "Information requise"
+  })[value] || "À examiner";
+}
+function analysisStatusLabel(value) {
+  return ({
+    UPLOADED: "Déposé — analyse non lancée",
+    ANALYZED: "Analysé au regard du référentiel",
+    FAILED: "Analyse impossible — voir message d’erreur"
+  })[value] || value || "-";
+}
 function formatDate(value) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));

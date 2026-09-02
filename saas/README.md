@@ -48,6 +48,12 @@ La logique suit une approche d'assurance de type ISO/ISAE 3000 :
 2. Exécuter `supabase/migrations/202609020001_diam_saas.sql`.
 3. Vérifier la création des buckets privés `diam-documents` et `diam-evidence`.
 
+Pour une base déjà initialisée, exécuter aussi les migrations d'évolution :
+
+- `supabase/migrations/202609020002_archive_connector.sql`
+- `supabase/migrations/202609020003_ai_audit_traceability.sql`
+- `supabase/migrations/202609020004_client_reply_portal.sql`
+
 ## Configuration Cloudflare
 
 ### Déploiement depuis le dashboard Cloudflare
@@ -132,6 +138,16 @@ automatique et conserve `archive_id`, `archive_receipt` et `archived_at`.
 5. format de l'accusé de dépôt / preuve d'horodatage ;
 6. règles de classement : plan de classement, durées, sort final ;
 7. taille maximale par dépôt et stratégie de reprise.
+
+## Chaîne probatoire d'audit
+
+DIAM matérialise la chaîne :
+
+`Contrôle DGFiP → Critère → Preuve attendue → Preuve collectée + SHA-256 → Analyse assistée → Écart potentiel / preuve insuffisante / information requise → Décision humaine → Constat → Réponse client → Preuve de correction → Clôture → Rapport DGFiP`.
+
+L'écran `Espace client` permet à l'audité de répondre aux constats ouverts et de
+verser une preuve de correction. La réponse est horodatée, liée au constat, et
+la preuve suit le même circuit de hashage et d'archivage SAE.
 
 ## Test local
 

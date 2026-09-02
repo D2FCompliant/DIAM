@@ -27,6 +27,7 @@
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
       <button class="tab" data-tab="documents" type="button">Documents & IA</button>
+      <button class="tab" data-tab="client" type="button">Espace client</button>
       <button class="tab" data-tab="report" type="button">Rapport DGFiP</button>
     </nav>
 
@@ -184,7 +185,7 @@
           <label>Document à analyser <input id="auditDocumentFile" type="file" /></label>
         <div class="row">
             <button id="uploadAuditDocument">Déposer</button>
-            <button id="analyzeAuditDocument">Analyser par IA</button>
+            <button id="analyzeAuditDocument">Analyser au regard du référentiel</button>
           </div>
         </div>
         <p class="status" id="documentStatus"></p>
@@ -196,15 +197,39 @@
           </table>
         </div>
 
-        <h3>Propositions d'écarts IA</h3>
-        <p class="muted">Ces propositions ne sont pas des constats définitifs. L'auditeur doit les valider, les rejeter ou les compléter.</p>
+        <h3>Analyse assistée au regard du référentiel</h3>
+        <p class="muted">Une proposition n’est jamais une non-conformité automatique. DIAM distingue écart potentiel, preuve insuffisante et information complémentaire requise. L’auditeur décide et justifie.</p>
+        <label>Justification de la décision auditeur <textarea id="suggestionJustification" placeholder="Pourquoi cette proposition est validée ou rejetée ?"></textarea></label>
         <div class="tableWrap">
           <table id="suggestionsTable">
-            <thead><tr><th>Contrôle</th><th>Qualification</th><th>Écart potentiel</th><th>Confiance</th><th>Statut</th></tr></thead>
+            <thead><tr><th>Type</th><th>Contrôle</th><th>Source exigence</th><th>Preuve utilisée</th><th>Analyse proposée</th><th>Qualification</th><th>Confiance</th><th>Statut</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
-        <button id="promoteSuggestion">Promouvoir la proposition sélectionnée en constat</button>
+        <div class="row">
+          <button id="promoteSuggestion">Valider en constat auditeur</button>
+          <button id="rejectSuggestion" class="secondary">Rejeter la proposition</button>
+        </div>
+      </section>
+
+      <section class="card wide" data-panel="client" hidden>
+        <h2>Espace client — réponses aux constats</h2>
+        <p class="muted">Le client audité répond aux écarts ouverts et verse ses preuves de correction. Chaque réponse est horodatée, rattachée au constat et peut être archivée au SAE.</p>
+        <div class="tableWrap">
+          <table id="clientFindingsTable">
+            <thead><tr><th>Contrôle</th><th>Constat</th><th>Attendu</th><th>Preuves attendues</th><th>Preuves liées</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <hr />
+        <div id="clientReplyBox">
+          <h3>Réponse au constat sélectionné</h3>
+          <p class="muted" id="clientFindingSelected">Sélectionne un constat ouvert dans la table.</p>
+          <label>Réponse / explication client <textarea id="clientReplyMessage" placeholder="Décrire le traitement, l’action menée ou la clarification apportée."></textarea></label>
+          <label>Preuve de correction <input id="clientReplyFile" type="file" /></label>
+          <button id="submitClientReply">Envoyer réponse + preuve</button>
+          <p class="status" id="clientStatus"></p>
+        </div>
       </section>
 
       <section class="card wide" id="reportCard" data-panel="report" hidden>

@@ -141,6 +141,12 @@ create table if not exists public.diam_ai_gap_suggestions (
   question_id uuid references public.diam_questions(id) on delete set null,
   reference text,
   title text not null,
+  requirement_source text,
+  requirement_excerpt text,
+  evidence_document_name text,
+  evidence_sha256 text,
+  evidence_locator text,
+  assessment_type text not null default 'POTENTIAL_GAP' check (assessment_type in ('POTENTIAL_GAP','INSUFFICIENT_EVIDENCE','MORE_INFO_REQUIRED')),
   potential_gap text not null,
   basis text not null,
   missing_evidence text,
@@ -150,7 +156,10 @@ create table if not exists public.diam_ai_gap_suggestions (
   status text not null default 'PROPOSED' check (status in ('PROPOSED','ACCEPTED','REJECTED')),
   created_at timestamptz not null default now(),
   reviewed_by text,
-  reviewed_at timestamptz
+  reviewed_at timestamptz,
+  reviewer_decision text,
+  reviewer_justification text,
+  decision_history jsonb not null default '[]'::jsonb
 );
 
 create table if not exists public.diam_finding_evidences (
@@ -159,6 +168,17 @@ create table if not exists public.diam_finding_evidences (
   usage text not null default 'FINDING_PROOF',
   created_at timestamptz not null default now(),
   primary key(finding_id, evidence_id)
+);
+
+create table if not exists public.diam_client_replies (
+  id uuid primary key default gen_random_uuid(),
+  tenant_id uuid not null references public.diam_tenants(id) on delete cascade,
+  mission_id uuid not null references public.diam_missions(id) on delete cascade,
+  finding_id uuid not null references public.diam_findings(id) on delete cascade,
+  message text not null,
+  evidence_id uuid references public.diam_evidences(id) on delete set null,
+  submitted_by text,
+  submitted_at timestamptz not null default now()
 );
 
 create table if not exists public.diam_non_conformities (
@@ -242,6 +262,7 @@ create index if not exists idx_diam_evidences_mission on public.diam_evidences(m
 create index if not exists idx_diam_documents_mission on public.diam_documents(mission_id);
 create index if not exists idx_diam_findings_question on public.diam_findings(question_id);
 create index if not exists idx_diam_ai_suggestions_mission on public.diam_ai_gap_suggestions(mission_id);
+create index if not exists idx_diam_client_replies_finding on public.diam_client_replies(finding_id);
 create index if not exists idx_diam_nc_finding on public.diam_non_conformities(finding_id);
 create index if not exists idx_diam_actions_nc on public.diam_actions(non_conformity_id);
 create index if not exists idx_diam_archive_events_object on public.diam_archive_events(object_type, object_id);

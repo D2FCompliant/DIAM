@@ -17,6 +17,10 @@ test("frontend contains document AI review and report workflow controls", async 
     "analyzeAuditDocument",
     "suggestionsTable",
     "promoteSuggestion",
+    "rejectSuggestion",
+    "suggestionJustification",
+    "clientFindingsTable",
+    "submitClientReply",
     "generateReport",
     "missionsTable",
     "openMission",
@@ -26,7 +30,7 @@ test("frontend contains document AI review and report workflow controls", async 
   ]) {
     assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
   }
-  for (const tab of ["dashboard", "audit", "detail", "documents", "report"]) {
+  for (const tab of ["dashboard", "audit", "detail", "documents", "client", "report"]) {
     assert.ok(html.includes(`data-tab="${tab}"`), `missing tab ${tab}`);
     assert.ok(html.includes(`data-panel="${tab}"`), `missing panel ${tab}`);
   }
