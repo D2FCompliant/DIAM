@@ -528,6 +528,38 @@ async function handleApi(request, env) {
     return json({ client, mission, seeded_controls: BASE_CONTROLS.length }, 201);
   }
 
+  if (path.startsWith("/api/missions/") && request.method === "PATCH") {
+    const missionId = path.split("/").pop();
+    const body = await readBody(request);
+    const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`))[0];
+    if (!mission) return json({ error: "Mission introuvable." }, 404);
+    const client = (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0];
+    if (!client) return json({ error: "Client rattaché à la mission introuvable." }, 404);
+    const currentScope = client.scope || {};
+    const nextScope = {
+      ...currentScope,
+      client_language: body.client_language || mission.client_language || currentScope.client_language || "fr",
+      dgfip_application_status: body.dgfip_application_status || currentScope.dgfip_application_status || "UNKNOWN",
+      declared_scope: body.declared_scope ?? currentScope.declared_scope ?? "",
+      accepted_application_required: body.dgfip_application_status === "ACCEPTED" || currentScope.accepted_application_required === true
+    };
+    const updatedClient = await db.patch("diam_clients", `?id=eq.${client.id}&tenant_id=eq.${tenant.id}`, {
+      name: body.client_name || client.name || "Client audité",
+      siren: body.siren || null,
+      address: body.address || null,
+      city: body.city || null,
+      country: body.country || client.country || "France",
+      scope: nextScope,
+      updated_at: new Date().toISOString()
+    });
+    const updatedMission = await db.patch("diam_missions", `?id=eq.${mission.id}&tenant_id=eq.${tenant.id}`, {
+      title: body.title || mission.title || "Audit conformité PA",
+      client_language: body.client_language || mission.client_language || "fr",
+      updated_at: new Date().toISOString()
+    });
+    return json({ client: updatedClient, mission: updatedMission });
+  }
+
   if (path.startsWith("/api/missions/") && request.method === "DELETE") {
     const missionId = path.split("/").pop();
     await db.delete("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`);

@@ -120,6 +120,8 @@ function bindEvents() {
     tab.onclick = () => showTab(tab.dataset.tab);
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
+  $("updateMissionProfile").onclick = () => run(updateMissionProfile, "createStatus");
+  $("prepareDgfipAnalysis").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
   $("refreshMissions").onclick = () => run(loadMissions, "createStatus");
@@ -137,6 +139,7 @@ function bindEvents() {
   $("submitClientReply").onclick = () => run(submitClientReply, "clientStatus");
   $("missionSelect").onchange = () => {
     state.missionId = $("missionSelect").value;
+    fillMissionForm(currentMission());
     run(refreshAll, "createStatus");
   };
   showTab("dashboard", { scroll: false });
@@ -170,9 +173,28 @@ async function loadMissions() {
   state.missionId = state.missionId && state.missions.some((m) => m.id === state.missionId) ? state.missionId : state.missions[0]?.id || "";
   $("missionSelect").value = state.missionId;
   setMissionDependentEnabled(true);
+  fillMissionForm(currentMission());
   renderClientFacts();
   renderMissionList();
   if (state.missionId) await refreshAll();
+}
+
+function currentMission() {
+  return state.missions.find((m) => m.id === state.missionId) || null;
+}
+
+function fillMissionForm(mission) {
+  if (!mission) return;
+  const scope = mission.client_scope || {};
+  $("clientName").value = mission.client_name || "";
+  $("siren").value = mission.client_siren || "";
+  $("missionTitle").value = mission.title || "Audit de conformité PA";
+  $("clientCountry").value = mission.client_country || "France";
+  $("clientAddress").value = mission.client_address || "";
+  $("clientCity").value = mission.client_city || "";
+  $("clientLanguage").value = mission.client_language || scope.client_language || "fr";
+  $("dgfipApplicationStatus").value = scope.dgfip_application_status || "UNKNOWN";
+  $("declaredScope").value = scope.declared_scope || "";
 }
 
 function renderMissionList() {
@@ -256,6 +278,39 @@ async function createMission() {
   $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles.`;
   await loadMissions();
   showTab("audit");
+}
+
+async function updateMissionProfile() {
+  requireMission();
+  if (state.demo) return demoOnly("Mise à jour réelle indisponible en aperçu local. Ouvre l’URL Cloudflare pour enregistrer en base Supabase.");
+  $("createStatus").textContent = "Mise à jour de la fiche mission...";
+  const out = await api(`/api/missions/${state.missionId}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      client_name: $("clientName").value,
+      siren: $("siren").value,
+      title: $("missionTitle").value,
+      client_language: $("clientLanguage").value,
+      country: $("clientCountry").value,
+      address: $("clientAddress").value,
+      city: $("clientCity").value,
+      dgfip_application_status: $("dgfipApplicationStatus").value,
+      declared_scope: $("declaredScope").value
+    })
+  });
+  state.missionId = out.mission.id;
+  await loadMissions();
+  setStatus("Fiche mission active mise à jour : client, langue, statut DGFiP et périmètre PA sont enregistrés.", "success", "createStatus");
+  showTab("dashboard", { scroll: false });
+}
+
+function prepareDgfipAnalysis() {
+  requireMission();
+  $("auditDocumentType").value = "DGFiP_APPLICATION_ACCEPTED";
+  setStatus("Dépose le dossier de candidature accepté DGFiP : DIAM l’utilisera pour cadrer le périmètre PA et identifier les preuves manquantes.", "info", "documentStatus");
+  showTab("documents");
+  $("auditDocumentFile")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 async function deleteMission() {
@@ -473,7 +528,7 @@ async function uploadAuditDocument() {
   requireMission();
   if (state.demo) return demoOnly("Le dépôt documentaire nécessite l’API Cloudflare Worker et Supabase Storage.");
   const file = $("auditDocumentFile").files[0];
-  if (!file) throw new Error("Choisis un document qualité/technique.");
+  if (!file) throw new Error("Choisis un document à déposer : dossier DGFiP accepté, note D2F/réunion récente, document qualité, technique ou sécurité.");
   const fd = new FormData();
   fd.set("mission_id", state.missionId);
   fd.set("document_type", $("auditDocumentType").value);
@@ -676,7 +731,7 @@ function showTab(name, options = {}) {
   if (options.scroll !== false) document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply"]) {
+  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }

@@ -49,8 +49,8 @@
       </section>
 
       <section class="card" data-panel="dashboard">
-        <h2>Nouvelle mission</h2>
-        <p class="muted">Étape 1 obligatoire : crée une mission pour générer le questionnaire PA/DGFiP et activer les dépôts documentaires.</p>
+        <h2>Fiche mission / client</h2>
+        <p class="muted">Crée une mission ou mets à jour la mission ouverte. Le dossier DGFiP accepté sert ensuite à cadrer le périmètre PA audité.</p>
         <div class="grid">
           <label>Client audité <input id="clientName" value="Client PA" /></label>
           <label>SIREN <input id="siren" placeholder="123456789" /></label>
@@ -77,7 +77,11 @@
           </label>
           <label>Périmètre PA déclaré <textarea id="declaredScope" placeholder="Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales..."></textarea></label>
         </div>
-        <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>
+        <div class="row">
+          <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>
+          <button id="updateMissionProfile" class="secondary">Mettre à jour fiche mission active</button>
+          <button id="prepareDgfipAnalysis" class="secondary">Déposer/analyser dossier DGFiP accepté</button>
+        </div>
         <p class="status" id="createStatus"></p>
       </section>
 
