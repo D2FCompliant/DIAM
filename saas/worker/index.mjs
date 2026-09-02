@@ -408,61 +408,68 @@ async function fetchD2FBusinessSuiteClients(env, params) {
   const requestedClientId = params.get("clientId") || "";
 
   async function callBusinessSuite(searchParams, mode) {
-  const url = new URL(endpoint);
-  for (const key of ["clientId", "q", "updatedSince", "limit"]) {
+    const url = new URL(endpoint);
+    for (const key of ["clientId", "q", "updatedSince", "limit"]) {
       const value = searchParams.get(key);
-    if (value) url.searchParams.set(key, value);
-  }
-  if (!url.searchParams.get("limit")) url.searchParams.set("limit", "25");
-  const authHeader = env.D2F_BUSINESS_SUITE_AUTH_HEADER || "authorization";
-  const headers = {
-    accept: D2F_BUSINESS_SUITE.accept,
-    "x-diam-integration": `${APP_RELEASE.name}/${APP_RELEASE.version}`
-  };
-  headers[authHeader] = authHeader.toLowerCase() === "authorization"
-    ? `Bearer ${env.D2F_BUSINESS_SUITE_API_KEY}`
-    : env.D2F_BUSINESS_SUITE_API_KEY;
-  const response = await fetch(url.toString(), {
-    headers
-  });
-  const text = await response.text();
-  let payload;
-  try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
-  if (!response.ok) {
-    if (response.status === 401) throw new Error("Connexion D2F Business Suite refusée : clé absente ou invalide.");
-    if (response.status === 403) throw new Error("Connexion D2F Business Suite refusée : la clé doit avoir le droit audit-clients:read.");
-    throw new Error(`Erreur D2F Business Suite HTTP ${response.status} : ${payload.error || payload.message || text}`);
-  }
-    const clients = extractD2FClients(payload);
-  return {
-    integration: {
-      source: "D2F Business Suite",
-      version: D2F_BUSINESS_SUITE.version,
-      media_type: D2F_BUSINESS_SUITE.accept,
-        correlation_id: payload.correlationId || payload.correlation_id || response.headers.get("x-correlation-id") || null,
+      if (value) url.searchParams.set(key, value);
+    }
+    if (!url.searchParams.get("limit")) url.searchParams.set("limit", "25");
+    const authHeader = env.D2F_BUSINESS_SUITE_AUTH_HEADER || "authorization";
+    const headers = {
+      accept: D2F_BUSINESS_SUITE.accept,
+      "x-diam-integration": `${APP_RELEASE.name}/${APP_RELEASE.version}`
+    };
+    headers[authHeader] = authHeader.toLowerCase() === "authorization"
+      ? `Bearer ${env.D2F_BUSINESS_SUITE_API_KEY}`
+      : env.D2F_BUSINESS_SUITE_API_KEY;
+    const response = await fetch(url.toString(), { headers });
+    const text = await response.text();
+    let payload;
+    try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
+    if (!response.ok) {
+      if (response.status === 401) throw new Error("Connexion D2F Business Suite refusée : clé absente ou invalide.");
+      if (response.status === 403) throw new Error("Connexion D2F Business Suite refusée : la clé doit avoir le droit audit-clients:read.");
+      throw new Error(`Erreur D2F Business Suite HTTP ${response.status} : ${payload.error || payload.message || text}`);
+    }
+    const extracted = extractD2FClients(payload);
+    if (!extracted.recognized) {
+      throw new Error(`Réponse D2F Business Suite incompatible : aucune collection clients reconnue (HTTP ${response.status}).`);
+    }
+    const upstream = payload?.result && typeof payload.result === "object" ? payload.result : payload;
+    return {
+      integration: {
+        source: "D2F Business Suite",
+        version: D2F_BUSINESS_SUITE.version,
+        media_type: D2F_BUSINESS_SUITE.accept,
+        correlation_id: upstream?.trace?.correlationId || upstream?.correlationId || upstream?.correlation_id || response.headers.get("x-correlation-id") || null,
+        event_id: upstream?.trace?.eventId || null,
+        response_path: extracted.path,
         lookup_mode: mode,
-        endpoint_host: url.hostname
-    },
-    clients,
-      raw: Array.isArray(payload) ? { count: payload.length } : payload
-  };
-}
+        endpoint_host: url.hostname,
+        received_count: extracted.clients.length
+      },
+      clients: extracted.clients
+    };
+  }
 
   const primary = await callBusinessSuite(params, requestedClientId ? "clientId" : requestedQ ? "q" : "list");
-  if (primary.clients.length || requestedClientId || !requestedQ) return primary;
+  const requestedValue = requestedClientId || requestedQ;
+  if (primary.clients.length || !requestedValue) return primary;
 
   const broaderParams = new URLSearchParams(params);
   broaderParams.delete("q");
+  broaderParams.delete("clientId");
   broaderParams.set("limit", params.get("limit") || "100");
   const broader = await callBusinessSuite(broaderParams, "fallback_list");
-  const filtered = broader.clients.filter((client) => d2fClientMatches(client, requestedQ));
+  const filtered = broader.clients.filter((client) => d2fClientMatches(client, requestedValue));
   return {
     ...broader,
     clients: filtered,
     integration: {
       ...broader.integration,
       lookup_mode: "fallback_list_filtered",
-      requested_q: requestedQ,
+      requested_q: requestedQ || null,
+      requested_client_id: requestedClientId || null,
       primary_count: primary.clients.length,
       fallback_count: broader.clients.length,
       filtered_count: filtered.length
@@ -470,26 +477,27 @@ async function fetchD2FBusinessSuiteClients(env, params) {
   };
 }
 
-function extractD2FClients(payload) {
-  if (Array.isArray(payload)) return payload;
+export function extractD2FClients(payload) {
+  if (Array.isArray(payload)) return { clients: payload, path: "$", recognized: true };
   const candidates = [
-    payload?.clients,
-    payload?.data,
-    payload?.items,
-    payload?.results,
-    payload?.records,
-    payload?.clients?.data,
-    payload?.clients?.items,
-    payload?.data?.clients,
-    payload?.data?.items,
-    payload?.data?.results,
-    payload?.result?.clients,
-    payload?.result?.items
+    ["result.clients", payload?.result?.clients],
+    ["result.items", payload?.result?.items],
+    ["result.results", payload?.result?.results],
+    ["clients", payload?.clients],
+    ["data", payload?.data],
+    ["items", payload?.items],
+    ["results", payload?.results],
+    ["records", payload?.records],
+    ["clients.data", payload?.clients?.data],
+    ["clients.items", payload?.clients?.items],
+    ["data.clients", payload?.data?.clients],
+    ["data.items", payload?.data?.items],
+    ["data.results", payload?.data?.results]
   ];
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate;
+  for (const [path, candidate] of candidates) {
+    if (Array.isArray(candidate)) return { clients: candidate, path, recognized: true };
   }
-  return [];
+  return { clients: [], path: "unrecognized", recognized: false };
 }
 
 function normalizeForSearch(value) {
@@ -501,7 +509,7 @@ function normalizeForSearch(value) {
     .trim();
 }
 
-function d2fClientMatches(client, query) {
+export function d2fClientMatches(client, query) {
   const needle = normalizeForSearch(query);
   if (!needle) return true;
   const haystack = normalizeForSearch(JSON.stringify(client));

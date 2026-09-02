@@ -239,7 +239,8 @@ async function searchD2FClients() {
     select.innerHTML = `<option value="">Aucun client trouvé</option>`;
     const mode = out.integration?.lookup_mode ? ` Mode : ${out.integration.lookup_mode}.` : "";
     const fallback = Number.isFinite(out.integration?.fallback_count) ? ` ${out.integration.fallback_count} client(s) reçu(s) en recherche élargie, 0 correspondant à “${q}”.` : "";
-    setStatus(`Aucun client D2F trouvé avec ces critères.${mode}${fallback} Vérifie le nom exact, le SIREN/SIRET ou l’ID D2F-BS-CLIENT.`, "info", "d2fSyncStatus");
+    const path = out.integration?.response_path ? ` Réponse lue dans ${out.integration.response_path}.` : "";
+    setStatus(`Business Suite a répondu, mais aucun client ne correspond à ces critères.${mode}${fallback}${path} Vérifie le nom, le SIREN/SIRET ou l’ID D2F-BS-CLIENT.`, "info", "d2fSyncStatus");
     return;
   }
   select.innerHTML = state.d2fClients.map((c, i) => `<option value="${i}">${escapeHtml(c.label)}</option>`).join("");
@@ -266,7 +267,7 @@ function importD2FClient() {
 
 function normalizeD2FClient(raw = {}) {
   const name = raw.name || raw.clientName || raw.legalName || raw.raison_sociale || raw.identity?.name || "";
-  const id = raw.id || raw.clientId || raw.stableId || raw.d2fClientId || raw.identity?.id || "";
+  const id = raw.dossierSourceId || raw.dossier_source_id || raw.id || raw.clientId || raw.stableId || raw.d2fClientId || raw.identity?.id || "";
   const siren = raw.siren || raw.SIREN || raw.identity?.siren || "";
   const siret = raw.siret || raw.SIRET || raw.identity?.siret || "";
   const addressObj = raw.address || raw.identity?.address || {};
