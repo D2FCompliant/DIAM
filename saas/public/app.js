@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.3.2",
-  release: "Secure Credential Gate",
+  version: "0.3.3",
+  release: "Business Suite Lookup Guard",
   schemaVersion: "202609020009_security_baseline",
   buildCommit: "mode local"
 };
@@ -237,12 +237,15 @@ async function searchD2FClients() {
   const select = $("d2fClientResults");
   if (!state.d2fClients.length) {
     select.innerHTML = `<option value="">Aucun client trouvé</option>`;
-    setStatus("Aucun client D2F trouvé avec ces critères.", "info", "d2fSyncStatus");
+    const mode = out.integration?.lookup_mode ? ` Mode : ${out.integration.lookup_mode}.` : "";
+    const fallback = Number.isFinite(out.integration?.fallback_count) ? ` ${out.integration.fallback_count} client(s) reçu(s) en recherche élargie, 0 correspondant à “${q}”.` : "";
+    setStatus(`Aucun client D2F trouvé avec ces critères.${mode}${fallback} Vérifie le nom exact, le SIREN/SIRET ou l’ID D2F-BS-CLIENT.`, "info", "d2fSyncStatus");
     return;
   }
   select.innerHTML = state.d2fClients.map((c, i) => `<option value="${i}">${escapeHtml(c.label)}</option>`).join("");
   const correlation = out.integration?.correlation_id ? ` · corrélation ${out.integration.correlation_id}` : "";
-  setStatus(`${state.d2fClients.length} client(s) D2F chargé(s) depuis Business Suite ${out.integration?.version || ""}${correlation}.`, "success", "d2fSyncStatus");
+  const mode = out.integration?.lookup_mode ? ` · recherche ${out.integration.lookup_mode}` : "";
+  setStatus(`${state.d2fClients.length} client(s) D2F chargé(s) depuis Business Suite ${out.integration?.version || ""}${mode}${correlation}.`, "success", "d2fSyncStatus");
 }
 
 function importD2FClient() {

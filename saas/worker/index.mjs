@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "0.3.2",
-  release: "Secure Credential Gate",
+  version: "0.3.3",
+  release: "Business Suite Lookup Guard",
   schemaVersion: "202609020009_security_baseline",
   channel: "main",
   releasedAt: "2026-09-02",
-  lastChange: "Authentification DIAM HTTPS, session HttpOnly/Secure, protection API, versioning D2F et sélection client Business Suite v3.41.56"
+  lastChange: "Recherche client D2F Business Suite tolérante, fallback élargi, authentification HTTPS et protection API"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -404,9 +404,13 @@ async function fetchD2FBusinessSuiteClients(env, params) {
     throw new Error("Connexion D2F Business Suite non configurée : ajouter le secret Cloudflare D2F_BUSINESS_SUITE_API_KEY avec le droit audit-clients:read.");
   }
   const endpoint = env.D2F_BUSINESS_SUITE_ENDPOINT || D2F_BUSINESS_SUITE.endpoint;
+  const requestedQ = params.get("q") || "";
+  const requestedClientId = params.get("clientId") || "";
+
+  async function callBusinessSuite(searchParams, mode) {
   const url = new URL(endpoint);
   for (const key of ["clientId", "q", "updatedSince", "limit"]) {
-    const value = params.get(key);
+      const value = searchParams.get(key);
     if (value) url.searchParams.set(key, value);
   }
   if (!url.searchParams.get("limit")) url.searchParams.set("limit", "25");
@@ -429,17 +433,79 @@ async function fetchD2FBusinessSuiteClients(env, params) {
     if (response.status === 403) throw new Error("Connexion D2F Business Suite refusée : la clé doit avoir le droit audit-clients:read.");
     throw new Error(`Erreur D2F Business Suite HTTP ${response.status} : ${payload.error || payload.message || text}`);
   }
-  const clients = Array.isArray(payload) ? payload : payload.clients || payload.data || payload.items || [];
+    const clients = extractD2FClients(payload);
   return {
     integration: {
       source: "D2F Business Suite",
       version: D2F_BUSINESS_SUITE.version,
       media_type: D2F_BUSINESS_SUITE.accept,
-      correlation_id: payload.correlationId || payload.correlation_id || response.headers.get("x-correlation-id") || null
+        correlation_id: payload.correlationId || payload.correlation_id || response.headers.get("x-correlation-id") || null,
+        lookup_mode: mode,
+        endpoint_host: url.hostname
     },
     clients,
-    raw: Array.isArray(payload) ? { count: payload.length } : payload
+      raw: Array.isArray(payload) ? { count: payload.length } : payload
   };
+}
+
+  const primary = await callBusinessSuite(params, requestedClientId ? "clientId" : requestedQ ? "q" : "list");
+  if (primary.clients.length || requestedClientId || !requestedQ) return primary;
+
+  const broaderParams = new URLSearchParams(params);
+  broaderParams.delete("q");
+  broaderParams.set("limit", params.get("limit") || "100");
+  const broader = await callBusinessSuite(broaderParams, "fallback_list");
+  const filtered = broader.clients.filter((client) => d2fClientMatches(client, requestedQ));
+  return {
+    ...broader,
+    clients: filtered,
+    integration: {
+      ...broader.integration,
+      lookup_mode: "fallback_list_filtered",
+      requested_q: requestedQ,
+      primary_count: primary.clients.length,
+      fallback_count: broader.clients.length,
+      filtered_count: filtered.length
+    }
+  };
+}
+
+function extractD2FClients(payload) {
+  if (Array.isArray(payload)) return payload;
+  const candidates = [
+    payload?.clients,
+    payload?.data,
+    payload?.items,
+    payload?.results,
+    payload?.records,
+    payload?.clients?.data,
+    payload?.clients?.items,
+    payload?.data?.clients,
+    payload?.data?.items,
+    payload?.data?.results,
+    payload?.result?.clients,
+    payload?.result?.items
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
+}
+
+function normalizeForSearch(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function d2fClientMatches(client, query) {
+  const needle = normalizeForSearch(query);
+  if (!needle) return true;
+  const haystack = normalizeForSearch(JSON.stringify(client));
+  return needle.split(" ").filter(Boolean).every((part) => haystack.includes(part));
 }
 
 function addYears(date, years) {
