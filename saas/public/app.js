@@ -1,9 +1,17 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard" };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
   checkedAt: "2026-09-02"
+};
+
+let appRelease = {
+  name: "DIAM SaaS",
+  version: "0.3.1",
+  release: "Business Suite Sync",
+  schemaVersion: "202609020008_versioning",
+  buildCommit: "mode local"
 };
 
 const DEMO_CHAIN = [
@@ -103,7 +111,9 @@ async function init() {
     const boot = await api("/api/bootstrap");
     $("runtimeMode").textContent = "API connectée";
     $("runtimeMode").className = "modePill ok";
+    appRelease = boot.app || appRelease;
     $("baseline").textContent = `${boot.baseline.label} - sources vérifiées ${boot.baseline.checkedAt}`;
+    renderVersionStack(appRelease);
     if (state.clientPortal) {
       await loadClientFindings();
       showTab("client", { scroll: false });
@@ -124,6 +134,8 @@ function bindEvents() {
   $("prepareDgfipAnalysis").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
+  $("searchD2FClients").onclick = () => run(searchD2FClients, "d2fSyncStatus");
+  $("importD2FClient").onclick = () => run(importD2FClient, "d2fSyncStatus");
   $("refreshMissions").onclick = () => run(loadMissions, "createStatus");
   $("reload").onclick = () => run(refreshAll, "createStatus");
   $("deleteMission").onclick = () => run(deleteMission, "createStatus");
@@ -150,6 +162,77 @@ function bindEvents() {
     run(refreshAll, "createStatus");
   };
   showTab("dashboard", { scroll: false });
+}
+
+async function searchD2FClients() {
+  if (state.demo) return demoOnly("La recherche D2F Business Suite nécessite l’API Cloudflare Worker et le secret D2F_BUSINESS_SUITE_API_KEY.");
+  const q = $("d2fClientSearch").value.trim();
+  const query = new URLSearchParams({ limit: "25" });
+  if (q) query.set(q.startsWith("D2F-BS-CLIENT-") ? "clientId" : "q", q);
+  setStatus("Recherche D2F Business Suite...", "info", "d2fSyncStatus");
+  const out = await api(`/api/integrations/d2f-business-suite/audit-clients?${query}`);
+  state.d2fClients = (out.clients || []).map(normalizeD2FClient);
+  const select = $("d2fClientResults");
+  if (!state.d2fClients.length) {
+    select.innerHTML = `<option value="">Aucun client trouvé</option>`;
+    setStatus("Aucun client D2F trouvé avec ces critères.", "info", "d2fSyncStatus");
+    return;
+  }
+  select.innerHTML = state.d2fClients.map((c, i) => `<option value="${i}">${escapeHtml(c.label)}</option>`).join("");
+  const correlation = out.integration?.correlation_id ? ` · corrélation ${out.integration.correlation_id}` : "";
+  setStatus(`${state.d2fClients.length} client(s) D2F chargé(s) depuis Business Suite ${out.integration?.version || ""}${correlation}.`, "success", "d2fSyncStatus");
+}
+
+function importD2FClient() {
+  const index = $("d2fClientResults").value;
+  if (index === "") throw new Error("Recherche et sélectionne d’abord un client D2F Business Suite.");
+  const client = state.d2fClients?.[Number(index)];
+  if (!client) throw new Error("Client D2F introuvable dans la sélection.");
+  $("clientName").value = client.name || $("clientName").value;
+  $("siren").value = client.siren || client.siret || $("siren").value;
+  $("clientAddress").value = client.address || $("clientAddress").value;
+  $("clientCity").value = client.city || $("clientCity").value;
+  $("clientCountry").value = client.country || $("clientCountry").value;
+  $("clientLanguage").value = client.language || $("clientLanguage").value;
+  $("d2fSuiteClientId").value = client.id || $("d2fSuiteClientId").value;
+  $("d2fSuiteCaseUrl").value = client.caseUrl || client.sourceUrl || $("d2fSuiteCaseUrl").value;
+  setStatus("Client D2F importé dans la fiche. Clique ensuite “Créer mission” ou “Mettre à jour fiche mission active”.", "success", "d2fSyncStatus");
+}
+
+function normalizeD2FClient(raw = {}) {
+  const name = raw.name || raw.clientName || raw.legalName || raw.raison_sociale || raw.identity?.name || "";
+  const id = raw.id || raw.clientId || raw.stableId || raw.d2fClientId || raw.identity?.id || "";
+  const siren = raw.siren || raw.SIREN || raw.identity?.siren || "";
+  const siret = raw.siret || raw.SIRET || raw.identity?.siret || "";
+  const addressObj = raw.address || raw.identity?.address || {};
+  const address = typeof addressObj === "string" ? addressObj : [addressObj.line1, addressObj.line2, addressObj.street].filter(Boolean).join(" ");
+  const city = raw.city || addressObj.city || raw.identity?.city || "";
+  const country = raw.country || addressObj.country || raw.identity?.country || "";
+  const language = normalizeLanguage(raw.language || raw.clientLanguage || raw.identity?.language || "fr");
+  const caseUrl = raw.caseUrl || raw.case_url || raw.url || raw.sourceUrl || "";
+  return {
+    raw,
+    id,
+    name,
+    siren,
+    siret,
+    address,
+    city,
+    country,
+    language,
+    caseUrl,
+    sourceUrl: raw.sourceUrl || raw.source_url || "",
+    label: `${id || "Client D2F"} — ${name || "Sans nom"}${siren || siret ? ` · ${siren || siret}` : ""}`
+  };
+}
+
+function normalizeLanguage(value) {
+  const v = String(value || "fr").toLowerCase();
+  if (v.startsWith("en")) return "en";
+  if (v.startsWith("es")) return "es";
+  if (v.startsWith("de")) return "de";
+  if (v.startsWith("it")) return "it";
+  return "fr";
 }
 
 async function loadMissions() {
@@ -731,6 +814,7 @@ function reportHtml(out) {
     <p><strong>Opinion :</strong> ${escapeHtml(out.result.opinion)}</p>
     <p><strong>Motif :</strong> ${escapeHtml(out.result.reason)}</p>
     <p><strong>Référentiel :</strong> ${escapeHtml(REG_LABEL())}</p>
+    <p><strong>Version DIAM :</strong> ${escapeHtml(appRelease.name)} v${escapeHtml(appRelease.version)} — ${escapeHtml(appRelease.release)} · schéma ${escapeHtml(appRelease.schema?.current || appRelease.schemaVersion || "-")} · build ${escapeHtml(appRelease.buildCommit || "non renseigné")}</p>
     <h2>Fiche client et périmètre audité</h2>
     <p><strong>Client :</strong> ${escapeHtml(out.client?.name || "-")} · <strong>SIREN :</strong> ${escapeHtml(out.client?.siren || "-")} · <strong>Pays :</strong> ${escapeHtml(out.client?.country || "-")}</p>
     <p><strong>Langue client :</strong> ${escapeHtml(languageLabel(out.mission?.client_language || scope.client_language || "fr"))}</p>
@@ -771,6 +855,20 @@ function setMissionDependentEnabled(enabled) {
     if (el) el.disabled = !enabled;
   }
 }
+function renderVersionStack(app = appRelease) {
+  const schema = app.schema || {};
+  const el = $("versionStack");
+  if (!el) return;
+  const schemaOk = schema.ok === true;
+  el.classList.toggle("warn", !schemaOk && schema.current);
+  el.innerHTML = `
+    <strong>${escapeHtml(app.name || "DIAM SaaS")} v${escapeHtml(app.version || "-")}</strong>
+    · ${escapeHtml(app.release || "release")}
+    · schéma ${escapeHtml(schema.current || app.schemaVersion || "-")}${schemaOk ? " ✓" : schema.current ? " ⚠ migration à vérifier" : ""}
+    · D2F Suite ${app.d2fBusinessSuite?.configured ? "connectée" : "clé absente"}
+    · build ${escapeHtml((app.buildCommit || "non renseigné").slice(0, 12))}
+  `;
+}
 function enterClientPortalMode() {
   document.body.classList.add("clientPortal");
   for (const tab of document.querySelectorAll("[data-tab]")) {
@@ -778,6 +876,7 @@ function enterClientPortalMode() {
   }
   $("runtimeMode").textContent = "Portail client";
   $("baseline").textContent = "Réponse client aux constats — accès limité à la mission partagée";
+  renderVersionStack(appRelease);
   $("clientPortalIntro").textContent = "Client portal: reply to open findings and upload corrective evidence. French translation is required for the DGFiP audit file / Portail client : répondez aux constats ouverts et versez les preuves de correction. La traduction française est requise pour le dossier DGFiP.";
   $("clientReplyLabel").childNodes[0].textContent = "Client reply / Réponse client ";
   $("clientReplyLanguage").value = "en";
@@ -798,6 +897,8 @@ function enableDemoMode(error) {
   $("runtimeMode").textContent = "Aperçu local";
   $("runtimeMode").className = "modePill warn";
   $("baseline").textContent = `${DEMO_BASELINE.label} - sources vérifiées ${DEMO_BASELINE.checkedAt}`;
+  appRelease = { ...appRelease, buildCommit: "file-local", schema: { current: "hors API", ok: false } };
+  renderVersionStack(appRelease);
   $("runtimeNotice").hidden = false;
   $("runtimeNotice").textContent = `Tu consultes l’interface hors API (${location.protocol}). Les écrans sont interactifs pour validation visuelle, mais les données ne sont pas enregistrées. Pour tester le vrai SaaS : lancer le Worker Cloudflare avec Supabase configuré. Détail technique : ${error.message}`;
   $("missionSelect").innerHTML = `<option value="demo-mission">APERÇU-LOCAL - Audit PA — aperçu visuel</option>`;
@@ -868,7 +969,7 @@ function lifecycleStatusLabel(value) {
 }
 function labelValidity(mission) {
   if (!mission?.label_valid_from && !mission?.label_valid_until) return "Non renseignée";
-  return `${formatDate(mission.label_valid_from) || "-"} → ${formatDate(mission.label_valid_until) || "-"}`;
+  return `${formatDateOnly(mission.label_valid_from) || "-"} → ${formatDateOnly(mission.label_valid_until) || "-"}`;
 }
 function surveillanceLabel(mission) {
   if (mission?.audit_type === "SURVEILLANCE") return `Année ${mission.surveillance_year || "?"} sur 2`;
@@ -902,6 +1003,10 @@ function documentTypeLabel(value) {
 function formatDate(value) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
+function formatDateOnly(value) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short" }).format(new Date(value));
 }
 
 window.addEventListener("error", (e) => setStatus(e.error?.message || e.message, "error"));

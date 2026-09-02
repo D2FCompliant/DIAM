@@ -19,6 +19,7 @@
       <div class="topPanel">
         <div class="modePill" id="runtimeMode">Connexion API…</div>
         <div class="baseline" id="baseline">Chargement du référentiel...</div>
+        <div class="versionStack" id="versionStack">Version DIAM : chargement...</div>
       </div>
     </header>
 
@@ -78,6 +79,19 @@
           <label>ID client D2F Business Suite <input id="d2fSuiteClientId" placeholder="Ex. D2F-BS-CLIENT-0001" /></label>
           <label>Dossier source D2F Business Suite <input id="d2fSuiteCaseUrl" placeholder="URL ou référence du dossier D2F Business Suite" /></label>
           <label>Périmètre PA déclaré <textarea id="declaredScope" placeholder="Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales..."></textarea></label>
+        </div>
+        <div class="integrationBox">
+          <h3>Connexion D2F Business Suite</h3>
+          <p class="muted">Recherche un client exposé par Business Suite v3.41.56, puis importe son identité dans la fiche DIAM. La clé reste côté Cloudflare Worker.</p>
+          <div class="row">
+            <label>Recherche client D2F <input id="d2fClientSearch" placeholder="Nom, SIREN, SIRET ou ID D2F-BS-CLIENT-..." /></label>
+            <button id="searchD2FClients" class="secondary" type="button">Rechercher dans Business Suite</button>
+          </div>
+          <div class="row">
+            <select id="d2fClientResults"><option value="">Aucun client D2F chargé</option></select>
+            <button id="importD2FClient" class="secondary" type="button">Importer dans la fiche</button>
+          </div>
+          <p class="status" id="d2fSyncStatus"></p>
         </div>
         <div class="row">
           <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>

@@ -3,6 +3,23 @@ const JSON_HEADERS = {
   "cache-control": "no-store"
 };
 
+const APP_RELEASE = {
+  name: "DIAM SaaS",
+  version: "0.3.1",
+  release: "Business Suite Sync",
+  schemaVersion: "202609020008_versioning",
+  channel: "main",
+  releasedAt: "2026-09-02",
+  lastChange: "Versioning D2F, cycle label PA, documents complémentaires, sélection client D2F Business Suite v3.41.56"
+};
+
+const D2F_BUSINESS_SUITE = {
+  version: "3.41.56",
+  endpoint: "https://gestion.d2fcompliant.org/api/v1/integration/audit-clients",
+  accept: "application/vnd.d2f.audit-client+json;version=1",
+  requiredScope: "audit-clients:read"
+};
+
 const REGULATORY_BASELINE = {
   label: "DGFiP audit guide v1.3 + PDP Integrity v3.2 + spécifications externes 2026",
   checkedAt: "2026-09-02",
@@ -198,6 +215,85 @@ async function listMissions(db, tenantId) {
     });
   }
   return enriched;
+}
+
+async function readSchemaVersion(db) {
+  try {
+    const rows = await db.select("diam_schema_versions", "?id=eq.current");
+    const current = rows[0];
+    return {
+      expected: APP_RELEASE.schemaVersion,
+      current: current?.version || "UNKNOWN",
+      product_version: current?.product_version || null,
+      label: current?.label || null,
+      applied_at: current?.applied_at || null,
+      ok: current?.version === APP_RELEASE.schemaVersion
+    };
+  } catch (e) {
+    return {
+      expected: APP_RELEASE.schemaVersion,
+      current: "MIGRATION_REQUIRED",
+      ok: false,
+      error: "Migration Supabase versioning non appliquée : exécuter saas/supabase/migrations/202609020008_versioning.sql"
+    };
+  }
+}
+
+async function appMetadata(env, db) {
+  return {
+    ...APP_RELEASE,
+    buildCommit: env.DIAM_BUILD_COMMIT || env.CF_PAGES_COMMIT_SHA || "non renseigné",
+    d2fBusinessSuite: {
+      version: D2F_BUSINESS_SUITE.version,
+      endpoint: D2F_BUSINESS_SUITE.endpoint,
+      requiredScope: D2F_BUSINESS_SUITE.requiredScope,
+      configured: Boolean(env.D2F_BUSINESS_SUITE_API_KEY)
+    },
+    schema: db ? await readSchemaVersion(db) : { expected: APP_RELEASE.schemaVersion, current: "not_checked", ok: false }
+  };
+}
+
+async function fetchD2FBusinessSuiteClients(env, params) {
+  if (!env.D2F_BUSINESS_SUITE_API_KEY) {
+    throw new Error("Connexion D2F Business Suite non configurée : ajouter le secret Cloudflare D2F_BUSINESS_SUITE_API_KEY avec le droit audit-clients:read.");
+  }
+  const endpoint = env.D2F_BUSINESS_SUITE_ENDPOINT || D2F_BUSINESS_SUITE.endpoint;
+  const url = new URL(endpoint);
+  for (const key of ["clientId", "q", "updatedSince", "limit"]) {
+    const value = params.get(key);
+    if (value) url.searchParams.set(key, value);
+  }
+  if (!url.searchParams.get("limit")) url.searchParams.set("limit", "25");
+  const authHeader = env.D2F_BUSINESS_SUITE_AUTH_HEADER || "authorization";
+  const headers = {
+    accept: D2F_BUSINESS_SUITE.accept,
+    "x-diam-integration": `${APP_RELEASE.name}/${APP_RELEASE.version}`
+  };
+  headers[authHeader] = authHeader.toLowerCase() === "authorization"
+    ? `Bearer ${env.D2F_BUSINESS_SUITE_API_KEY}`
+    : env.D2F_BUSINESS_SUITE_API_KEY;
+  const response = await fetch(url.toString(), {
+    headers
+  });
+  const text = await response.text();
+  let payload;
+  try { payload = text ? JSON.parse(text) : {}; } catch { payload = { raw: text }; }
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Connexion D2F Business Suite refusée : clé absente ou invalide.");
+    if (response.status === 403) throw new Error("Connexion D2F Business Suite refusée : la clé doit avoir le droit audit-clients:read.");
+    throw new Error(`Erreur D2F Business Suite HTTP ${response.status} : ${payload.error || payload.message || text}`);
+  }
+  const clients = Array.isArray(payload) ? payload : payload.clients || payload.data || payload.items || [];
+  return {
+    integration: {
+      source: "D2F Business Suite",
+      version: D2F_BUSINESS_SUITE.version,
+      media_type: D2F_BUSINESS_SUITE.accept,
+      correlation_id: payload.correlationId || payload.correlation_id || response.headers.get("x-correlation-id") || null
+    },
+    clients,
+    raw: Array.isArray(payload) ? { count: payload.length } : payload
+  };
 }
 
 function addYears(date, years) {
@@ -548,6 +644,7 @@ async function handleApi(request, env) {
     return json({
       ok: true,
       runtime: "cloudflare-worker",
+      app: await appMetadata(env, null),
       supabase_url_configured: Boolean(env.SUPABASE_URL),
       supabase_key_configured: Boolean(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY),
       sae_enabled: archiveEnabled(env),
@@ -573,7 +670,11 @@ async function handleApi(request, env) {
   }
   const who = actor(request, env);
 
-  if (path === "/api/bootstrap") return json({ tenant, baseline: REGULATORY_BASELINE, controls: BASE_CONTROLS });
+  if (path === "/api/bootstrap") return json({ tenant, app: await appMetadata(env, db), baseline: REGULATORY_BASELINE, controls: BASE_CONTROLS });
+
+  if (path === "/api/integrations/d2f-business-suite/audit-clients" && request.method === "GET") {
+    return json(await fetchD2FBusinessSuiteClients(env, url.searchParams));
+  }
 
   if (path === "/api/missions" && request.method === "GET") {
     return json(await listMissions(db, tenant.id));
