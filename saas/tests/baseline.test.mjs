@@ -18,6 +18,9 @@ test("frontend contains document AI review and report workflow controls", async 
     "suggestionsTable",
     "promoteSuggestion",
     "generateReport",
+    "missionsTable",
+    "openMission",
+    "refreshMissions",
     "evidenceFile",
     "uploadEvidence"
   ]) {

@@ -212,6 +212,11 @@ button.secondary:hover {
   color: var(--danger);
   border-color: #fecaca;
 }
+button.small {
+  padding: 8px 12px;
+  font-size: 12px;
+  box-shadow: none;
+}
 .status { min-height: 22px; color: var(--brand); font-weight: 700; }
 .muted { color: var(--muted); }
 .notice {

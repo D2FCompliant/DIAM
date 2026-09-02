@@ -108,6 +108,8 @@ function bindEvents() {
     tab.onclick = () => showTab(tab.dataset.tab);
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
+  $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
+  $("refreshMissions").onclick = () => run(loadMissions, "createStatus");
   $("reload").onclick = () => run(refreshAll, "createStatus");
   $("deleteMission").onclick = () => run(deleteMission, "createStatus");
   $("saveAnswer").onclick = () => run(saveAnswer);
@@ -139,15 +141,56 @@ async function loadMissions() {
     $("detail").hidden = true;
     $("selectedDocument").textContent = "Aucune mission active : dépôt documentaire bloqué tant qu’une mission n’est pas créée.";
     renderChain();
+    renderMissionList();
     renderDocuments();
     renderSuggestions();
     setMissionDependentEnabled(false);
     return;
   }
   $("missionSelect").innerHTML = state.missions.map((m) => `<option value="${m.id}">${m.number} - ${escapeHtml(m.title)}</option>`).join("");
-  state.missionId = $("missionSelect").value || state.missions[0]?.id || "";
+  state.missionId = state.missionId && state.missions.some((m) => m.id === state.missionId) ? state.missionId : state.missions[0]?.id || "";
+  $("missionSelect").value = state.missionId;
   setMissionDependentEnabled(true);
+  renderMissionList();
   if (state.missionId) await refreshAll();
+}
+
+function renderMissionList() {
+  const tbody = $("missionsTable")?.querySelector("tbody");
+  if (!tbody) return;
+  if (!state.missions.length) {
+    tbody.innerHTML = `
+      <tr class="noRows">
+        <td colspan="5">
+          <strong>Aucune mission créée.</strong><br>
+          Crée une mission pour initialiser les 33 contrôles DGFiP/PDP.
+        </td>
+      </tr>`;
+    return;
+  }
+  tbody.innerHTML = state.missions.map((m) => `
+    <tr class="${m.id === state.missionId ? "selected" : ""}">
+      <td>${escapeHtml(m.number)}</td>
+      <td>${escapeHtml(m.title)}</td>
+      <td>${escapeHtml(m.status || "IN_PROGRESS")}</td>
+      <td>${formatDate(m.created_at)}</td>
+      <td><button class="small" data-open-mission="${m.id}" type="button">Ouvrir</button></td>
+    </tr>`).join("");
+  for (const button of tbody.querySelectorAll("[data-open-mission]")) {
+    button.onclick = () => run(() => openMission(button.dataset.openMission), "createStatus");
+  }
+}
+
+async function openMission(id) {
+  if (!id) throw new Error("Choisis une mission à ouvrir.");
+  state.missionId = id;
+  $("missionSelect").value = id;
+  state.selected = null;
+  $("detailEmpty").hidden = false;
+  $("detail").hidden = true;
+  await refreshAll();
+  renderMissionList();
+  showTab("audit");
 }
 
 async function createMission() {
@@ -174,6 +217,8 @@ async function deleteMission() {
   const label = mission ? `${mission.number} - ${mission.title}` : "la mission sélectionnée";
   if (!confirm(`Supprimer définitivement ${label} et sa chaîne d'audit ?`)) return;
   await api(`/api/missions/${state.missionId}`, { method: "DELETE" });
+  state.missionId = "";
+  state.selected = null;
   setStatus("Mission supprimée.", "success", "createStatus");
   await loadMissions();
 }
@@ -484,7 +529,7 @@ function showTab(name, options = {}) {
   if (options.scroll !== false) document.querySelector(".tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion"]) {
+  for (const id of ["openMission", "reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }
@@ -528,6 +573,10 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 }
 function badge(value) { return `<strong>${escapeHtml(value)}</strong>`; }
+function formatDate(value) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+}
 
 window.addEventListener("error", (e) => setStatus(e.error?.message || e.message, "error"));
 init().catch((e) => setStatus(e.message, "error"));

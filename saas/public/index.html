@@ -64,11 +64,31 @@
         <p class="muted">La mission sélectionnée pilote toute la chaîne : questionnaire, réponses, constats, preuves, documents et rapport.</p>
         <div class="row">
           <select id="missionSelect"></select>
+          <button id="openMission">Ouvrir mission</button>
           <button id="reload">Rafraîchir</button>
           <button id="generateReport">Générer rapport DGFiP</button>
           <button id="deleteMission" class="secondary">Supprimer mission</button>
         </div>
         <div class="opinion" id="opinion"></div>
+      </section>
+
+      <section class="card wide" data-panel="dashboard">
+        <div class="sectionHeader">
+          <div>
+            <p class="eyebrow dark">Portefeuille</p>
+            <h2>Missions d’audit</h2>
+          </div>
+          <button id="refreshMissions" class="secondary">Actualiser la liste</button>
+        </div>
+        <p class="muted">Sélectionne explicitement la mission à travailler. Le bouton `Ouvrir` charge la chaîne d’audit et t’amène directement au questionnaire.</p>
+        <div class="tableWrap">
+          <table id="missionsTable">
+            <thead>
+              <tr><th>Mission</th><th>Titre</th><th>Statut</th><th>Créée le</th><th>Action</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="card wide" data-panel="audit" hidden>
