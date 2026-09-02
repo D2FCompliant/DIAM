@@ -164,6 +164,27 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   font-size: 12px;
   font-weight: 800;
 }
+.factGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.factGrid div {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #f8fbff;
+  padding: 14px;
+}
+.factGrid span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  margin-bottom: 5px;
+}
+.factGrid strong { color: var(--ink); }
 .grid, .twoCols {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -287,7 +308,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
   .topbar, .sectionHeader { display: block; }
   .brandBlock { min-width: 0; align-items: flex-start; }
   .topPanel { text-align: left; justify-items: start; margin-top: 18px; }
-  .layout, .grid, .twoCols { grid-template-columns: 1fr; }
+  .layout, .grid, .twoCols, .factGrid { grid-template-columns: 1fr; }
   .layout { padding: 16px; }
   .tabs { padding: 10px 16px; }
 }

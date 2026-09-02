@@ -157,6 +157,7 @@ async function loadMissions() {
     $("detailEmpty").hidden = false;
     $("detail").hidden = true;
     $("selectedDocument").textContent = "Aucune mission active : dépôt documentaire bloqué tant qu’une mission n’est pas créée.";
+    renderClientFacts();
     renderChain();
     renderMissionList();
     renderDocuments();
@@ -169,6 +170,7 @@ async function loadMissions() {
   state.missionId = state.missionId && state.missions.some((m) => m.id === state.missionId) ? state.missionId : state.missions[0]?.id || "";
   $("missionSelect").value = state.missionId;
   setMissionDependentEnabled(true);
+  renderClientFacts();
   renderMissionList();
   if (state.missionId) await refreshAll();
 }
@@ -189,7 +191,7 @@ function renderMissionList() {
   tbody.innerHTML = state.missions.map((m) => `
     <tr class="${m.id === state.missionId ? "selected" : ""}">
       <td>${escapeHtml(m.number)}</td>
-      <td>${escapeHtml(m.title)}</td>
+      <td>${escapeHtml(m.title)}<br><span class="muted">${escapeHtml(m.client_name || "")}${m.client_country ? " · " + escapeHtml(m.client_country) : ""}</span></td>
       <td>${escapeHtml(m.status || "IN_PROGRESS")}</td>
       <td>${formatDate(m.created_at)}</td>
       <td><button class="small" data-open-mission="${m.id}" type="button">Ouvrir</button></td>
@@ -197,6 +199,28 @@ function renderMissionList() {
   for (const button of tbody.querySelectorAll("[data-open-mission]")) {
     button.onclick = () => run(() => openMission(button.dataset.openMission), "createStatus");
   }
+}
+
+function renderClientFacts() {
+  const box = $("clientFacts");
+  if (!box) return;
+  const mission = state.missions.find((m) => m.id === state.missionId);
+  if (!mission) {
+    box.innerHTML = `<p class="muted">Ouvre une mission pour afficher la fiche client, le statut du dossier DGFiP et le périmètre déclaré.</p>`;
+    return;
+  }
+  const scope = mission.client_scope || {};
+  box.innerHTML = `
+    <div class="factGrid">
+      <div><span>Client</span><strong>${escapeHtml(mission.client_name || "Non renseigné")}</strong></div>
+      <div><span>SIREN</span><strong>${escapeHtml(mission.client_siren || "Non renseigné")}</strong></div>
+      <div><span>Pays</span><strong>${escapeHtml(mission.client_country || "Non renseigné")}</strong></div>
+      <div><span>Langue</span><strong>${escapeHtml(languageLabel(mission.client_language || scope.client_language || "fr"))}</strong></div>
+      <div><span>Dossier DGFiP</span><strong>${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</strong></div>
+      <div><span>Périmètre déclaré</span><strong>${escapeHtml(scope.declared_scope || "À cadrer par dossier de candidature accepté")}</strong></div>
+    </div>
+    <p class="notice">Après dépôt du dossier de candidature accepté DGFiP et des notes D2F/réunions récentes, l’analyse assistée met en évidence les preuves manquantes et les demandes complémentaires applicables au périmètre déclaré.</p>
+  `;
 }
 
 async function openMission(id) {
@@ -221,7 +245,12 @@ async function createMission() {
       client_name: $("clientName").value,
       siren: $("siren").value,
       title: $("missionTitle").value,
-      client_language: $("clientLanguage").value
+      client_language: $("clientLanguage").value,
+      country: $("clientCountry").value,
+      address: $("clientAddress").value,
+      city: $("clientCity").value,
+      dgfip_application_status: $("dgfipApplicationStatus").value,
+      declared_scope: $("declaredScope").value
     })
   });
   $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles.`;
@@ -611,11 +640,20 @@ async function generateReport() {
 }
 
 function reportHtml(out) {
+  const scope = out.client?.scope || {};
   return `
     <h1>Rapport d'audit de conformité réglementaire</h1>
     <p><strong>Opinion :</strong> ${escapeHtml(out.result.opinion)}</p>
     <p><strong>Motif :</strong> ${escapeHtml(out.result.reason)}</p>
     <p><strong>Référentiel :</strong> ${escapeHtml(REG_LABEL())}</p>
+    <h2>Fiche client et périmètre audité</h2>
+    <p><strong>Client :</strong> ${escapeHtml(out.client?.name || "-")} · <strong>SIREN :</strong> ${escapeHtml(out.client?.siren || "-")} · <strong>Pays :</strong> ${escapeHtml(out.client?.country || "-")}</p>
+    <p><strong>Langue client :</strong> ${escapeHtml(languageLabel(out.mission?.client_language || scope.client_language || "fr"))}</p>
+    <p><strong>Statut dossier DGFiP :</strong> ${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</p>
+    <p><strong>Périmètre PA déclaré :</strong> ${escapeHtml(scope.declared_scope || "-")}</p>
+    <h2>Réponses client et traductions françaises</h2>
+    <table><thead><tr><th>Date</th><th>Langue</th><th>Réponse originale</th><th>Traduction française DGFiP</th><th>Validation</th></tr></thead>
+    <tbody>${(out.client_replies || []).map((r) => `<tr><td>${formatDate(r.submitted_at)}</td><td>${escapeHtml(languageLabel(r.message_language))}</td><td>${escapeHtml(r.message)}</td><td>${escapeHtml(r.french_translation || "")}</td><td>${r.translation_validated ? "Validée" : "À valider"}</td></tr>`).join("") || `<tr><td colspan="5">Aucune réponse client enregistrée.</td></tr>`}</tbody></table>
     <h2>Evidence book</h2>
     <table><thead><tr><th>Contrôle</th><th>Attendu</th><th>Réponse</th><th>Constat</th><th>Preuves attendues</th><th>Preuves associées</th></tr></thead>
     <tbody>${out.chain.map((r) => `<tr><td>${escapeHtml(r.reference)}</td><td>${escapeHtml(r.attendu_dgfip)}</td><td>${escapeHtml(r.reponse_statut)}<br>${escapeHtml(r.reponse_client)}</td><td>${escapeHtml(r.constat)} ${escapeHtml(r.synthese_constat)}</td><td>${escapeHtml(r.preuves_attendues)}</td><td>${escapeHtml(r.preuves_associees)}</td></tr>`).join("")}</tbody></table>
@@ -708,6 +746,17 @@ function analysisStatusLabel(value) {
     ANALYZED: "Analysé au regard du référentiel",
     FAILED: "Analyse impossible — voir message d’erreur"
   })[value] || value || "-";
+}
+function languageLabel(value) {
+  return ({ fr: "Français", en: "English", es: "Español", de: "Deutsch", it: "Italiano" })[value] || value || "-";
+}
+function applicationStatusLabel(value) {
+  return ({
+    ACCEPTED: "Dossier accepté DGFiP",
+    SUBMITTED: "Dossier déposé",
+    DRAFT: "Dossier en préparation",
+    UNKNOWN: "Non renseigné"
+  })[value] || "Non renseigné";
 }
 function formatDate(value) {
   if (!value) return "-";

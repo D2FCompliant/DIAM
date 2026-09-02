@@ -171,6 +171,24 @@ async function ensureClientMissionAccess(db, tenant, request) {
   return mission;
 }
 
+async function listMissions(db, tenantId) {
+  const missions = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&order=created_at.desc`);
+  const enriched = [];
+  for (const mission of missions) {
+    const client = (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenantId}`))[0] || {};
+    enriched.push({
+      ...mission,
+      client_name: client.name,
+      client_siren: client.siren,
+      client_country: client.country,
+      client_city: client.city,
+      client_address: client.address,
+      client_scope: client.scope || {}
+    });
+  }
+  return enriched;
+}
+
 function evidenceChecklist(text) {
   return String(text || "").split(/\s*;\s*/).filter(Boolean).map((item) => {
     const lower = item.toLowerCase();
@@ -323,7 +341,7 @@ async function uploadOpenAIFile(env, file) {
   return r.json();
 }
 
-async function analyzeWithAI(env, file, controls) {
+async function analyzeWithAI(env, file, controls, context = {}) {
   if (!env.OPENAI_API_KEY) {
     return {
       suggestions: [{
@@ -348,8 +366,11 @@ async function analyzeWithAI(env, file, controls) {
     "Méthode obligatoire : approche ISO/ISAE 3000, scepticisme professionnel, suffisance et caractère approprié des éléments probants, traçabilité, constat factuel, aucun avis définitif sans validation auditeur.",
     "Référentiel obligatoire : Guide pratique DGFiP audit de conformité v1.3, PDP Integrity v3.2 Label PA, exigences DGFiP/impots.gouv.fr vérifiées au 2026-09-02.",
     "Analyse le document au regard du référentiel et propose uniquement des éléments à examiner par l'auditeur.",
+    "Si le document est un dossier de candidature accepté DGFiP, identifie le périmètre PA déclaré, les activités effectivement couvertes, les zones non couvertes et les preuves manquantes pour encadrer l'audit.",
+    "Si le document est une note D2F, réunion DGFiP/AIFE ou demande récente hors référentiel officiel publié, traite-la comme contexte d'audit D2F Compliant : mets en évidence les impacts, demandes complémentaires et preuves nouvelles à collecter, sans la confondre avec une norme officielle.",
     "Règle fondamentale : l'absence de preuve dans un document déposé n'est pas une non-conformité. Utilise assessment_type=INSUFFICIENT_EVIDENCE si la preuve est insuffisante, MORE_INFO_REQUIRED si une clarification est nécessaire, POTENTIAL_GAP seulement si un écart factuel est étayé.",
     "Pour chaque proposition, fournis la source normative exacte dans requirement_source, un extrait bref ou résumé du critère dans requirement_excerpt, et la preuve/document/page/section/paragraphe analysé dans evidence_locator.",
+    `Contexte mission/client: ${JSON.stringify(context)}`,
     `Contrôles disponibles: ${JSON.stringify(controls.map(({ reference, title, requirement, base_qualification, expected_evidence }) => ({ reference, title, requirement, base_qualification, expected_evidence })))}`
   ].join("\n\n");
   const r = await fetch("https://api.openai.com/v1/responses", {
@@ -475,7 +496,7 @@ async function handleApi(request, env) {
   if (path === "/api/bootstrap") return json({ tenant, baseline: REGULATORY_BASELINE, controls: BASE_CONTROLS });
 
   if (path === "/api/missions" && request.method === "GET") {
-    return json(await db.select("diam_missions", `?tenant_id=eq.${tenant.id}&order=created_at.desc`));
+    return json(await listMissions(db, tenant.id));
   }
 
   if (path === "/api/missions" && request.method === "POST") {
@@ -484,7 +505,16 @@ async function handleApi(request, env) {
       tenant_id: tenant.id,
       name: body.client_name || "Client audité",
       siren: body.siren || null,
-      scope: body.scope || {}
+      address: body.address || null,
+      city: body.city || null,
+      country: body.country || "France",
+      scope: {
+        ...(body.scope || {}),
+        client_language: body.client_language || "fr",
+        dgfip_application_status: body.dgfip_application_status || "UNKNOWN",
+        declared_scope: body.declared_scope || "",
+        accepted_application_required: body.dgfip_application_status === "ACCEPTED"
+      }
     }, "tenant_id,name");
     const mission = await db.insert("diam_missions", {
       tenant_id: tenant.id,
@@ -657,7 +687,27 @@ async function handleApi(request, env) {
     if (!file) return json({ error: "Relancez l'analyse avec le fichier original. Le Worker ne télécharge pas le binaire privé depuis Supabase Storage." }, 400);
     try {
       const controls = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${document.mission_id}&order=reference.asc`);
-      const analysis = await analyzeWithAI(env, file, controls);
+      const mission = (await db.select("diam_missions", `?id=eq.${document.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};
+      const client = mission.client_id ? (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0] || {} : {};
+      const analysis = await analyzeWithAI(env, file, controls, {
+        mission: {
+          number: mission.number,
+          title: mission.title,
+          client_language: mission.client_language,
+          referential_version: mission.referential_version
+        },
+        client: {
+          name: client.name,
+          siren: client.siren,
+          country: client.country,
+          scope: client.scope || {}
+        },
+        analyzed_document: {
+          name: document.original_name,
+          type: document.document_type,
+          sha256: document.sha256
+        }
+      });
       const saved = [];
       for (const s of analysis.suggestions || []) {
         const q = controls.find((c) => c.reference === s.reference);
@@ -823,15 +873,18 @@ async function handleApi(request, env) {
     const b = await readBody(request);
     const chain = await auditChain(db, tenant.id, b.mission_id);
     const result = opinion(chain);
+    const mission = (await db.select("diam_missions", `?id=eq.${b.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};
+    const client = mission.client_id ? (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0] || {} : {};
+    const clientReplies = await db.select("diam_client_replies", `?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=submitted_at.desc`);
+    const reportPayload = { baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain };
     const report = await db.insert("diam_reports", {
       tenant_id: tenant.id,
       mission_id: b.mission_id,
       report_number: `RAP-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       opinion: result.opinion,
-      payload: { baseline: REGULATORY_BASELINE, result, chain },
+      payload: reportPayload,
       generated_by: who
     });
-    const reportPayload = { baseline: REGULATORY_BASELINE, result, chain };
     const reportBytes = new TextEncoder().encode(JSON.stringify(reportPayload));
     const reportHash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", reportBytes))].map((x) => x.toString(16).padStart(2, "0")).join("");
     const archive = await archiveObject(db, env, tenant, {
@@ -845,7 +898,7 @@ async function handleApi(request, env) {
       sha256: reportHash,
       payload: reportPayload
     });
-    return json({ report: { ...report, archive }, result, chain }, 201);
+    return json({ report: { ...report, archive }, mission, client, client_replies: clientReplies, result, chain }, 201);
   }
 
   return json({ error: "Not found" }, 404);

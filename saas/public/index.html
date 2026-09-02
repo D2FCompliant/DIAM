@@ -55,6 +55,9 @@
           <label>Client audité <input id="clientName" value="Client PA" /></label>
           <label>SIREN <input id="siren" placeholder="123456789" /></label>
           <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
+          <label>Pays <input id="clientCountry" value="France" /></label>
+          <label>Adresse <input id="clientAddress" placeholder="Adresse du siège" /></label>
+          <label>Ville <input id="clientCity" placeholder="Ville" /></label>
           <label>Langue client
             <select id="clientLanguage">
               <option value="fr">Français</option>
@@ -64,6 +67,15 @@
               <option value="it">Italiano</option>
             </select>
           </label>
+          <label>Statut dossier DGFiP
+            <select id="dgfipApplicationStatus">
+              <option value="ACCEPTED">Dossier accepté DGFiP</option>
+              <option value="SUBMITTED">Dossier déposé</option>
+              <option value="DRAFT">Dossier en préparation</option>
+              <option value="UNKNOWN">Non renseigné</option>
+            </select>
+          </label>
+          <label>Périmètre PA déclaré <textarea id="declaredScope" placeholder="Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales..."></textarea></label>
         </div>
         <button id="createMission">Créer mission + questionnaire PA/DGFiP</button>
         <p class="status" id="createStatus"></p>
@@ -81,6 +93,18 @@
           <button id="deleteMission" class="secondary">Supprimer mission</button>
         </div>
         <div class="opinion" id="opinion"></div>
+      </section>
+
+      <section class="card wide" data-panel="dashboard">
+        <div class="sectionHeader">
+          <div>
+            <p class="eyebrow dark">Cadrage</p>
+            <h2>Fiche client et périmètre PA</h2>
+          </div>
+        </div>
+        <div class="clientFacts" id="clientFacts">
+          <p class="muted">Ouvre une mission pour afficher la fiche client, le statut du dossier DGFiP et le périmètre déclaré.</p>
+        </div>
       </section>
 
       <section class="card wide" data-panel="dashboard">
@@ -187,7 +211,10 @@
               <option value="QUALITY">Qualité / ISO</option>
               <option value="TECHNICAL">Technique / architecture</option>
               <option value="SECURITY">Sécurité / IAM / journalisation</option>
-              <option value="DGFiP_APPLICATION">Candidature DGFiP</option>
+              <option value="DGFiP_APPLICATION_ACCEPTED">Dossier de candidature accepté DGFiP</option>
+              <option value="D2F_REFERENCE">Référentiel / note D2F Compliant</option>
+              <option value="REGULATORY_UPDATE">Demande récente DGFiP/AIFE</option>
+              <option value="DGFIP_MEETING_NOTE">Compte rendu réunion DGFiP/AIFE</option>
               <option value="EVIDENCE_EXPORT">Export de logs / preuve</option>
               <option value="OTHER">Autre</option>
             </select>
