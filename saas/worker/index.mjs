@@ -144,6 +144,17 @@ function supabase(env) {
       });
       if (!r.ok) throw new Error(await r.text());
       return path;
+    },
+    async downloadFromBucket(bucket, path) {
+      const safePath = String(path).split("/").map(encodeURIComponent).join("/");
+      const r = await fetch(`${base}/storage/v1/object/${bucket}/${safePath}`, {
+        headers: {
+          apikey: key,
+          authorization: `Bearer ${key}`
+        }
+      });
+      if (!r.ok) throw new Error(await r.text());
+      return new Uint8Array(await r.arrayBuffer());
     }
   };
 }
@@ -723,8 +734,11 @@ async function handleApi(request, env) {
     const document = docs[0];
     if (!document) return json({ error: "Document introuvable." }, 404);
     const form = await request.formData();
-    const file = form.get("file");
-    if (!file) return json({ error: "Relancez l'analyse avec le fichier original. Le Worker ne télécharge pas le binaire privé depuis Supabase Storage." }, 400);
+    let file = form.get("file");
+    if (!file) {
+      const bytes = await db.downloadFromBucket("diam-documents", document.storage_path);
+      file = new File([bytes], document.original_name || "document-audit", { type: document.mime_type || "application/octet-stream" });
+    }
     try {
       const controls = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${document.mission_id}&order=reference.asc`);
       const mission = (await db.select("diam_missions", `?id=eq.${document.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};

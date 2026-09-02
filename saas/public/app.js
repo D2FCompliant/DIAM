@@ -521,7 +521,10 @@ function renderDocuments() {
 }
 
 function renderDocumentsSelection() {
-  $("selectedDocument").textContent = state.documentId ? `Document sélectionné : ${state.documents.find((d) => d.id === state.documentId)?.original_name}` : "Aucun document sélectionné.";
+  const selected = state.documents.find((d) => d.id === state.documentId);
+  $("selectedDocument").textContent = selected
+    ? `Document sélectionné : ${selected.original_name}. Clique “Analyser au regard du référentiel” pour l’analyser sans le redéposer.`
+    : "Aucun document sélectionné. Dépose un document ou sélectionne une ligne déjà présente.";
 }
 
 async function uploadAuditDocument() {
@@ -549,10 +552,10 @@ async function analyzeAuditDocument() {
     if (!file) throw new Error("Choisis un document à déposer/analyser.");
     await uploadAuditDocument();
   }
-  if (!file) throw new Error("Pour cette version Worker, relance l'analyse avec le fichier original choisi dans le champ fichier.");
   const fd = new FormData();
-  fd.set("file", file);
-  setStatus("Analyse IA en cours...", "info", "documentStatus");
+  if (file) fd.set("file", file);
+  const selected = state.documents.find((d) => d.id === state.documentId);
+  setStatus(`Analyse au regard du référentiel en cours${selected ? ` : ${selected.original_name}` : ""}...`, "info", "documentStatus");
   const out = await api(`/api/documents/${state.documentId}/analyze`, { method: "POST", body: fd });
   setStatus(`${out.suggestions.length} proposition(s) d'écart générée(s). Validation auditeur requise.`, "success", "documentStatus");
   await Promise.all([loadDocuments(), loadSuggestions()]);
