@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "0.3.1",
-  release: "Business Suite Sync",
-  schemaVersion: "202609020008_versioning",
+  version: "0.3.2",
+  release: "Secure Credential Gate",
+  schemaVersion: "202609020009_security_baseline",
   channel: "main",
   releasedAt: "2026-09-02",
-  lastChange: "Versioning D2F, cycle label PA, documents complémentaires, sélection client D2F Business Suite v3.41.56"
+  lastChange: "Authentification DIAM HTTPS, session HttpOnly/Secure, protection API, versioning D2F et sélection client Business Suite v3.41.56"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -68,8 +68,10 @@ export const BASE_CONTROLS = [
   reference, chapter, title, requirement, source, base_qualification, verification_method, expected_evidence
 }));
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS });
+function json(data, status = 200, extraHeaders = {}) {
+  const headers = new Headers(JSON_HEADERS);
+  for (const [key, value] of Object.entries(extraHeaders)) headers.set(key, value);
+  return new Response(JSON.stringify(data), { status, headers });
 }
 
 function html(data, status = 200) {
@@ -91,6 +93,150 @@ async function readBody(request) {
 
 function actor(request, env) {
   return request.headers.get("cf-access-authenticated-user-email") || env.DIAM_OWNER_EMAIL || "auditeur@diam.local";
+}
+
+function authEnabled(env) {
+  return String(env.DIAM_AUTH_DISABLED || "").toLowerCase() !== "true";
+}
+
+function sessionTtlSeconds(env) {
+  const hours = Number(env.DIAM_SESSION_TTL_HOURS || 8);
+  return Math.max(1, Math.min(24, Number.isFinite(hours) ? hours : 8)) * 60 * 60;
+}
+
+function authConfigured(env) {
+  return Boolean((env.DIAM_ADMIN_PASSWORD_SHA256 || env.DIAM_ADMIN_PASSWORD) && env.DIAM_SESSION_SECRET);
+}
+
+function cookieValue(request, name) {
+  const cookie = request.headers.get("cookie") || "";
+  return cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1) || "";
+}
+
+function base64UrlEncode(text) {
+  return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlDecode(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
+  return atob(padded);
+}
+
+function bytesToHex(buffer) {
+  return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function sha256Hex(text) {
+  return bytesToHex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
+}
+
+async function hmacHex(secret, text) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return bytesToHex(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text)));
+}
+
+function safeEqual(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i += 1) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return result === 0;
+}
+
+async function expectedPasswordHash(env) {
+  if (env.DIAM_ADMIN_PASSWORD_SHA256) return String(env.DIAM_ADMIN_PASSWORD_SHA256).trim().toLowerCase();
+  if (env.DIAM_ADMIN_PASSWORD) return sha256Hex(String(env.DIAM_ADMIN_PASSWORD));
+  return "";
+}
+
+async function verifyCredential(env, email, password) {
+  if (!authConfigured(env)) return { ok: false, setupRequired: true };
+  const expectedEmail = String(env.DIAM_ADMIN_EMAIL || "").trim().toLowerCase();
+  if (expectedEmail && String(email || "").trim().toLowerCase() !== expectedEmail) return { ok: false };
+  const gotHash = await sha256Hex(String(password || ""));
+  const expectedHash = await expectedPasswordHash(env);
+  return { ok: safeEqual(gotHash, expectedHash), setupRequired: false };
+}
+
+async function issueSession(email, env) {
+  const ttl = sessionTtlSeconds(env);
+  const payload = base64UrlEncode(JSON.stringify({
+    email: String(email || env.DIAM_ADMIN_EMAIL || actor({ headers: new Headers() }, env)).trim().toLowerCase(),
+    exp: Math.floor(Date.now() / 1000) + ttl
+  }));
+  const signature = await hmacHex(env.DIAM_SESSION_SECRET, payload);
+  return {
+    value: `${payload}.${signature}`,
+    maxAge: ttl
+  };
+}
+
+async function readSession(request, env) {
+  if (!authEnabled(env)) return { email: actor(request, env), disabled: true };
+  if (!authConfigured(env)) return null;
+  const raw = cookieValue(request, "diam_session");
+  const [payload, signature] = raw.split(".");
+  if (!payload || !signature) return null;
+  const expected = await hmacHex(env.DIAM_SESSION_SECRET, payload);
+  if (!safeEqual(signature, expected)) return null;
+  try {
+    const session = JSON.parse(base64UrlDecode(payload));
+    if (!session?.exp || session.exp < Math.floor(Date.now() / 1000)) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function authCookie(value, maxAge) {
+  return `diam_session=${value}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Strict`;
+}
+
+function clearAuthCookie() {
+  return "diam_session=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Strict";
+}
+
+function pathAllowedWithoutAdminAuth(path, url) {
+  if (path === "/api/health" || path === "/api/bootstrap") return true;
+  if (path.startsWith("/api/auth/")) return true;
+  if (path.startsWith("/api/client/") && url.searchParams.get("mission_id") && url.searchParams.get("token")) return true;
+  return false;
+}
+
+async function handleAuth(request, env) {
+  const url = new URL(request.url);
+  if (url.pathname === "/api/auth/me") {
+    const session = await readSession(request, env);
+    return json({
+      authenticated: Boolean(session),
+      setup_required: authEnabled(env) && !authConfigured(env),
+      auth_enabled: authEnabled(env),
+      actor: session?.email || null,
+      https_required: true
+    }, session ? 200 : 401);
+  }
+
+  if (url.pathname === "/api/auth/logout" && request.method === "POST") {
+    return json({ ok: true }, 200, { "set-cookie": clearAuthCookie() });
+  }
+
+  if (url.pathname === "/api/auth/login" && request.method === "POST") {
+    const body = await readBody(request);
+    const check = await verifyCredential(env, body.email, body.password);
+    if (check.setupRequired) {
+      return json({
+        error: "Credentials DIAM non configurés côté Cloudflare. Définir DIAM_ADMIN_EMAIL, DIAM_ADMIN_PASSWORD_SHA256 ou DIAM_ADMIN_PASSWORD, et DIAM_SESSION_SECRET.",
+        setup_required: true
+      }, 503);
+    }
+    if (!check.ok) return json({ error: "Identifiants DIAM invalides." }, 401);
+    const session = await issueSession(body.email, env);
+    return json({ ok: true, actor: String(body.email || env.DIAM_ADMIN_EMAIL || "").trim().toLowerCase() }, 200, {
+      "set-cookie": authCookie(session.value, session.maxAge)
+    });
+  }
+
+  return json({ error: "Not found" }, 404);
 }
 
 function supabase(env) {
@@ -640,6 +786,8 @@ async function handleApi(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
 
+  if (path.startsWith("/api/auth/")) return handleAuth(request, env);
+
   if (path === "/api/health") {
     return json({
       ok: true,
@@ -647,11 +795,26 @@ async function handleApi(request, env) {
       app: await appMetadata(env, null),
       supabase_url_configured: Boolean(env.SUPABASE_URL),
       supabase_key_configured: Boolean(env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY),
+      auth_enabled: authEnabled(env),
+      auth_configured: authConfigured(env),
+      https_required: true,
       sae_enabled: archiveEnabled(env),
       sae_provider: saeProvider(env),
       sae_endpoint_configured: Boolean(env.SAE_ENDPOINT),
       baseline: REGULATORY_BASELINE
     });
+  }
+
+  const session = await readSession(request, env);
+  if (authEnabled(env) && !pathAllowedWithoutAdminAuth(path, url) && !session) {
+    return json({
+      error: authConfigured(env)
+        ? "Authentification DIAM requise."
+        : "Credentials DIAM non configurés côté Cloudflare. Définir DIAM_ADMIN_EMAIL, DIAM_ADMIN_PASSWORD_SHA256 ou DIAM_ADMIN_PASSWORD, et DIAM_SESSION_SECRET.",
+      auth_required: true,
+      setup_required: !authConfigured(env),
+      https_required: true
+    }, authConfigured(env) ? 401 : 503);
   }
 
   const db = supabase(env);
@@ -668,9 +831,21 @@ async function handleApi(request, env) {
     }
     throw e;
   }
-  const who = actor(request, env);
+  const who = session?.email || actor(request, env);
 
-  if (path === "/api/bootstrap") return json({ tenant, app: await appMetadata(env, db), baseline: REGULATORY_BASELINE, controls: BASE_CONTROLS });
+  if (path === "/api/bootstrap") return json({
+    tenant: session ? tenant : null,
+    app: await appMetadata(env, db),
+    baseline: REGULATORY_BASELINE,
+    controls: BASE_CONTROLS,
+    auth: {
+      enabled: authEnabled(env),
+      configured: authConfigured(env),
+      authenticated: Boolean(session),
+      actor: session?.email || null,
+      https_required: true
+    }
+  });
 
   if (path === "/api/integrations/d2f-business-suite/audit-clients" && request.method === "GET") {
     return json(await fetchD2FBusinessSuiteClients(env, url.searchParams));
@@ -1172,6 +1347,10 @@ export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
     const url = new URL(request.url);
+    if (url.protocol === "http:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
+      url.protocol = "https:";
+      return Response.redirect(url.toString(), 301);
+    }
     try {
       if (url.pathname.startsWith("/api/")) return cors(await handleApi(request, env));
       return env.ASSETS.fetch(request);

@@ -20,8 +20,21 @@
         <div class="modePill" id="runtimeMode">Connexion API…</div>
         <div class="baseline" id="baseline">Chargement du référentiel...</div>
         <div class="versionStack" id="versionStack">Version DIAM : chargement...</div>
+        <button id="logoutButton" class="ghostButton" type="button" hidden>Déconnexion sécurisée</button>
       </div>
     </header>
+
+    <section class="loginGate" id="loginGate" hidden>
+      <form class="loginCard" id="loginForm">
+        <p class="eyebrow dark">Accès sécurisé</p>
+        <h2>Connexion auditeur DIAM</h2>
+        <p class="muted">Application exposée sur Internet : les missions, preuves, analyses et rapports DGFiP sont protégés par credential DIAM et session HTTPS.</p>
+        <label>Email auditeur <input id="loginEmail" autocomplete="username" placeholder="auditeur@d2fcompliant.com" /></label>
+        <label>Mot de passe <input id="loginPassword" autocomplete="current-password" type="password" placeholder="Mot de passe DIAM" /></label>
+        <button id="loginButton" type="submit">Se connecter en HTTPS</button>
+        <p class="status" id="loginStatus"></p>
+      </form>
+    </section>
 
     <nav class="tabs" aria-label="Navigation DIAM">
       <button class="tab active" data-tab="dashboard" type="button">Pilotage</button>

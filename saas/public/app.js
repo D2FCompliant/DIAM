@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard" };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
@@ -8,9 +8,9 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.3.1",
-  release: "Business Suite Sync",
-  schemaVersion: "202609020008_versioning",
+  version: "0.3.2",
+  release: "Secure Credential Gate",
+  schemaVersion: "202609020009_security_baseline",
   buildCommit: "mode local"
 };
 
@@ -87,7 +87,10 @@ async function api(path, options = {}) {
   if (state.demo) throw new Error("Mode aperçu local : lance l'API Cloudflare Worker pour utiliser la base Supabase et les exports réels.");
   const res = await fetch(path, options);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || JSON.stringify(data));
+  if (!res.ok) {
+    if (data.auth_required || res.status === 401) showLogin(data);
+    throw new Error(data.error || JSON.stringify(data));
+  }
   return data;
 }
 
@@ -108,6 +111,17 @@ async function init() {
     enterClientPortalMode();
   }
   try {
+    if (!state.clientPortal) {
+      const auth = await fetch("/api/auth/me").then(async (res) => ({ ok: res.ok, data: await res.json().catch(() => ({})) }));
+      if (!auth.ok) {
+        showLogin(auth.data);
+        renderVersionStack(appRelease);
+        return;
+      }
+      state.authenticated = true;
+      state.actor = auth.data.actor || "";
+      hideLogin();
+    }
     const boot = await api("/api/bootstrap");
     $("runtimeMode").textContent = "API connectée";
     $("runtimeMode").className = "modePill ok";
@@ -126,6 +140,11 @@ async function init() {
 }
 
 function bindEvents() {
+  if ($("loginForm")) $("loginForm").onsubmit = (event) => {
+    event.preventDefault();
+    run(login, "loginStatus");
+  };
+  if ($("logoutButton")) $("logoutButton").onclick = () => run(logout, "createStatus");
   for (const tab of document.querySelectorAll("[data-tab]")) {
     tab.onclick = () => showTab(tab.dataset.tab);
   }
@@ -162,6 +181,49 @@ function bindEvents() {
     run(refreshAll, "createStatus");
   };
   showTab("dashboard", { scroll: false });
+}
+
+function showLogin(details = {}) {
+  const gate = $("loginGate");
+  if (!gate || state.clientPortal) return;
+  gate.hidden = false;
+  document.body.classList.add("authLocked");
+  $("logoutButton") && ($("logoutButton").hidden = true);
+  const message = details.setup_required
+    ? "Sécurité DIAM à finaliser côté Cloudflare : ajoute DIAM_ADMIN_EMAIL, DIAM_ADMIN_PASSWORD_SHA256 ou DIAM_ADMIN_PASSWORD, et DIAM_SESSION_SECRET."
+    : details.error || "Connexion auditeur requise pour accéder aux missions, preuves, analyses et rapports.";
+  setStatus(message, details.setup_required ? "error" : "info", "loginStatus");
+}
+
+function hideLogin() {
+  const gate = $("loginGate");
+  if (gate) gate.hidden = true;
+  document.body.classList.remove("authLocked");
+  if ($("logoutButton") && !state.clientPortal) $("logoutButton").hidden = false;
+}
+
+async function login() {
+  const email = $("loginEmail").value.trim();
+  const password = $("loginPassword").value;
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Connexion impossible.");
+  state.authenticated = true;
+  state.actor = data.actor || email;
+  hideLogin();
+  setStatus("Connexion sécurisée active.", "success", "createStatus");
+  await init();
+}
+
+async function logout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  state.authenticated = false;
+  state.actor = "";
+  location.reload();
 }
 
 async function searchD2FClients() {
