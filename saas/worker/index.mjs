@@ -62,7 +62,7 @@ function html(data, status = 200) {
 function cors(response) {
   const headers = new Headers(response.headers);
   headers.set("access-control-allow-origin", "*");
-  headers.set("access-control-allow-methods", "GET,POST,PATCH,OPTIONS");
+  headers.set("access-control-allow-methods", "GET,POST,PATCH,DELETE,OPTIONS");
   headers.set("access-control-allow-headers", "content-type,authorization");
   return new Response(response.body, { status: response.status, headers });
 }
@@ -110,6 +110,12 @@ function supabase(env) {
       if (!r.ok) throw new Error(await r.text());
       const text = await r.text();
       return text ? JSON.parse(text)[0] : null;
+    },
+    async delete(table, query) {
+      const r = await fetch(`${base}/rest/v1/${table}${query}`, { method: "DELETE", headers });
+      if (!r.ok) throw new Error(await r.text());
+      const text = await r.text();
+      return text ? JSON.parse(text) : [];
     },
     async upload(path, bytes, mimeType = "application/octet-stream") {
       const r = await fetch(`${base}/storage/v1/object/diam-evidence/${path}`, {
@@ -354,6 +360,12 @@ async function handleApi(request, env) {
     });
     for (const c of BASE_CONTROLS) await db.insert("diam_questions", { tenant_id: tenant.id, mission_id: mission.id, ...c });
     return json({ client, mission, seeded_controls: BASE_CONTROLS.length }, 201);
+  }
+
+  if (path.startsWith("/api/missions/") && request.method === "DELETE") {
+    const missionId = path.split("/").pop();
+    await db.delete("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`);
+    return json({ deleted: true, mission_id: missionId });
   }
 
   if (path === "/api/audit-chain") {

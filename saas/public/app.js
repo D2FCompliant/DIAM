@@ -83,9 +83,11 @@ async function api(path, options = {}) {
   return data;
 }
 
-function setStatus(text, type = "info") {
-  $("actionStatus").textContent = text;
-  $("actionStatus").style.color = type === "error" ? "#b42318" : type === "success" ? "#067647" : "#0d3b66";
+function setStatus(text, type = "info", targetId = "actionStatus") {
+  const el = $(targetId);
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = type === "error" ? "#b42318" : type === "success" ? "#067647" : "#0d3b66";
 }
 
 async function init() {
@@ -102,26 +104,45 @@ async function init() {
 }
 
 function bindEvents() {
-  $("createMission").onclick = createMission;
-  $("reload").onclick = refreshAll;
-  $("saveAnswer").onclick = saveAnswer;
-  $("saveFinding").onclick = saveFinding;
-  $("closeFinding").onclick = updateFindingStatus;
-  $("uploadEvidence").onclick = uploadEvidence;
-  $("generateReport").onclick = generateReport;
-  $("uploadAuditDocument").onclick = uploadAuditDocument;
-  $("analyzeAuditDocument").onclick = analyzeAuditDocument;
-  $("promoteSuggestion").onclick = promoteSuggestion;
+  $("createMission").onclick = () => run(createMission, "createStatus");
+  $("reload").onclick = () => run(refreshAll, "createStatus");
+  $("deleteMission").onclick = () => run(deleteMission, "createStatus");
+  $("saveAnswer").onclick = () => run(saveAnswer);
+  $("saveFinding").onclick = () => run(saveFinding);
+  $("closeFinding").onclick = () => run(updateFindingStatus);
+  $("uploadEvidence").onclick = () => run(uploadEvidence);
+  $("generateReport").onclick = () => run(generateReport, "createStatus");
+  $("uploadAuditDocument").onclick = () => run(uploadAuditDocument, "documentStatus");
+  $("analyzeAuditDocument").onclick = () => run(analyzeAuditDocument, "documentStatus");
+  $("promoteSuggestion").onclick = () => run(promoteSuggestion, "documentStatus");
   $("missionSelect").onchange = () => {
     state.missionId = $("missionSelect").value;
-    refreshAll();
+    run(refreshAll, "createStatus");
   };
 }
 
 async function loadMissions() {
   state.missions = await api("/api/missions");
+  if (!state.missions.length) {
+    state.missionId = "";
+    state.chain = [];
+    state.documents = [];
+    state.suggestions = [];
+    state.selected = null;
+    $("missionSelect").innerHTML = `<option value="">Aucune mission — crée d’abord une mission</option>`;
+    $("opinion").innerHTML = "<strong>Aucune mission active</strong><br>Crée une mission pour générer automatiquement les 33 contrôles DGFiP/PDP.";
+    $("detailEmpty").hidden = false;
+    $("detail").hidden = true;
+    $("selectedDocument").textContent = "Aucune mission active : dépôt documentaire bloqué tant qu’une mission n’est pas créée.";
+    renderChain();
+    renderDocuments();
+    renderSuggestions();
+    setMissionDependentEnabled(false);
+    return;
+  }
   $("missionSelect").innerHTML = state.missions.map((m) => `<option value="${m.id}">${m.number} - ${escapeHtml(m.title)}</option>`).join("");
   state.missionId = $("missionSelect").value || state.missions[0]?.id || "";
+  setMissionDependentEnabled(true);
   if (state.missionId) await refreshAll();
 }
 
@@ -141,8 +162,22 @@ async function createMission() {
   await loadMissions();
 }
 
+async function deleteMission() {
+  requireMission();
+  if (state.demo) return demoOnly("Suppression réelle indisponible en aperçu local.");
+  const mission = state.missions.find((m) => m.id === state.missionId);
+  const label = mission ? `${mission.number} - ${mission.title}` : "la mission sélectionnée";
+  if (!confirm(`Supprimer définitivement ${label} et sa chaîne d'audit ?`)) return;
+  await api(`/api/missions/${state.missionId}`, { method: "DELETE" });
+  setStatus("Mission supprimée.", "success", "createStatus");
+  await loadMissions();
+}
+
 async function refreshAll() {
-  if (!state.missionId) return;
+  if (!state.missionId) {
+    renderChain();
+    return;
+  }
   if (state.demo) {
     renderDemo();
     return;
@@ -158,6 +193,16 @@ async function loadChain() {
 }
 
 function renderChain() {
+  if (!state.chain.length) {
+    $("chainTable").querySelector("tbody").innerHTML = `
+      <tr class="noRows">
+        <td colspan="7">
+          <strong>Aucune ligne d’audit à afficher.</strong><br>
+          Crée une mission : DIAM générera alors le questionnaire DGFiP/PDP, les preuves attendues et la chaîne d’audit.
+        </td>
+      </tr>`;
+    return;
+  }
   $("chainTable").querySelector("tbody").innerHTML = state.chain.map((r, i) => `
     <tr data-index="${i}" class="${state.selected?.question_id === r.question_id ? "selected" : ""}">
       <td>${escapeHtml(r.reference)}</td>
@@ -287,6 +332,18 @@ async function uploadEvidence() {
 
 async function loadDocuments() {
   state.documents = await api(`/api/documents?mission_id=${state.missionId}`);
+  renderDocuments();
+}
+
+function renderDocuments() {
+  if (!state.documents.length) {
+    $("documentsTable").querySelector("tbody").innerHTML = `
+      <tr class="noRows">
+        <td colspan="4">Aucun document déposé pour cette mission.</td>
+      </tr>`;
+    renderDocumentsSelection();
+    return;
+  }
   $("documentsTable").querySelector("tbody").innerHTML = state.documents.map((d, i) => `
     <tr data-index="${i}" class="${state.documentId === d.id ? "selected" : ""}">
       <td>${escapeHtml(d.document_type)}</td><td>${escapeHtml(d.original_name)}</td><td>${escapeHtml(d.analysis_status)}</td><td>${escapeHtml(d.sha256.slice(0, 16))}...</td>
@@ -302,6 +359,7 @@ function renderDocumentsSelection() {
 }
 
 async function uploadAuditDocument() {
+  requireMission();
   if (state.demo) return demoOnly("Le dépôt documentaire nécessite l’API Cloudflare Worker et Supabase Storage.");
   const file = $("auditDocumentFile").files[0];
   if (!file) throw new Error("Choisis un document qualité/technique.");
@@ -309,28 +367,40 @@ async function uploadAuditDocument() {
   fd.set("mission_id", state.missionId);
   fd.set("document_type", $("auditDocumentType").value);
   fd.set("file", file);
-  setStatus("Dépôt documentaire...");
+  setStatus("Dépôt documentaire...", "info", "documentStatus");
   const doc = await api("/api/documents", { method: "POST", body: fd });
   state.documentId = doc.id;
-  setStatus("Document déposé et haché. Tu peux lancer l'analyse IA.", "success");
+  setStatus("Document déposé et haché. Tu peux lancer l'analyse IA.", "success", "documentStatus");
   await loadDocuments();
 }
 
 async function analyzeAuditDocument() {
+  requireMission();
   if (state.demo) return demoOnly("L’analyse IA réelle nécessite l’API Worker, Supabase et une clé OpenAI configurée.");
   if (!state.documentId) throw new Error("Sélectionne un document à analyser.");
   const file = $("auditDocumentFile").files[0];
   if (!file) throw new Error("Pour cette version Worker, relance l'analyse avec le fichier original choisi dans le champ fichier.");
   const fd = new FormData();
   fd.set("file", file);
-  setStatus("Analyse IA en cours...");
+  setStatus("Analyse IA en cours...", "info", "documentStatus");
   const out = await api(`/api/documents/${state.documentId}/analyze`, { method: "POST", body: fd });
-  setStatus(`${out.suggestions.length} proposition(s) d'écart générée(s). Validation auditeur requise.`, "success");
+  setStatus(`${out.suggestions.length} proposition(s) d'écart générée(s). Validation auditeur requise.`, "success", "documentStatus");
   await Promise.all([loadDocuments(), loadSuggestions()]);
 }
 
 async function loadSuggestions() {
   state.suggestions = await api(`/api/ai-suggestions?mission_id=${state.missionId}`);
+  renderSuggestions();
+}
+
+function renderSuggestions() {
+  if (!state.suggestions.length) {
+    $("suggestionsTable").querySelector("tbody").innerHTML = `
+      <tr class="noRows">
+        <td colspan="5">Aucune proposition IA. Dépose un document dans une mission, puis lance l’analyse.</td>
+      </tr>`;
+    return;
+  }
   $("suggestionsTable").querySelector("tbody").innerHTML = state.suggestions.map((s, i) => `
     <tr data-index="${i}" class="${state.suggestionId === s.id ? "selected" : ""}">
       <td>${escapeHtml(s.reference || "-")}</td><td>${escapeHtml(s.suggested_qualification)}</td><td>${escapeHtml(s.potential_gap)}</td><td>${Math.round((s.confidence || 0) * 100)}%</td><td>${escapeHtml(s.status)}</td>
@@ -341,6 +411,7 @@ async function loadSuggestions() {
 }
 
 async function promoteSuggestion() {
+  requireMission();
   if (state.demo) return demoOnly("La promotion IA en constat nécessite une mission enregistrée en base.");
   if (!state.suggestionId) throw new Error("Sélectionne une proposition IA.");
   await api(`/api/ai-suggestions/${state.suggestionId}/promote`, { method: "POST" });
@@ -349,6 +420,7 @@ async function promoteSuggestion() {
 }
 
 async function generateReport() {
+  requireMission();
   if (state.demo) {
     $("reportCard").hidden = false;
     $("report").innerHTML = reportHtml({
@@ -382,6 +454,21 @@ function reportHtml(out) {
 
 function REG_LABEL() { return $("baseline").textContent; }
 function requireSelection() { if (!state.selected) throw new Error("Sélectionne d'abord une question dans la chaîne d'audit."); }
+function requireMission() { if (!state.missionId) throw new Error("Crée ou sélectionne d'abord une mission. Sans mission, DIAM ne peut pas rattacher le questionnaire, les preuves et le rapport."); }
+function setMissionDependentEnabled(enabled) {
+  for (const id of ["reload", "generateReport", "deleteMission", "uploadAuditDocument", "analyzeAuditDocument", "promoteSuggestion"]) {
+    const el = $(id);
+    if (el) el.disabled = !enabled;
+  }
+}
+async function run(fn, targetId = "actionStatus") {
+  try {
+    setStatus("", "info", targetId);
+    await fn();
+  } catch (e) {
+    setStatus(e.message || String(e), "error", targetId);
+  }
+}
 function enableDemoMode(error) {
   state.demo = true;
   state.missions = [{ id: "demo-mission", number: "APERÇU-LOCAL", title: "Audit PA — aperçu visuel" }];
@@ -396,15 +483,18 @@ function enableDemoMode(error) {
   $("opinion").innerHTML = "<strong>APERÇU LOCAL</strong><br>Interface chargée sans base Supabase. Les contrôles ci-dessous servent à valider l’ergonomie.";
   state.documents = [];
   state.suggestions = [];
+  setMissionDependentEnabled(true);
   renderDemo();
 }
 function renderDemo() {
   renderChain();
-  $("documentsTable").querySelector("tbody").innerHTML = "";
-  $("suggestionsTable").querySelector("tbody").innerHTML = `<tr><td>DGFiP-2.3</td><td>CRITICAL</td><td>Exemple : absence de preuve de restitution complète de la piste d’audit.</td><td>82%</td><td>DEMO</td></tr>`;
+  renderDocuments();
+  state.suggestions = [{ id: "demo-suggestion", reference: "DGFiP-2.3", suggested_qualification: "CRITICAL", potential_gap: "Exemple : absence de preuve de restitution complète de la piste d’audit.", confidence: 0.82, status: "DEMO" }];
+  renderSuggestions();
 }
 function demoOnly(message) {
   setStatus(message, "error");
+  setStatus(message, "error", "documentStatus");
 }
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));

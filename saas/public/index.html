@@ -41,6 +41,7 @@
 
       <section class="card">
         <h2>Nouvelle mission</h2>
+        <p class="muted">Étape 1 obligatoire : crée une mission pour générer le questionnaire DGFiP/PDP et activer les dépôts documentaires.</p>
         <div class="grid">
           <label>Client audité <input id="clientName" value="Client PA" /></label>
           <label>SIREN <input id="siren" placeholder="123456789" /></label>
@@ -52,10 +53,12 @@
 
       <section class="card">
         <h2>Mission</h2>
+        <p class="muted">La mission sélectionnée pilote toute la chaîne : questionnaire, réponses, constats, preuves, documents et rapport.</p>
         <div class="row">
           <select id="missionSelect"></select>
           <button id="reload">Rafraîchir</button>
           <button id="generateReport">Générer rapport DGFiP</button>
+          <button id="deleteMission" class="secondary">Supprimer mission</button>
         </div>
         <div class="opinion" id="opinion"></div>
       </section>
@@ -151,11 +154,12 @@
             </select>
           </label>
           <label>Document à analyser <input id="auditDocumentFile" type="file" /></label>
-          <div class="row">
+        <div class="row">
             <button id="uploadAuditDocument">Déposer</button>
             <button id="analyzeAuditDocument">Analyser par IA</button>
           </div>
         </div>
+        <p class="status" id="documentStatus"></p>
         <p class="muted" id="selectedDocument">Aucun document sélectionné.</p>
         <div class="tableWrap">
           <table id="documentsTable">
