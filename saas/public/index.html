@@ -58,7 +58,7 @@
     </nav>
 
     <main class="layout">
-      <section class="card wide" data-panel="dashboard">
+      <section class="card wide dashboardHero" data-panel="dashboard">
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Méthode obligatoire</p>
@@ -92,12 +92,12 @@
             <select id="auditProgram">
               <option value="PA_DGFIP">PA / DGFiP + PDP Integrity</option>
               <option value="SC_RLFC">SC / Solution Compatible RLF-C</option>
-              <option value="CUSTOM_CDC">CDC / audit personnalisé</option>
+              <option value="CUSTOM_CDC">Audit personnalisé / référentiel libre</option>
             </select>
           </label>
-          <label>Nom du type d’audit personnalisé <input id="customAuditTypeName" placeholder="Ex. CDC éditeur, CDC SAE, audit interne spécifique..." /></label>
-          <label>Référentiels attachés <textarea id="customReferentials" placeholder="Un référentiel par ligne : nom, version, date, source. Exemple : CDC éditeur v1.0 ; Guide interne D2F ; CR réunion DGFiP..."></textarea></label>
-          <label>Contrôles à générer <textarea id="customControlsText" placeholder="Pour CDC uniquement : une ligne par contrôle à créer. Exemple : Traçabilité des traitements ; Conservation opposable des preuves ; Réversibilité des données..."></textarea></label>
+          <label>Nom du type d’audit personnalisé <input id="customAuditTypeName" placeholder="Ex. audit SAE, audit CFN, audit GED, CDC éditeur, audit interne..." /></label>
+          <label>Référentiels attachés <textarea id="customReferentials" placeholder="Un référentiel par ligne : nom, version, date, source. Exemple : SAE Stratow ; CFN ; GED ; Guide interne D2F ; CR réunion DGFiP..."></textarea></label>
+          <label>Contrôles à générer <textarea id="customControlsText" placeholder="Une ligne par contrôle à créer. Exemple : Traçabilité des traitements ; Conservation opposable des preuves ; Réversibilité des données..."></textarea></label>
           <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
           <label>Pays <input id="clientCountry" value="France" /></label>
           <label>Adresse <input id="clientAddress" placeholder="Adresse du siège" /></label>
@@ -150,15 +150,15 @@
             <h2>Référentiels et types d’audit</h2>
           </div>
         </div>
-        <p class="muted">PA et SC sont des programmes socle. Pour un CDC, un audit SAE, éditeur, interne ou tout autre référentiel, prépare ici un type d’audit dédié puis crée la mission associée. Les guides, référentiels, textes, CR DGFiP/AIFE et notes D2F déposés en bibliothèque transverse sont applicables à toutes les missions.</p>
+        <p class="muted">PA et SC sont des programmes socle. Pour un audit SAE, CFN, GED, CDC, éditeur, interne ou tout autre référentiel, prépare ici un programme d’audit dédié puis crée la mission associée. Les guides, référentiels, textes, CR DGFiP/AIFE et notes D2F déposés en bibliothèque transverse sont applicables à toutes les missions.</p>
         <div class="twoCols">
           <div class="integrationBox">
-            <h3>Nouveau type d’audit from scratch</h3>
-            <label>Nom du type d’audit <input id="adminAuditTypeName" placeholder="Ex. CDC éditeur, audit SAE, audit conformité interne..." /></label>
+            <h3>Nouveau programme libre — SAE / CFN / GED / CDC / autre</h3>
+            <label>Nom du type d’audit <input id="adminAuditTypeName" placeholder="Ex. Audit SAE Stratow, audit CFN, audit GED, audit conformité interne..." /></label>
             <label>Référentiels / sources à rattacher <textarea id="adminAuditReferentials" placeholder="Un référentiel ou document source par ligne : nom, version, date, origine."></textarea></label>
             <label>Contrôles initiaux à générer <textarea id="adminAuditControls" placeholder="Une ligne par contrôle : critère, objectif ou exigence à auditer."></textarea></label>
             <div class="row">
-              <button id="adminPrepareCustomAudit" type="button">Préparer mission CDC</button>
+              <button id="adminPrepareCustomAudit" type="button">Préparer type d’audit personnalisé</button>
               <button id="adminOpenGlobalLibrary" class="secondary" type="button">Charger référentiel / CR</button>
             </div>
           </div>
@@ -167,16 +167,24 @@
             <ul>
               <li>Audit PA : chaîne DGFiP/PDP Integrity, cadrée par dossier accepté DGFiP.</li>
               <li>Audit SC : chaîne RLF-C:SC, adaptée au périmètre éditeur/solution compatible.</li>
-              <li>Audit CDC : chaîne générée depuis les contrôles saisis et les référentiels chargés.</li>
+              <li>Audit personnalisé : chaîne générée depuis les contrôles saisis et les référentiels chargés.</li>
               <li>Conduite FR/EN possible ; rapport DGFiP toujours en français.</li>
               <li>Analyse assistée D2F : l’IA propose, l’auditeur décide et justifie.</li>
             </ul>
+          </div>
+          <div class="integrationBox adminLibraryHint">
+            <h3>Bibliothèque transverse</h3>
+            <p>Les référentiels, guides, CR DGFiP/AIFE, notes D2F et textes de loi chargés ici deviennent des sources communes : ils peuvent recadrer toutes les missions existantes ou futures sans être enfermés dans un seul audit.</p>
+            <div class="quickActions">
+              <button id="adminOpenGlobalLibrary2" class="secondary" type="button">Ouvrir documents globaux</button>
+              <button id="adminOpenDgfipFile" class="secondary" type="button">Déposer dossier DGFiP</button>
+            </div>
           </div>
         </div>
         <p class="status" id="adminStatus"></p>
       </section>
 
-      <section class="card" data-panel="dashboard">
+      <section class="card dashboardMission" data-panel="dashboard">
         <h2>Mission</h2>
         <p class="muted">La mission sélectionnée pilote toute la chaîne : questionnaire, réponses, constats, preuves, documents et rapport.</p>
         <div class="row">
@@ -190,7 +198,7 @@
         <div class="opinion" id="opinion"></div>
       </section>
 
-      <section class="card wide" data-panel="dashboard">
+      <section class="card dashboardFacts" data-panel="dashboard">
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Cadrage</p>
@@ -202,7 +210,7 @@
         </div>
       </section>
 
-      <section class="card wide" data-panel="dashboard">
+      <section class="card wide dashboardPortfolio" data-panel="dashboard">
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Portefeuille</p>
@@ -303,7 +311,7 @@
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Registre documentaire d’audit</p>
-            <h2>Dépôt documentaire et analyse au regard du référentiel</h2>
+            <h2>Dépôt documentaire et analyse assistée D2F</h2>
           </div>
         </div>
         <p>Dépose le dossier de candidature DGFiP accepté, les nouveaux référentiels, les CR de réunion DGFiP/AIFE, les notes D2F Compliant et les documents qualité/techniques du client. Chaque fichier est haché SHA-256, rattaché à la mission et peut être analysé pour cadrer l’audit ou proposer des preuves manquantes.</p>

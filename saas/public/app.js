@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.1.0",
-  release: "Évolution fonctionnelle audit multilingue",
+  version: "1.2.0",
+  release: "Refonte cockpit UX adaptatif et audit personnalisé",
   schemaVersion: "202609020010_global_reference_documents",
-  buildCommit: "local-v1.1.0",
+  buildCommit: "local-v1.2.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -32,9 +32,9 @@ const AUDIT_PROGRAMS = {
   },
   CUSTOM_CDC: {
     id: "CUSTOM_CDC",
-    label: "CDC / audit personnalisé",
-    shortLabel: "CDC",
-    defaultTitle: "Audit personnalisé sur CDC",
+    label: "Audit personnalisé / référentiel libre",
+    shortLabel: "LIBRE",
+    defaultTitle: "Audit personnalisé",
     expectedControls: 0
   }
 };
@@ -196,6 +196,8 @@ function bindEvents() {
   $("prepareDgfipAnalysis").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("adminPrepareCustomAudit").onclick = () => prepareCustomAuditFromAdmin();
   $("adminOpenGlobalLibrary").onclick = () => prepareGlobalLibrary();
+  $("adminOpenGlobalLibrary2").onclick = () => prepareGlobalLibrary();
+  $("adminOpenDgfipFile").onclick = () => run(prepareDgfipAnalysis, "adminStatus");
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
   $("searchD2FClients").onclick = () => run(searchD2FClients, "d2fSyncStatus");
@@ -250,7 +252,7 @@ function prepareNewMission(options = {}) {
     $("opinion").innerHTML = "<strong>Nouveau brouillon d’audit</strong><br>Aucune mission existante n’est modifiée tant que tu ne cliques pas “Créer mission + questionnaire”.";
   }
   $("clientName")?.focus();
-  setStatus("Nouveau brouillon : renseigne/import le client, choisis le programme PA, SC ou CDC, puis clique “Créer mission + questionnaire”. Aucune mission existante n’est active.", "info", "createStatus");
+  setStatus("Nouveau brouillon : renseigne/import le client, choisis le programme PA, SC ou personnalisé, puis clique “Créer mission + questionnaire”. Aucune mission existante n’est active.", "info", "createStatus");
 }
 
 async function createMissionFromTopBar() {
@@ -329,7 +331,7 @@ function prepareCustomAuditFromAdmin() {
   $("customControlsText").value = controls;
   $("missionTitle").value = name;
   applyAuditProgramDefaults();
-  setStatus("Type d’audit préparé : complète le client puis clique “Créer mission + questionnaire”. Les contrôles saisis généreront la chaîne CDC.", "success", "createStatus");
+  setStatus("Type d’audit personnalisé préparé : complète le client puis clique “Créer mission + questionnaire”. Les contrôles saisis généreront une chaîne dédiée au référentiel libre.", "success", "createStatus");
 }
 
 function showLogin(details = {}) {
@@ -613,7 +615,7 @@ function selectedAuditProgramId() {
 function auditProgramFromMission(mission = {}) {
   const referential = String(mission.referential_version || "");
   if (referential.includes("RLF-C:SC")) return AUDIT_PROGRAMS.SC_RLFC;
-  if (referential.includes("CDC personnalisé")) return AUDIT_PROGRAMS.CUSTOM_CDC;
+  if (referential.includes("Audit personnalisé") || referential.includes("CDC personnalisé")) return AUDIT_PROGRAMS.CUSTOM_CDC;
   const scope = mission.client_scope || {};
   if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return auditProgram(scope.audit_program);
   return AUDIT_PROGRAMS.PA_DGFIP;
@@ -628,7 +630,7 @@ function applyAuditProgramDefaults() {
   $("declaredScope").placeholder = program.id === "SC_RLFC"
     ? "Ex. émission/réception, ERP, connecteur PA, annuaire, e-reporting, CDAR, SAE, pays/filiales..."
     : program.id === "CUSTOM_CDC"
-      ? "Décris le périmètre du CDC, les activités auditées, les livrables attendus et les référentiels/documents à charger."
+      ? "Décris le périmètre audité, les activités, les livrables attendus et les référentiels/documents à charger."
       : "Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales...";
   const controlsMessage = program.expectedControls
     ? `Le questionnaire créé contiendra ${program.expectedControls} contrôles.`
@@ -666,7 +668,7 @@ function renderMissionList() {
       <tr class="noRows">
         <td colspan="5">
           <strong>Aucune mission créée.</strong><br>
-          Crée une mission pour initialiser le questionnaire PA, SC ou CDC.
+          Crée une mission pour initialiser le questionnaire PA, SC ou personnalisé.
         </td>
       </tr>`;
     return;
@@ -744,7 +746,7 @@ async function createMission() {
   if (selectedAuditProgramId() === "CUSTOM_CDC" && !$("customControlsText").value.trim()) {
     showTab("mission_form");
     $("customControlsText")?.focus();
-    throw new Error("Audit CDC/personnalisé : renseigne au moins un contrôle à générer. Une ligne = un contrôle dans la chaîne d’audit.");
+    throw new Error("Audit personnalisé : renseigne au moins un contrôle à générer. Une ligne = un contrôle dans la chaîne d’audit.");
   }
   $("createStatus").textContent = "Création en cours...";
   const out = await api("/api/missions", {

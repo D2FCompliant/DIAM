@@ -130,14 +130,21 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.1.0");
-  assert.match(app, /version: "1\.1\.0"/);
-  assert.match(worker, /version: "1\.1\.0"/);
+  assert.equal(pkg.version, "1.2.0");
+  assert.match(app, /version: "1\.2\.0"/);
+  assert.match(worker, /version: "1\.2\.0"/);
   assert.match(app, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(worker, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
-  assert.match(html, /CDC \/ audit personnalisé/);
+  assert.match(html, /Audit personnalisé \/ référentiel libre/);
+  assert.match(html, /dashboardHero/);
+  assert.match(html, /dashboardMission/);
+  assert.match(html, /dashboardFacts/);
+  assert.match(html, /dashboardPortfolio/);
+  assert.doesNotMatch(css, /nth-of-type/);
+  assert.match(css, /\.layout:not\(\.dashboardMode\)/);
+  assert.match(css, /\.layout\.dashboardMode \.dashboardHero/);
   assert.match(css, /html\s*\{[^}]*height: 100%;[^}]*overflow: hidden;/s);
   assert.match(css, /body\s*\{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*display: flex;[^}]*flex-direction: column;/s);
   assert.match(css, /\.layout\s*\{[^}]*flex: 1 1 auto;[^}]*overflow: hidden;/s);
@@ -163,7 +170,7 @@ test("audit scoping is multilingual and dynamically frames applicability", async
   assert.match(app, /applicabilityBadge/);
   assert.match(app, /Rapport DGFiP<\/span><strong>Français obligatoire/);
   assert.match(html, /Langue de conduite \/ réponses client/);
-  assert.match(html, /Nouveau type d’audit from scratch/);
+  assert.match(html, /Nouveau programme libre/);
 });
 
 test("version banner always exposes a usable build reference", async () => {
@@ -180,7 +187,7 @@ test("version banner always exposes a usable build reference", async () => {
   assert.doesNotMatch(worker, /buildCommit: env\.DIAM_BUILD_COMMIT \|\| env\.CF_PAGES_COMMIT_SHA \|\| "non renseigné"/);
 });
 
-test("custom CDC missions are explicit and generate their own audit chain", async () => {
+test("custom audit missions are explicit and generate their own audit chain", async () => {
   const fs = await import("node:fs/promises");
   const [html, app, worker] = await Promise.all([
     fs.readFile(new URL("../public/index.html", import.meta.url), "utf8"),
@@ -190,12 +197,15 @@ test("custom CDC missions are explicit and generate their own audit chain", asyn
   assert.match(html, /Nom du type d’audit personnalisé/);
   assert.match(html, /Référentiels attachés/);
   assert.match(html, /Contrôles à générer/);
+  assert.match(html, /SAE \/ CFN \/ GED \/ CDC \/ autre/);
+  assert.match(html, /Préparer type d’audit personnalisé/);
+  assert.doesNotMatch(html, /Préparer mission CDC/);
   assert.match(app, /custom_controls_text: \$\("customControlsText"\)\.value/);
-  assert.match(app, /Audit CDC\/personnalisé : renseigne au moins un contrôle à générer/);
+  assert.match(app, /Audit personnalisé : renseigne au moins un contrôle à générer/);
   assert.match(app, /state\.missionId = out\.mission\.id/);
   assert.match(app, /reused_existing/);
   assert.match(worker, /function controlsFromMissionDefinition/);
-  assert.match(worker, /reference: `CDC-\$\{String\(index \+ 1\)\.padStart\(2, "0"\)\}`/);
+  assert.match(worker, /reference: `AUD-\$\{String\(index \+ 1\)\.padStart\(2, "0"\)\}`/);
   assert.match(worker, /Audit personnalisé : ajoute au moins un contrôle/);
 });
 
@@ -233,7 +243,7 @@ test("preparing a new audit detaches the active mission before editing", async (
   assert.match(app, /Aucune mission existante n’est active/);
   assert.match(app, /Nouveau brouillon d’audit/);
   assert.match(app, /referential\.includes\("RLF-C:SC"\)/);
-  assert.match(app, /referential\.includes\("CDC personnalisé"\)/);
+  assert.match(app, /referential\.includes\("Audit personnalisé"\)/);
 });
 
 test("saving the mission form handles draft and selected mission states explicitly", async () => {
