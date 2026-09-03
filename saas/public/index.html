@@ -184,7 +184,7 @@
           </div>
           <div class="integrationBox adminAuditors">
             <h3>Collaborateurs auditeurs et accès par mission</h3>
-            <p class="muted">Le patron / manager DIAM invite les collaborateurs, puis les missionne audit par audit. Un auditeur invité sans affectation ne voit aucune mission ; un auditeur affecté ne voit que les audits sur lesquels il intervient.</p>
+            <p class="muted">Le patron / manager DIAM crée l’accès collaborateur, puis le missionne audit par audit. DIAM n’envoie pas encore d’e-mail : copie l’invitation générée et transmets-la par ton canal sécurisé.</p>
             <div class="twoCols compact">
               <div>
                 <h4>Inviter un collaborateur</h4>
@@ -200,7 +200,8 @@
                   </label>
                   <label>Mot de passe temporaire <input id="auditorPassword" type="password" autocomplete="new-password" placeholder="Minimum 10 caractères" /></label>
                 </div>
-                <button id="inviteAuditor" type="button">Inviter collaborateur</button>
+                <button id="inviteAuditor" type="button">Créer accès collaborateur</button>
+                <div class="notice invitationNotice" id="auditorInvitationNotice" hidden></div>
               </div>
               <div>
                 <h4>Affecter à une mission</h4>
@@ -222,7 +223,7 @@
             <div class="twoCols compact">
               <div class="tableWrap smallTable">
                 <table id="auditorsTable">
-                  <thead><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>Missions</th></tr></thead>
+                  <thead><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>Missions</th><th>Action</th></tr></thead>
                   <tbody><tr class="noRows"><td colspan="5">Aucun collaborateur chargé.</td></tr></tbody>
                 </table>
               </div>

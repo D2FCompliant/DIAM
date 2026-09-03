@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.4.2",
-  release: "Validation e-mail auditeur et retours admin",
+  version: "1.4.3",
+  release: "Invitation collaborateur exploitable sans e-mail sortant",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.4.2",
+  buildCommit: "local-v1.4.3",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -749,8 +749,9 @@ function renderAuditorAdmin() {
         <td>${escapeHtml(u.role)}</td>
         <td>${escapeHtml(u.status)}</td>
         <td>${u.assigned_missions || 0}</td>
+        <td><button class="small danger" data-disable-auditor="${u.id}" type="button">Désactiver</button></td>
       </tr>`).join("")
-    : `<tr class="noRows"><td colspan="5">Aucun collaborateur invité. Ajoute un auditeur avec un mot de passe temporaire.</td></tr>`;
+    : `<tr class="noRows"><td colspan="6">Aucun collaborateur invité. Crée un accès avec un mot de passe temporaire.</td></tr>`;
 
   assignmentsBody.innerHTML = state.auditorAssignments.length
     ? state.auditorAssignments.map((a) => `
@@ -766,6 +767,9 @@ function renderAuditorAdmin() {
   for (const button of assignmentsBody.querySelectorAll("[data-revoke-assignment]")) {
     button.onclick = () => run(() => revokeAuditorAssignment(button.dataset.revokeAssignment), "auditorAdminStatus");
   }
+  for (const button of auditorsBody.querySelectorAll("[data-disable-auditor]")) {
+    button.onclick = () => run(() => disableAuditor(button.dataset.disableAuditor), "auditorAdminStatus");
+  }
 }
 
 async function inviteAuditor() {
@@ -773,6 +777,7 @@ async function inviteAuditor() {
   const displayName = $("auditorName").value.trim();
   const role = $("auditorRole").value;
   const tempPassword = $("auditorPassword").value;
+  const invitationBox = $("auditorInvitationNotice");
   if (!email || !tempPassword) throw new Error("Renseigne l’e-mail auditeur et un mot de passe temporaire.");
   if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.toLowerCase())) {
     $("auditorEmail").focus();
@@ -783,8 +788,20 @@ async function inviteAuditor() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, display_name: displayName, role, temp_password: tempPassword })
   });
+  const invitation = [
+    "Invitation DIAM SaaS",
+    `URL : ${location.origin}`,
+    `E-mail : ${user.email}`,
+    `Mot de passe temporaire : ${tempPassword}`,
+    "Après connexion, l’accès est limité aux missions affectées par D2F."
+  ].join("\n");
+  if (invitationBox) {
+    invitationBox.hidden = false;
+    invitationBox.textContent = invitation;
+  }
+  await navigator.clipboard?.writeText(invitation).catch(() => {});
   $("auditorPassword").value = "";
-  setStatus(`${user.display_name || user.email} est invité. Étape suivante : sélectionne une mission à droite puis clique “Missionner sur cet audit”.`, "success", "auditorAdminStatus");
+  setStatus(`${user.display_name || user.email} : accès créé. L’invitation a été copiée si le navigateur l’autorise ; sinon copie le bloc vert ci-dessus. DIAM n’envoie pas encore d’e-mail.`, "success", "auditorAdminStatus");
   await loadAuditorAdmin();
 }
 
@@ -807,6 +824,16 @@ async function revokeAuditorAssignment(assignmentId) {
   if (!confirm("Retirer cet auditeur de la mission ? Il ne pourra plus ouvrir cet audit.")) return;
   await api(`/api/admin/mission-auditors/${assignmentId}`, { method: "DELETE" });
   setStatus("Affectation retirée. L’accès à cette mission est coupé.", "success", "auditorAdminStatus");
+  await loadAuditorAdmin();
+}
+
+async function disableAuditor(userId) {
+  if (!userId) throw new Error("Collaborateur introuvable.");
+  const user = state.auditors.find((u) => u.id === userId);
+  const label = user ? `${user.display_name || user.email} (${user.email})` : "ce collaborateur";
+  if (!confirm(`Désactiver ${label} et retirer ses accès mission ?`)) return;
+  const out = await api(`/api/admin/auditors/${userId}`, { method: "DELETE" });
+  setStatus(`Collaborateur désactivé. Affectations retirées : ${out.revoked_assignments || 0}.`, "success", "auditorAdminStatus");
   await loadAuditorAdmin();
 }
 

@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.4.2",
-  release: "Validation e-mail auditeur et retours admin",
+  version: "1.4.3",
+  release: "Invitation collaborateur exploitable sans e-mail sortant",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Validation stricte des e-mails collaborateurs et retours explicites d'invitation/affectation"
+  lastChange: "Ajout de la désactivation collaborateur et clarification : DIAM crée l'accès, l'envoi e-mail reste externe"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -840,6 +840,25 @@ async function assignAuditor(db, tenantId, body, who) {
   });
 }
 
+async function disableAuditor(db, tenantId, userId) {
+  if (!userId) throw new HttpError("Collaborateur manquant.", 400);
+  const user = (await db.select("diam_users", `?id=eq.${userId}&tenant_id=eq.${tenantId}`))[0];
+  if (!user) throw new HttpError("Collaborateur introuvable.", 404);
+  const disabled = await db.patch("diam_users", `?id=eq.${userId}&tenant_id=eq.${tenantId}`, {
+    status: "DISABLED",
+    updated_at: new Date().toISOString()
+  });
+  const assignments = await db.select("diam_mission_auditors", `?tenant_id=eq.${tenantId}&user_id=eq.${userId}&revoked_at=is.null`);
+  for (const assignment of assignments) {
+    await db.patch("diam_mission_auditors", `?id=eq.${assignment.id}&tenant_id=eq.${tenantId}`, {
+      revoked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+  }
+  const { password_sha256, ...safeUser } = disabled || user;
+  return { disabled: true, user: safeUser, revoked_assignments: assignments.length };
+}
+
 async function readSchemaVersion(db) {
   try {
     const rows = await db.select("diam_schema_versions", "?id=eq.current");
@@ -1627,6 +1646,12 @@ async function handleApi(request, env) {
     requireAdminUser(currentUser);
     const body = await readBody(request);
     return json(await inviteAuditor(db, tenant.id, body, who), 201);
+  }
+
+  if (path.match(/^\/api\/admin\/auditors\/[^/]+$/) && request.method === "DELETE") {
+    requireAdminUser(currentUser);
+    const id = path.split("/")[3];
+    return json(await disableAuditor(db, tenant.id, id));
   }
 
   if (path === "/api/admin/mission-auditors" && request.method === "POST") {
