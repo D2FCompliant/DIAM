@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.0",
-  release: "Production audit cockpit",
+  version: "1.0.1",
+  release: "Correctif création mission",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -185,7 +185,7 @@ function bindEvents() {
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
   $("topNewMission").onclick = () => prepareNewMission({ blank: true });
-  $("topCreateMission").onclick = () => run(createMission, "createStatus");
+  $("topCreateMission").onclick = () => run(createMissionFromTopBar, "createStatus");
   $("topSaveMission").onclick = () => run(updateMissionProfile, "createStatus");
   $("topOpenMission").onclick = () => run(openSelectedMissionFromTopBar, "createStatus");
   $("topGlobalLibrary").onclick = () => prepareGlobalLibrary();
@@ -239,7 +239,17 @@ function prepareNewMission(options = {}) {
   showTab("mission_form");
   if (options.blank) resetMissionForm();
   $("clientName")?.focus();
-  setStatus("Mode création : renseigne/import le client, choisis le programme PA ou SC, puis clique “Créer mission + questionnaire”.", "info", "createStatus");
+  setStatus("Mode création : renseigne/import le client, choisis le programme PA, SC ou CDC, puis clique “Créer mission + questionnaire”.", "info", "createStatus");
+}
+
+async function createMissionFromTopBar() {
+  if (state.activeTab !== "mission_form") {
+    showTab("mission_form");
+    $("clientName")?.focus();
+    setStatus("Création sécurisée : complète ou vérifie la fiche mission, puis clique “Créer mission + questionnaire”. Aucune mission n’a été créée depuis cet écran.", "info", "createStatus");
+    return;
+  }
+  await createMission();
 }
 
 function resetMissionForm() {

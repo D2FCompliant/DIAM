@@ -98,10 +98,14 @@ test("frontend contains document AI review and report workflow controls", async 
 test("top cockpit actions are wired to real handlers", async () => {
   const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"));
   assert.match(app, /\$\("topNewMission"\)\.onclick = \(\) => prepareNewMission\(\{ blank: true \}\)/);
-  assert.match(app, /\$\("topCreateMission"\)\.onclick = \(\) => run\(createMission, "createStatus"\)/);
+  assert.match(app, /\$\("topCreateMission"\)\.onclick = \(\) => run\(createMissionFromTopBar, "createStatus"\)/);
   assert.match(app, /\$\("topSaveMission"\)\.onclick = \(\) => run\(updateMissionProfile, "createStatus"\)/);
   assert.match(app, /\$\("topOpenMission"\)\.onclick = \(\) => run\(openSelectedMissionFromTopBar, "createStatus"\)/);
+  assert.match(app, /async function createMissionFromTopBar/);
+  assert.match(app, /state\.activeTab !== "mission_form"/);
+  assert.match(app, /Aucune mission n’a été créée depuis cet écran/);
   assert.match(app, /async function openSelectedMissionFromTopBar/);
+  assert.doesNotMatch(app, /\$\("topCreateMission"\)\.onclick = \(\) => run\(createMission, "createStatus"\)/);
   assert.doesNotMatch(app, /topMissionForm/);
 });
 
@@ -115,11 +119,11 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.0");
-  assert.match(app, /version: "1\.0\.0"/);
-  assert.match(worker, /version: "1\.0\.0"/);
+  assert.equal(pkg.version, "1.0.1");
+  assert.match(app, /version: "1\.0\.1"/);
+  assert.match(worker, /version: "1\.0\.1"/);
   assert.match(html, /Préparer nouvel audit/);
-  assert.match(html, /Créer mission en base/);
+  assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
   assert.match(css, /html\s*\{[^}]*height: 100%;[^}]*overflow: hidden;/s);
   assert.match(css, /body\s*\{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*display: flex;[^}]*flex-direction: column;/s);

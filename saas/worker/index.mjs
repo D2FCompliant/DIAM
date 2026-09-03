@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.0.0",
-  release: "Production audit cockpit",
+  version: "1.0.1",
+  release: "Correctif création mission",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
-  lastChange: "Version production : barre cockpit fixe, scroll dans les fenêtres, boutons de mission clarifiés et préparation des audits personnalisés CDC"
+  lastChange: "Correctif production : le bouton global de création ouvre la fiche et ne crée plus de mission à l’aveugle depuis un autre écran"
 };
 
 const D2F_BUSINESS_SUITE = {
