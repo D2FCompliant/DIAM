@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.4.1",
-  release: "Correctif message migration multi-auditeur",
+  version: "1.4.2",
+  release: "Validation e-mail auditeur et retours admin",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.4.1",
+  buildCommit: "local-v1.4.2",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -774,13 +774,17 @@ async function inviteAuditor() {
   const role = $("auditorRole").value;
   const tempPassword = $("auditorPassword").value;
   if (!email || !tempPassword) throw new Error("Renseigne l’e-mail auditeur et un mot de passe temporaire.");
-  await api("/api/admin/auditors", {
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email.toLowerCase())) {
+    $("auditorEmail").focus();
+    throw new Error("E-mail collaborateur invalide : corrige l’adresse avant invitation.");
+  }
+  const user = await api("/api/admin/auditors", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email, display_name: displayName, role, temp_password: tempPassword })
   });
   $("auditorPassword").value = "";
-  setStatus("Collaborateur invité. Il pourra se connecter, mais ne verra que les missions affectées.", "success", "auditorAdminStatus");
+  setStatus(`${user.display_name || user.email} est invité. Étape suivante : sélectionne une mission à droite puis clique “Missionner sur cet audit”.`, "success", "auditorAdminStatus");
   await loadAuditorAdmin();
 }
 
@@ -789,12 +793,12 @@ async function assignAuditorToMission() {
   const missionId = $("assignmentMission").value || state.missionId;
   const missionRole = $("assignmentRole").value;
   if (!userId || !missionId) throw new Error("Choisis un auditeur et une mission.");
-  await api("/api/admin/mission-auditors", {
+  const assignment = await api("/api/admin/mission-auditors", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ user_id: userId, mission_id: missionId, mission_role: missionRole })
   });
-  setStatus("Auditeur affecté à la mission. Son accès est maintenant limité à cette mission côté serveur.", "success", "auditorAdminStatus");
+  setStatus(`Affectation enregistrée : accès mission limité côté serveur (${assignment.mission_role || missionRole}).`, "success", "auditorAdminStatus");
   await loadAuditorAdmin();
 }
 

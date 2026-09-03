@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.4.1",
-  release: "Correctif message migration multi-auditeur",
+  version: "1.4.2",
+  release: "Validation e-mail auditeur et retours admin",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Message clair lorsque la migration Supabase multi-auditeur n'est pas encore appliquée"
+  lastChange: "Validation stricte des e-mails collaborateurs et retours explicites d'invitation/affectation"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -461,6 +461,10 @@ function emailKey(email) {
   return String(email || "").trim().toLowerCase();
 }
 
+function isValidEmail(email) {
+  return /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailKey(email));
+}
+
 function adminEmail(env) {
   return emailKey(env.DIAM_ADMIN_EMAIL || env.DIAM_OWNER_EMAIL || "");
 }
@@ -788,7 +792,7 @@ async function listAuditorAdministration(db, tenantId) {
 
 async function inviteAuditor(db, tenantId, body, who) {
   const email = emailKey(body.email);
-  if (!email || !email.includes("@")) throw new HttpError("E-mail auditeur obligatoire.", 400);
+  if (!isValidEmail(email)) throw new HttpError("E-mail collaborateur invalide : vérifie le format, par exemple prenom.nom@domaine.com.", 400);
   const password = String(body.temp_password || "").trim();
   if (password.length < 10) throw new HttpError("Mot de passe temporaire obligatoire : minimum 10 caractères.", 400);
   const role = ["MANAGER", "AUDITOR", "CLIENT"].includes(body.role) ? body.role : "AUDITOR";
