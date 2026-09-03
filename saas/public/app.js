@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.1",
-  release: "Correctif création mission",
+  version: "1.0.2",
+  release: "Correctif programmes d’audit",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -258,6 +258,9 @@ function resetMissionForm() {
   $("legalIdentifier").value = "";
   $("vatId").value = "";
   $("auditProgram").value = "PA_DGFIP";
+  $("customAuditTypeName").value = "";
+  $("customReferentials").value = "";
+  $("customControlsText").value = "";
   $("missionTitle").value = AUDIT_PROGRAMS.PA_DGFIP.defaultTitle;
   $("clientCountry").value = "France";
   $("clientAddress").value = "";
@@ -597,7 +600,12 @@ function applyAuditProgramDefaults() {
       : "Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales...";
   const controlsMessage = program.expectedControls
     ? `Le questionnaire créé contiendra ${program.expectedControls} contrôles.`
-    : "Charge ensuite le CDC/référentiel dans Documents globaux pour construire le questionnaire applicable.";
+    : "Renseigne le nom du type d’audit, les référentiels attachés et les contrôles à générer avant création.";
+  const customFields = ["customAuditTypeName", "customReferentials", "customControlsText"];
+  for (const id of customFields) {
+    const wrapper = $(id)?.closest("label");
+    if (wrapper) wrapper.hidden = program.id !== "CUSTOM_CDC";
+  }
   setStatus(`Programme sélectionné : ${program.label}. ${controlsMessage}`, "info", "createStatus");
 }
 
@@ -611,7 +619,10 @@ function missionProfilePayload() {
     d2f_business_suite_client_id: $("d2fSuiteClientId").value,
     d2f_business_suite_case_url: $("d2fSuiteCaseUrl").value,
     d2f_business_suite_source_updated_at: state.d2fImportedClientUpdatedAt || "",
-    declared_scope: $("declaredScope").value
+    declared_scope: $("declaredScope").value,
+    custom_audit_type_name: $("customAuditTypeName").value,
+    custom_referentials: $("customReferentials").value,
+    custom_controls_text: $("customControlsText").value
   };
 }
 
@@ -623,7 +634,7 @@ function renderMissionList() {
       <tr class="noRows">
         <td colspan="5">
           <strong>Aucune mission créée.</strong><br>
-          Crée une mission pour initialiser le questionnaire PA ou SC.
+          Crée une mission pour initialiser le questionnaire PA, SC ou CDC.
         </td>
       </tr>`;
     return;
@@ -691,6 +702,11 @@ async function openMission(id) {
 
 async function createMission() {
   if (state.demo) return demoOnly("Création réelle indisponible en aperçu local. Lance `npm run dev` dans `DIAM/saas` avec Supabase configuré.");
+  if (selectedAuditProgramId() === "CUSTOM_CDC" && !$("customControlsText").value.trim()) {
+    showTab("mission_form");
+    $("customControlsText")?.focus();
+    throw new Error("Audit CDC/personnalisé : renseigne au moins un contrôle à générer. Une ligne = un contrôle dans la chaîne d’audit.");
+  }
   $("createStatus").textContent = "Création en cours...";
   const out = await api("/api/missions", {
     method: "POST",
@@ -698,7 +714,11 @@ async function createMission() {
     body: JSON.stringify(missionProfilePayload())
   });
   $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles ${out.audit_program?.shortLabel || auditProgram($("auditProgram").value).shortLabel}.`;
+  state.missionId = out.mission.id;
   await loadMissions();
+  state.missionId = out.mission.id;
+  if ($("missionSelect")) $("missionSelect").value = state.missionId;
+  await refreshAll();
   showTab("audit");
 }
 

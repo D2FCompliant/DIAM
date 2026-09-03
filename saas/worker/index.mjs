@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.0.1",
-  release: "Correctif création mission",
+  version: "1.0.2",
+  release: "Correctif programmes d’audit",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
-  lastChange: "Correctif production : le bouton global de création ouvre la fiche et ne crée plus de mission à l’aveugle depuis un autre écran"
+  lastChange: "Correctif production : création verrouillée sur le programme d’audit choisi, client dédupliqué et chaîne personnalisée CDC générée depuis la fiche"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -175,6 +175,89 @@ function controlsForProgram(programId) {
   if (program.id === "SC_RLFC") return SC_CONTROLS;
   if (program.id === "CUSTOM_CDC") return [];
   return BASE_CONTROLS;
+}
+
+function normalizeKey(value = "") {
+  return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function digits(value = "") {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function splitLines(value = "") {
+  return String(value || "").split(/\r?\n|;/).map((line) => line.trim()).filter(Boolean);
+}
+
+async function findOrSaveClient(db, tenantId, body, program) {
+  const nextScope = {
+    ...(body.scope || {}),
+    client_language: body.client_language || "fr",
+    client_legal_identifier: body.legal_identifier || "",
+    client_vat_id: body.vat_id || "",
+    client_address_line_2: body.address_line_2 || "",
+    client_postal_code: body.postal_code || "",
+    client_email: body.email || "",
+    client_phone: body.phone || "",
+    dgfip_application_status: body.dgfip_application_status || "UNKNOWN",
+    declared_scope: body.declared_scope || "",
+    custom_audit_type_name: body.custom_audit_type_name || "",
+    custom_referentials: body.custom_referentials || "",
+    d2f_business_suite_client_id: body.d2f_business_suite_client_id || "",
+    d2f_business_suite_case_url: body.d2f_business_suite_case_url || "",
+    d2f_business_suite_sync_status: body.d2f_business_suite_client_id ? "SYNCED_API" : body.d2f_business_suite_case_url ? "LINKED_MANUAL" : "NOT_LINKED",
+    d2f_business_suite_synced_at: body.d2f_business_suite_client_id ? new Date().toISOString() : null,
+    d2f_business_suite_source_updated_at: body.d2f_business_suite_source_updated_at || null,
+    accepted_application_required: body.dgfip_application_status === "ACCEPTED"
+  };
+  const clients = await db.select("diam_clients", `?tenant_id=eq.${tenantId}`);
+  const wantedD2f = String(nextScope.d2f_business_suite_client_id || "").trim();
+  const wantedSiren = digits(body.siren);
+  const wantedLegal = normalizeKey(body.legal_identifier);
+  const wantedVat = normalizeKey(body.vat_id);
+  const wantedName = normalizeKey(body.client_name || "Client audité");
+  const existing = clients.find((client) => {
+    const scope = client.scope || {};
+    return (
+      (wantedD2f && wantedD2f === String(scope.d2f_business_suite_client_id || "").trim()) ||
+      (wantedSiren && wantedSiren === digits(client.siren)) ||
+      (wantedLegal && wantedLegal === normalizeKey(scope.client_legal_identifier)) ||
+      (wantedVat && wantedVat === normalizeKey(scope.client_vat_id)) ||
+      (wantedName && wantedName === normalizeKey(client.name))
+    );
+  });
+  const payload = {
+    name: body.client_name || existing?.name || "Client audité",
+    siren: body.siren || existing?.siren || null,
+    address: body.address || existing?.address || null,
+    city: body.city || existing?.city || null,
+    country: body.country || existing?.country || "France",
+    scope: {
+      ...(existing?.scope || {}),
+      ...nextScope,
+      audit_program: program.id,
+      audit_program_label: program.label
+    },
+    updated_at: new Date().toISOString()
+  };
+  if (existing) return db.patch("diam_clients", `?id=eq.${existing.id}&tenant_id=eq.${tenantId}`, payload);
+  return db.insert("diam_clients", { tenant_id: tenantId, ...payload });
+}
+
+function controlsFromMissionDefinition(program, body) {
+  if (program.id !== "CUSTOM_CDC") return controlsForProgram(program.id);
+  const refs = splitLines(body.custom_referentials);
+  const source = refs.length ? refs.join(" ; ") : "Référentiel personnalisé à documenter dans DIAM";
+  return splitLines(body.custom_controls_text).map((line, index) => ({
+    reference: `CDC-${String(index + 1).padStart(2, "0")}`,
+    chapter: body.custom_audit_type_name || "Audit personnalisé / CDC",
+    title: line.slice(0, 120),
+    requirement: line,
+    source,
+    base_qualification: "HIGH",
+    verification_method: "Contrôle à préciser par l’auditeur selon le CDC, le référentiel attaché et les preuves collectées.",
+    expected_evidence: "Référentiel/CDC applicable ; preuve client ; constat auditeur ; justification ; élément probant horodaté"
+  }));
 }
 
 function json(data, status = 200, extraHeaders = {}) {
@@ -649,8 +732,9 @@ function lifecycleStatusFor(auditType, labelValidUntil, surveillanceYear) {
 }
 
 async function determineAuditLifecycle(db, tenantId, clientId, requested = {}) {
-  const previous = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&client_id=eq.${clientId}&order=created_at.asc`);
   const program = auditProgram(requested.audit_program);
+  const allPrevious = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&client_id=eq.${clientId}&order=created_at.asc`);
+  const previous = allPrevious.filter((mission) => programFromReferential(mission.referential_version).id === program.id || (program.id === "CUSTOM_CDC" && String(mission.referential_version || "").includes("CDC personnalisé")));
   const labelName = program.id === "SC_RLFC" ? "label SC" : "label PA";
   if (!previous.length) {
     const start = requested.label_valid_from || dateOnly(new Date());
@@ -1060,35 +1144,9 @@ async function handleApi(request, env) {
   if (path === "/api/missions" && request.method === "POST") {
     const body = await readBody(request);
     const program = auditProgram(body.audit_program || "PA_DGFIP");
-    const controls = controlsForProgram(program.id);
-    const client = await db.upsert("diam_clients", {
-      tenant_id: tenant.id,
-      name: body.client_name || "Client audité",
-      siren: body.siren || null,
-      address: body.address || null,
-      city: body.city || null,
-      country: body.country || "France",
-      scope: {
-        ...(body.scope || {}),
-        client_language: body.client_language || "fr",
-        client_legal_identifier: body.legal_identifier || "",
-        client_vat_id: body.vat_id || "",
-        client_address_line_2: body.address_line_2 || "",
-        client_postal_code: body.postal_code || "",
-        client_email: body.email || "",
-        client_phone: body.phone || "",
-        audit_program: program.id,
-        audit_program_label: program.label,
-        dgfip_application_status: body.dgfip_application_status || "UNKNOWN",
-        declared_scope: body.declared_scope || "",
-        d2f_business_suite_client_id: body.d2f_business_suite_client_id || "",
-        d2f_business_suite_case_url: body.d2f_business_suite_case_url || "",
-        d2f_business_suite_sync_status: body.d2f_business_suite_client_id ? "SYNCED_API" : body.d2f_business_suite_case_url ? "LINKED_MANUAL" : "NOT_LINKED",
-        d2f_business_suite_synced_at: body.d2f_business_suite_client_id ? new Date().toISOString() : null,
-        d2f_business_suite_source_updated_at: body.d2f_business_suite_source_updated_at || null,
-        accepted_application_required: body.dgfip_application_status === "ACCEPTED"
-      }
-    }, "tenant_id,name");
+    const controls = controlsFromMissionDefinition(program, body);
+    if (program.id === "CUSTOM_CDC" && !controls.length) return json({ error: "Audit personnalisé : ajoute au moins un contrôle à générer dans la fiche mission." }, 400);
+    const client = await findOrSaveClient(db, tenant.id, body, program);
     const lifecycle = await determineAuditLifecycle(db, tenant.id, client.id, body);
     const mission = await db.insert("diam_missions", {
       tenant_id: tenant.id,

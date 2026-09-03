@@ -46,6 +46,9 @@ test("frontend contains document AI review and report workflow controls", async 
     "legalIdentifier",
     "vatId",
     "auditProgram",
+    "customAuditTypeName",
+    "customReferentials",
+    "customControlsText",
     "clientAddressLine2",
     "clientPostalCode",
     "clientEmail",
@@ -119,9 +122,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.1");
-  assert.match(app, /version: "1\.0\.1"/);
-  assert.match(worker, /version: "1\.0\.1"/);
+  assert.equal(pkg.version, "1.0.2");
+  assert.match(app, /version: "1\.0\.2"/);
+  assert.match(worker, /version: "1\.0\.2"/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
@@ -129,6 +132,35 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
   assert.match(css, /body\s*\{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*display: flex;[^}]*flex-direction: column;/s);
   assert.match(css, /\.layout\s*\{[^}]*flex: 1 1 auto;[^}]*overflow: hidden;/s);
   assert.match(css, /\.card\s*\{[^}]*overflow: auto;/s);
+});
+
+test("custom CDC missions are explicit and generate their own audit chain", async () => {
+  const fs = await import("node:fs/promises");
+  const [html, app, worker] = await Promise.all([
+    fs.readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8")
+  ]);
+  assert.match(html, /Nom du type d’audit personnalisé/);
+  assert.match(html, /Référentiels attachés/);
+  assert.match(html, /Contrôles à générer/);
+  assert.match(app, /custom_controls_text: \$\("customControlsText"\)\.value/);
+  assert.match(app, /Audit CDC\/personnalisé : renseigne au moins un contrôle à générer/);
+  assert.match(app, /state\.missionId = out\.mission\.id/);
+  assert.match(worker, /function controlsFromMissionDefinition/);
+  assert.match(worker, /reference: `CDC-\$\{String\(index \+ 1\)\.padStart\(2, "0"\)\}`/);
+  assert.match(worker, /Audit personnalisé : ajoute au moins un contrôle/);
+});
+
+test("server reuses the client before creating another mission", async () => {
+  const worker = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8"));
+  assert.match(worker, /async function findOrSaveClient/);
+  assert.match(worker, /d2f_business_suite_client_id/);
+  assert.match(worker, /wantedSiren && wantedSiren === digits\(client\.siren\)/);
+  assert.match(worker, /wantedLegal && wantedLegal === normalizeKey\(scope\.client_legal_identifier\)/);
+  assert.match(worker, /wantedVat && wantedVat === normalizeKey\(scope\.client_vat_id\)/);
+  assert.match(worker, /wantedName && wantedName === normalizeKey\(client\.name\)/);
+  assert.match(worker, /const previous = allPrevious\.filter/);
 });
 
 test("Business Suite import is country-aware and persists the active mission", async () => {

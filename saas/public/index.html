@@ -94,6 +94,9 @@
               <option value="CUSTOM_CDC">CDC / audit personnalisé</option>
             </select>
           </label>
+          <label>Nom du type d’audit personnalisé <input id="customAuditTypeName" placeholder="Ex. CDC éditeur, CDC SAE, audit interne spécifique..." /></label>
+          <label>Référentiels attachés <textarea id="customReferentials" placeholder="Un référentiel par ligne : nom, version, date, source. Exemple : CDC éditeur v1.0 ; Guide interne D2F ; CR réunion DGFiP..."></textarea></label>
+          <label>Contrôles à générer <textarea id="customControlsText" placeholder="Pour CDC uniquement : une ligne par contrôle à créer. Exemple : Traçabilité des traitements ; Conservation opposable des preuves ; Réversibilité des données..."></textarea></label>
           <label>Titre mission <input id="missionTitle" value="Audit de conformité PA" /></label>
           <label>Pays <input id="clientCountry" value="France" /></label>
           <label>Adresse <input id="clientAddress" placeholder="Adresse du siège" /></label>
