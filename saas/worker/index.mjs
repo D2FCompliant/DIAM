@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.4.3",
-  release: "Invitation collaborateur exploitable sans e-mail sortant",
+  version: "1.4.4",
+  release: "Restriction stricte des collaborateurs par mission",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Ajout de la désactivation collaborateur et clarification : DIAM crée l'accès, l'envoi e-mail reste externe"
+  lastChange: "Seul le compte patron/admin Cloudflare a accès global ; tous les collaborateurs sont limités aux missions affectées"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -543,14 +543,14 @@ async function resolveCurrentUser(db, tenantId, session, env) {
     const users = await db.select("diam_users", `?tenant_id=eq.${tenantId}&email_key=eq.${encodeURIComponent(emailKey(session.email))}`);
     const user = users[0];
     if (!user || user.status === "DISABLED") return null;
-    return { ...user, fullAccess: ["OWNER", "MANAGER"].includes(user.role) };
+    return { ...user, fullAccess: user.role === "OWNER" };
   } catch (e) {
     throw new HttpError("Gestion multi-auditeur non initialisée : applique la migration Supabase 202609030001_multi_auditor_access.sql.", 503);
   }
 }
 
 function requireAdminUser(currentUser) {
-  if (!currentUser?.fullAccess) throw new HttpError("Action réservée au patron / administrateur DIAM.", 403);
+  if (!currentUser?.fullAccess) throw new HttpError("Action réservée au patron / administrateur DIAM. Les collaborateurs, même managers, sont limités aux missions affectées.", 403);
 }
 
 async function assignedMissionIds(db, tenantId, currentUser) {

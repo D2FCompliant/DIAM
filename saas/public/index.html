@@ -184,17 +184,17 @@
           </div>
           <div class="integrationBox adminAuditors">
             <h3>Collaborateurs auditeurs et accès par mission</h3>
-            <p class="muted">Le patron / manager DIAM crée l’accès collaborateur, puis le missionne audit par audit. DIAM n’envoie pas encore d’e-mail : copie l’invitation générée et transmets-la par ton canal sécurisé.</p>
+            <p class="muted">Le patron DIAM crée l’accès collaborateur, puis le missionne audit par audit. DIAM n’envoie pas encore d’e-mail : copie l’invitation générée et transmets-la par ton canal sécurisé. Tous les collaborateurs restent limités aux missions affectées.</p>
             <div class="twoCols compact">
               <div>
                 <h4>Inviter un collaborateur</h4>
                 <div class="grid compactGrid">
                   <label>E-mail collaborateur <input id="auditorEmail" type="email" autocomplete="off" placeholder="auditeur@d2fcompliant.com" /></label>
                   <label>Nom affiché <input id="auditorName" autocomplete="off" placeholder="Prénom Nom" /></label>
-                  <label>Rôle global
+                  <label>Profil collaborateur
                     <select id="auditorRole">
                       <option value="AUDITOR">Auditeur</option>
-                      <option value="MANAGER">Manager audit</option>
+                      <option value="MANAGER">Manager auditeur missionné</option>
                       <option value="CLIENT">Client interne</option>
                     </select>
                   </label>
