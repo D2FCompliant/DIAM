@@ -53,6 +53,7 @@
       <button id="topSaveMission" class="secondary" type="button">Enregistrer fiche</button>
       <button id="topOpenMission" class="secondary" type="button">Ouvrir sélection</button>
       <button id="topGlobalLibrary" class="secondary" type="button">Référentiels / CR</button>
+      <button id="topMissionDocuments" class="secondary" type="button">Documents mission</button>
       <button id="topDgfipFile" class="secondary" type="button">Dossier DGFiP</button>
       <button id="topReport" type="button">Rapport</button>
     </nav>
@@ -177,6 +178,7 @@
             <p>Les référentiels, guides, CR DGFiP/AIFE, notes D2F et textes de loi chargés ici deviennent des sources communes : ils peuvent recadrer toutes les missions existantes ou futures sans être enfermés dans un seul audit.</p>
             <div class="quickActions">
               <button id="adminOpenGlobalLibrary2" class="secondary" type="button">Ouvrir documents globaux</button>
+              <button id="adminAddMissionDocs" class="secondary" type="button">Ajouter documents à la mission ouverte</button>
               <button id="adminOpenDgfipFile" class="secondary" type="button">Déposer dossier DGFiP</button>
             </div>
           </div>
@@ -314,10 +316,10 @@
             <h2>Dépôt documentaire et analyse assistée D2F</h2>
           </div>
         </div>
-        <p>Dépose le dossier de candidature DGFiP accepté, les nouveaux référentiels, les CR de réunion DGFiP/AIFE, les notes D2F Compliant et les documents qualité/techniques du client. Chaque fichier est haché SHA-256, rattaché à la mission et peut être analysé pour cadrer l’audit ou proposer des preuves manquantes.</p>
+        <p>Dépose ici soit des documents propres à la mission ouverte, soit des sources transverses. Les types Qualité, Technique, Sécurité, Dossier DGFiP, Export D2F et Autre sont rattachés à l’audit sélectionné. Les référentiels, textes, CR DGFiP/AIFE et notes D2F sont globaux et applicables à toutes les missions.</p>
         <div class="documentDropZone">
-          <h3>Bibliothèque d’actualisation de la mission</h3>
-          <p class="documentHint">À utiliser quand la DGFiP/AIFE publie un nouveau guide, un nouveau texte, un CR de réunion ou une exigence D2F : DIAM conserve le fichier dans la mission, calcule son SHA-256 et peut relancer l’analyse d’impact au regard du programme PA ou SC.</p>
+          <h3>Ajouter des documents</h3>
+          <p class="documentHint">Pour compléter un audit existant : ouvre d’abord la mission, sélectionne un type non transverse, puis dépose le fichier. Pour une source commune à tous les audits : choisis Nouveau référentiel, Nouveau texte, CR réunion ou Note D2F.</p>
           <div class="quickActions" aria-label="Types de dépôt rapides">
             <button class="secondary" data-doc-type="DGFiP_APPLICATION_ACCEPTED" type="button">Dossier DGFiP accepté</button>
             <button class="secondary" data-doc-type="REGULATORY_REFERENCE" type="button">Nouveau référentiel / guide</button>

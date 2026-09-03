@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.3.1",
-  release: "Correctif exposition manifeste marketplace",
+  version: "1.3.2",
+  release: "Correctif accès documents mission existante",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "DIAM expose un manifeste marketplace D2F Compliant public et versionné, sans secret ni donnée client"
+  lastChange: "Ajout d'un accès explicite aux documents de la mission ouverte et distinction claire avec les documents globaux"
 };
 
 const D2F_BUSINESS_SUITE = {

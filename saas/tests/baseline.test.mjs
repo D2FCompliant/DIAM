@@ -91,11 +91,13 @@ test("frontend contains document AI review and report workflow controls", async 
     "adminAuditControls",
     "adminPrepareCustomAudit",
     "adminOpenGlobalLibrary",
+    "adminOpenGlobalLibrary2",
+    "adminAddMissionDocs",
     "applicabilityNote"
   ]) {
     assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
   }
-  for (const id of ["topNewMission", "topCreateMission", "topSaveMission", "topOpenMission", "topGlobalLibrary", "topDgfipFile", "topReport"]) {
+  for (const id of ["topNewMission", "topCreateMission", "topSaveMission", "topOpenMission", "topGlobalLibrary", "topMissionDocuments", "topDgfipFile", "topReport"]) {
     assert.ok(html.includes(`id="${id}"`), `missing top action #${id}`);
   }
   for (const tab of ["dashboard", "mission_form", "admin", "audit", "detail", "documents", "client", "report"]) {
@@ -112,6 +114,10 @@ test("top cockpit actions are wired to real handlers", async () => {
   assert.match(app, /\$\("topCreateMission"\)\.onclick = \(\) => run\(createMissionFromTopBar, "createStatus"\)/);
   assert.match(app, /\$\("topSaveMission"\)\.onclick = \(\) => run\(updateMissionProfile, "createStatus"\)/);
   assert.match(app, /\$\("topOpenMission"\)\.onclick = \(\) => run\(openSelectedMissionFromTopBar, "createStatus"\)/);
+  assert.match(app, /\$\("topMissionDocuments"\)\.onclick = \(\) => run\(prepareMissionDocuments, "createStatus"\)/);
+  assert.match(app, /\$\("adminAddMissionDocs"\)\.onclick = \(\) => run\(prepareMissionDocuments, "adminStatus"\)/);
+  assert.match(app, /function prepareMissionDocuments/);
+  assert.match(app, /Documents mission/);
   assert.match(app, /async function createMissionFromTopBar/);
   assert.match(app, /state\.activeTab !== "mission_form"/);
   assert.match(app, /Aucune mission n’a été créée depuis cet écran/);
@@ -130,13 +136,15 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.3.1");
-  assert.match(app, /version: "1\.3\.1"/);
-  assert.match(worker, /version: "1\.3\.1"/);
+  assert.equal(pkg.version, "1.3.2");
+  assert.match(app, /version: "1\.3\.2"/);
+  assert.match(worker, /version: "1\.3\.2"/);
   assert.match(app, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(worker, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
+  assert.match(html, /Documents mission/);
+  assert.match(html, /Ajouter documents à la mission ouverte/);
   assert.match(html, /Audit personnalisé \/ référentiel libre/);
   assert.match(html, /dashboardHero/);
   assert.match(html, /dashboardMission/);
@@ -205,7 +213,7 @@ test("worker exposes a public D2F marketplace manifest without secrets", async (
   assert.match(readme, /Publication marketplace D2F Compliant/);
   assert.match(readme, /\.well-known\/d2f-marketplace-app\.json/);
   assert.equal(manifest.id, "d2f-diam-saas");
-  assert.equal(manifest.version, "1.3.1");
+  assert.equal(manifest.version, "1.3.2");
   assert.equal(manifest.security.secretsExposed, false);
   assert.match(manifest.endpoints.apiManifest, /\/api\/marketplace\/app$/);
 });

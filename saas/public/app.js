@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.3.1",
-  release: "Correctif exposition manifeste marketplace",
+  version: "1.3.2",
+  release: "Correctif accès documents mission existante",
   schemaVersion: "202609020010_global_reference_documents",
-  buildCommit: "local-v1.3.1",
+  buildCommit: "local-v1.3.2",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -190,6 +190,7 @@ function bindEvents() {
   $("topSaveMission").onclick = () => run(updateMissionProfile, "createStatus");
   $("topOpenMission").onclick = () => run(openSelectedMissionFromTopBar, "createStatus");
   $("topGlobalLibrary").onclick = () => showTab("admin");
+  $("topMissionDocuments").onclick = () => run(prepareMissionDocuments, "createStatus");
   $("topDgfipFile").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("topReport").onclick = () => run(generateReport, "createStatus");
   $("updateMissionProfile").onclick = () => run(updateMissionProfile, "createStatus");
@@ -197,6 +198,7 @@ function bindEvents() {
   $("adminPrepareCustomAudit").onclick = () => prepareCustomAuditFromAdmin();
   $("adminOpenGlobalLibrary").onclick = () => prepareGlobalLibrary();
   $("adminOpenGlobalLibrary2").onclick = () => prepareGlobalLibrary();
+  $("adminAddMissionDocs").onclick = () => run(prepareMissionDocuments, "adminStatus");
   $("adminOpenDgfipFile").onclick = () => run(prepareDgfipAnalysis, "adminStatus");
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
@@ -313,6 +315,15 @@ function prepareGlobalLibrary() {
   $("auditDocumentType").value = "REGULATORY_REFERENCE";
   showTab("documents");
   setStatus("Bibliothèque transverse : dépose ici nouveau guide DGFiP, texte, CR DGFiP/AIFE ou référentiel D2F applicable à tous les audits.", "info", "documentStatus");
+  $("auditDocumentFile")?.focus();
+}
+
+function prepareMissionDocuments() {
+  requireMission();
+  const mission = state.missions.find((item) => item.id === state.missionId);
+  $("auditDocumentType").value = "QUALITY";
+  showTab("documents");
+  setStatus(`Documents mission ${mission?.number || ""} : choisis Qualité, Technique, Sécurité, Dossier DGFiP, Export D2F ou Autre, puis “Déposer dans la mission”. Ces pièces seront rattachées uniquement à cet audit.`, "info", "documentStatus");
   $("auditDocumentFile")?.focus();
 }
 
@@ -1288,7 +1299,7 @@ function showTab(name, options = {}) {
   }
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topSaveMission", "topOpenMission", "topDgfipFile", "topReport"]) {
+  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topSaveMission", "topOpenMission", "topMissionDocuments", "topDgfipFile", "topReport"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }
