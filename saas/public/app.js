@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.3.9",
-  release: "Actions cockpit clarifiées",
+  version: "0.4.0",
+  release: "Cockpit actions restaurées",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -177,7 +177,9 @@ function bindEvents() {
     tab.onclick = () => showTab(tab.dataset.tab);
   }
   $("createMission").onclick = () => run(createMission, "createStatus");
-  $("topMissionForm").onclick = () => prepareNewMission();
+  $("topNewMission").onclick = () => prepareNewMission({ blank: true });
+  $("topCreateMission").onclick = () => run(createMission, "createStatus");
+  $("topSaveMission").onclick = () => run(updateMissionProfile, "createStatus");
   $("topOpenMission").onclick = () => run(openSelectedMissionFromTopBar, "createStatus");
   $("topGlobalLibrary").onclick = () => prepareGlobalLibrary();
   $("topDgfipFile").onclick = () => run(prepareDgfipAnalysis, "createStatus");
@@ -226,10 +228,37 @@ function bindEvents() {
   showTab("dashboard", { scroll: false });
 }
 
-function prepareNewMission() {
+function prepareNewMission(options = {}) {
   showTab("mission_form");
+  if (options.blank) resetMissionForm();
   $("clientName")?.focus();
   setStatus("Mode création : renseigne/import le client, choisis le programme PA ou SC, puis clique “Créer mission + questionnaire”.", "info", "createStatus");
+}
+
+function resetMissionForm() {
+  $("clientName").value = "";
+  $("siren").value = "";
+  $("legalIdentifier").value = "";
+  $("vatId").value = "";
+  $("auditProgram").value = "PA_DGFIP";
+  $("missionTitle").value = AUDIT_PROGRAMS.PA_DGFIP.defaultTitle;
+  $("clientCountry").value = "France";
+  $("clientAddress").value = "";
+  $("clientAddressLine2").value = "";
+  $("clientPostalCode").value = "";
+  $("clientCity").value = "";
+  $("clientEmail").value = "";
+  $("clientPhone").value = "";
+  $("clientLanguage").value = "fr";
+  $("dgfipApplicationStatus").value = "UNKNOWN";
+  $("d2fSuiteClientId").value = "";
+  $("d2fSuiteCaseUrl").value = "";
+  $("declaredScope").value = "";
+  state.d2fClients = [];
+  state.d2fImportedClientUpdatedAt = "";
+  $("d2fClientSearch").value = "";
+  $("d2fClientResults").innerHTML = `<option value="">Aucun client D2F chargé</option>`;
+  applyAuditProgramDefaults();
 }
 
 function focusExistingMissions() {
@@ -1146,7 +1175,7 @@ function showTab(name, options = {}) {
   }
 }
 function setMissionDependentEnabled(enabled) {
-  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topOpenMission", "topDgfipFile", "topReport"]) {
+  for (const id of ["openMission", "copyClientLink", "reload", "generateReport", "deleteMission", "updateMissionProfile", "prepareDgfipAnalysis", "uploadAndAnalyzeDocument", "analyzeAuditDocument", "promoteSuggestion", "rejectSuggestion", "submitClientReply", "topSaveMission", "topOpenMission", "topDgfipFile", "topReport"]) {
     const el = $(id);
     if (el) el.disabled = !enabled;
   }

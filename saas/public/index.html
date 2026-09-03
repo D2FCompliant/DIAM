@@ -47,11 +47,13 @@
     </nav>
 
     <nav class="actionBar" aria-label="Actions rapides DIAM">
-      <button id="topMissionForm" type="button">Fiche mission</button>
-      <button id="topOpenMission" class="secondary" type="button">Ouvrir mission sélectionnée</button>
+      <button id="topNewMission" type="button">Nouvel audit</button>
+      <button id="topCreateMission" type="button">Créer audit</button>
+      <button id="topSaveMission" class="secondary" type="button">Enregistrer fiche</button>
+      <button id="topOpenMission" class="secondary" type="button">Ouvrir sélection</button>
       <button id="topGlobalLibrary" class="secondary" type="button">Documents globaux</button>
-      <button id="topDgfipFile" class="secondary" type="button">Analyser dossier DGFiP</button>
-      <button id="topReport" type="button">Générer rapport</button>
+      <button id="topDgfipFile" class="secondary" type="button">Dossier DGFiP</button>
+      <button id="topReport" type="button">Rapport</button>
     </nav>
 
     <main class="layout">
@@ -75,6 +77,11 @@
       <section class="card wide" data-panel="mission_form" hidden>
         <h2>Fiche mission / client</h2>
         <p class="muted">Crée une mission ou mets à jour la mission ouverte. Le programme d’audit pilote le questionnaire, les preuves attendues et le rapport.</p>
+        <div class="formActions">
+          <button id="createMission">Créer mission + questionnaire</button>
+          <button id="updateMissionProfile" class="secondary">Enregistrer les modifications manuelles</button>
+          <button id="prepareDgfipAnalysis" class="secondary">Déposer/analyser dossier DGFiP accepté</button>
+        </div>
         <div class="grid">
           <label>Client audité <input id="clientName" value="Client PA" /></label>
           <label id="sirenField"><span id="sirenLabel">SIREN</span> <input id="siren" placeholder="123456789" /></label>
@@ -127,11 +134,6 @@
             <button id="importD2FClient" class="secondary" type="button">Importer et synchroniser</button>
           </div>
           <p class="status" id="d2fSyncStatus"></p>
-        </div>
-        <div class="row">
-          <button id="createMission">Créer mission + questionnaire</button>
-          <button id="updateMissionProfile" class="secondary">Enregistrer les modifications manuelles</button>
-          <button id="prepareDgfipAnalysis" class="secondary">Déposer/analyser dossier DGFiP accepté</button>
         </div>
         <p class="status" id="createStatus"></p>
       </section>

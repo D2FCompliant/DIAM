@@ -46,8 +46,8 @@ body.authLocked .layout {
   justify-content: space-between;
   align-items: center;
   gap: 18px;
-  min-height: 96px;
-  padding: 12px 28px;
+  min-height: 78px;
+  padding: 9px 24px;
   background:
     linear-gradient(135deg, rgba(8, 23, 45, .98), rgba(13, 59, 102, .96)),
     linear-gradient(90deg, rgba(196, 154, 61, .28), transparent);
@@ -62,8 +62,8 @@ body.authLocked .layout {
   min-width: 320px;
 }
 .brandMark {
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   border: 1px solid rgba(255, 255, 255, .32);
   border-radius: 22px;
   display: grid;
@@ -76,14 +76,14 @@ body.authLocked .layout {
 .eyebrow { margin: 0 0 4px; color: #e9c46a; letter-spacing: .12em; text-transform: uppercase; font-size: 12px; font-weight: 800; }
 .eyebrow.dark { color: var(--gold); }
 h1, h2, h3, h4 { margin-top: 0; }
-h1 { margin-bottom: 0; font-size: 26px; letter-spacing: -.04em; }
+h1 { margin-bottom: 0; font-size: 24px; letter-spacing: -.04em; }
 h2 { font-size: 20px; letter-spacing: -.02em; }
 h3 { font-size: 17px; }
 h4 { margin-bottom: 8px; color: #243b5a; }
 .tagline { margin: 0; max-width: 660px; color: #dce9f8; font-size: 13px; }
 .topPanel {
   display: grid;
-  gap: 6px;
+  gap: 4px;
   justify-items: end;
   text-align: right;
   max-width: 560px;
@@ -149,8 +149,8 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   position: relative;
   z-index: 20;
   display: flex;
-  gap: 8px;
-  padding: 9px 22px;
+  gap: 7px;
+  padding: 7px 22px;
   background: rgba(243, 246, 251, .86);
   border-bottom: 1px solid rgba(216, 222, 232, .92);
   backdrop-filter: blur(14px);
@@ -161,8 +161,8 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   position: relative;
   z-index: 19;
   display: flex;
-  gap: 8px;
-  padding: 9px 22px;
+  gap: 7px;
+  padding: 7px 22px;
   background: rgba(255, 255, 255, .92);
   border-bottom: 1px solid rgba(216, 222, 232, .92);
   box-shadow: 0 8px 22px rgba(16, 24, 40, .06);
@@ -198,7 +198,7 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
-  padding: 12px 22px 18px;
+  padding: 10px 22px 16px;
   max-width: none;
   width: 100%;
   margin: 0 auto;
@@ -339,6 +339,17 @@ h4 { margin-bottom: 8px; color: #243b5a; }
 }
 .twoCols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.formActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 10px 0 16px;
+  padding: 10px;
+  border: 1px solid #d7e3f2;
+  border-radius: 16px;
+  background: #f8fbff;
+}
 .quickActions {
   display: flex;
   gap: 10px;
@@ -383,7 +394,7 @@ button {
   background: linear-gradient(135deg, var(--brand), var(--brand-2));
   color: white;
   border-radius: 999px;
-  padding: 9px 14px;
+  padding: 8px 13px;
   font-weight: 900;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(13, 59, 102, .18);

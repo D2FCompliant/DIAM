@@ -39,6 +39,7 @@ test("frontend contains document AI review and report workflow controls", async 
     "auditDocumentFile",
     "uploadAuditDocument",
     "analyzeAuditDocument",
+    "uploadAndAnalyzeDocument",
     "clientCountry",
     "clientAddress",
     "clientCity",
@@ -85,10 +86,23 @@ test("frontend contains document AI review and report workflow controls", async 
   ]) {
     assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
   }
-  for (const tab of ["dashboard", "audit", "detail", "documents", "client", "report"]) {
+  for (const id of ["topNewMission", "topCreateMission", "topSaveMission", "topOpenMission", "topGlobalLibrary", "topDgfipFile", "topReport"]) {
+    assert.ok(html.includes(`id="${id}"`), `missing top action #${id}`);
+  }
+  for (const tab of ["dashboard", "mission_form", "audit", "detail", "documents", "client", "report"]) {
     assert.ok(html.includes(`data-tab="${tab}"`), `missing tab ${tab}`);
     assert.ok(html.includes(`data-panel="${tab}"`), `missing panel ${tab}`);
   }
+});
+
+test("top cockpit actions are wired to real handlers", async () => {
+  const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"));
+  assert.match(app, /\$\("topNewMission"\)\.onclick = \(\) => prepareNewMission\(\{ blank: true \}\)/);
+  assert.match(app, /\$\("topCreateMission"\)\.onclick = \(\) => run\(createMission, "createStatus"\)/);
+  assert.match(app, /\$\("topSaveMission"\)\.onclick = \(\) => run\(updateMissionProfile, "createStatus"\)/);
+  assert.match(app, /\$\("topOpenMission"\)\.onclick = \(\) => run\(openSelectedMissionFromTopBar, "createStatus"\)/);
+  assert.match(app, /async function openSelectedMissionFromTopBar/);
+  assert.doesNotMatch(app, /topMissionForm/);
 });
 
 test("Business Suite import is country-aware and persists the active mission", async () => {
