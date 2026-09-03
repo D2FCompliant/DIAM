@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "0.4.0",
-  release: "Cockpit actions restaurées",
+  version: "1.0.0",
+  release: "Production audit cockpit",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -28,6 +28,13 @@ const AUDIT_PROGRAMS = {
     shortLabel: "SC",
     defaultTitle: "Audit de conformité SC",
     expectedControls: 62
+  },
+  CUSTOM_CDC: {
+    id: "CUSTOM_CDC",
+    label: "CDC / audit personnalisé",
+    shortLabel: "CDC",
+    defaultTitle: "Audit personnalisé sur CDC",
+    expectedControls: 0
   }
 };
 
@@ -575,8 +582,13 @@ function applyAuditProgramDefaults() {
   }
   $("declaredScope").placeholder = program.id === "SC_RLFC"
     ? "Ex. émission/réception, ERP, connecteur PA, annuaire, e-reporting, CDAR, SAE, pays/filiales..."
-    : "Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales...";
-  setStatus(`Programme sélectionné : ${program.label}. Le questionnaire créé contiendra ${program.expectedControls} contrôles.`, "info", "createStatus");
+    : program.id === "CUSTOM_CDC"
+      ? "Décris le périmètre du CDC, les activités auditées, les livrables attendus et les référentiels/documents à charger."
+      : "Ex. émission, réception, e-reporting, marque blanche, Peppol, périmètre pays/filiales...";
+  const controlsMessage = program.expectedControls
+    ? `Le questionnaire créé contiendra ${program.expectedControls} contrôles.`
+    : "Charge ensuite le CDC/référentiel dans Documents globaux pour construire le questionnaire applicable.";
+  setStatus(`Programme sélectionné : ${program.label}. ${controlsMessage}`, "info", "createStatus");
 }
 
 function missionProfilePayload() {

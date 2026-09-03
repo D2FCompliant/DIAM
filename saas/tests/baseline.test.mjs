@@ -105,6 +105,28 @@ test("top cockpit actions are wired to real handlers", async () => {
   assert.doesNotMatch(app, /topMissionForm/);
 });
 
+test("production cockpit keeps global chrome fixed and scrolls inside work windows", async () => {
+  const fs = await import("node:fs/promises");
+  const [html, css, app, worker, pkgRaw] = await Promise.all([
+    fs.readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    fs.readFile(new URL("../public/styles.css", import.meta.url), "utf8"),
+    fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8"),
+    fs.readFile(new URL("../package.json", import.meta.url), "utf8")
+  ]);
+  const pkg = JSON.parse(pkgRaw);
+  assert.equal(pkg.version, "1.0.0");
+  assert.match(app, /version: "1\.0\.0"/);
+  assert.match(worker, /version: "1\.0\.0"/);
+  assert.match(html, /Préparer nouvel audit/);
+  assert.match(html, /Créer mission en base/);
+  assert.match(html, /CDC \/ audit personnalisé/);
+  assert.match(css, /html\s*\{[^}]*height: 100%;[^}]*overflow: hidden;/s);
+  assert.match(css, /body\s*\{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*display: flex;[^}]*flex-direction: column;/s);
+  assert.match(css, /\.layout\s*\{[^}]*flex: 1 1 auto;[^}]*overflow: hidden;/s);
+  assert.match(css, /\.card\s*\{[^}]*overflow: auto;/s);
+});
+
 test("Business Suite import is country-aware and persists the active mission", async () => {
   const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"));
   assert.match(app, /async function importD2FClient/);
