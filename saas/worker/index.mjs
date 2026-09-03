@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.4.0",
-  release: "Gestion multi-auditeur et accès par mission",
+  version: "1.4.1",
+  release: "Correctif message migration multi-auditeur",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Ajout des collaborateurs auditeurs, invitations, affectations par mission et contrôle d'accès serveur"
+  lastChange: "Message clair lorsque la migration Supabase multi-auditeur n'est pas encore appliquée"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -372,6 +372,14 @@ class HttpError extends Error {
     super(message);
     this.status = status;
   }
+}
+
+function userFacingError(error) {
+  const message = error?.message || String(error);
+  if (message.includes("diam_users") || message.includes("diam_mission_auditors")) {
+    return new HttpError("Base Supabase pas à jour : exécute la migration 202609030001_multi_auditor_access.sql avant d'utiliser les invitations et affectations auditeurs.", 503);
+  }
+  return error;
 }
 
 function html(data, status = 200) {
@@ -2086,7 +2094,8 @@ export default {
       if (url.pathname.startsWith("/api/")) return cors(await handleApi(request, env));
       return env.ASSETS.fetch(request);
     } catch (e) {
-      return cors(json({ error: e.message || String(e) }, e.status || 500));
+      const clean = userFacingError(e);
+      return cors(json({ error: clean.message || String(clean) }, clean.status || 500));
     }
   }
 };
