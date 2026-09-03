@@ -122,9 +122,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.3");
-  assert.match(app, /version: "1\.0\.3"/);
-  assert.match(worker, /version: "1\.0\.3"/);
+  assert.equal(pkg.version, "1.0.4");
+  assert.match(app, /version: "1\.0\.4"/);
+  assert.match(worker, /version: "1\.0\.4"/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
@@ -162,6 +162,8 @@ test("server reuses the client before creating another mission", async () => {
   assert.match(worker, /wantedVat && wantedVat === normalizeKey\(scope\.client_vat_id\)/);
   assert.match(worker, /wantedName && wantedName === normalizeKey\(client\.name\)/);
   assert.match(worker, /const previous = allPrevious\.filter/);
+  assert.match(worker, /function nonBlankEntries/);
+  assert.match(worker, /\.\.\.nonBlankEntries\(nextScope\)/);
 });
 
 test("portfolio exposes delete per mission and server avoids open mission duplicates", async () => {
@@ -176,6 +178,16 @@ test("portfolio exposes delete per mission and server avoids open mission duplic
   assert.match(worker, /async function findReusableOpenMission/);
   assert.match(worker, /reused_existing: true/);
   assert.match(worker, /Mission ouverte existante réutilisée/);
+});
+
+test("preparing a new audit detaches the active mission before editing", async () => {
+  const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"));
+  assert.match(app, /function prepareNewMission/);
+  assert.match(app, /state\.missionId = ""/);
+  assert.match(app, /Aucune mission existante n’est active/);
+  assert.match(app, /Nouveau brouillon d’audit/);
+  assert.match(app, /referential\.includes\("RLF-C:SC"\)/);
+  assert.match(app, /referential\.includes\("CDC personnalisé"\)/);
 });
 
 test("Business Suite import is country-aware and persists the active mission", async () => {

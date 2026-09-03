@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.0.3",
-  release: "Correctif doublons et suppression",
+  version: "1.0.4",
+  release: "Correctif brouillon mission",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
-  lastChange: "Correctif production : bouton supprimer par mission et anti-doublon sur mission ouverte du même client/programme"
+  lastChange: "Correctif production : préparer un nouvel audit détache l’ancienne mission et les champs vides ne remplacent plus l’identité client existante"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -167,7 +167,10 @@ function auditProgram(id) {
 }
 
 function programFromReferential(referentialVersion = "") {
-  return String(referentialVersion).includes("RLF-C:SC") ? AUDIT_PROGRAMS.SC_RLFC : AUDIT_PROGRAMS.PA_DGFIP;
+  const value = String(referentialVersion || "");
+  if (value.includes("RLF-C:SC")) return AUDIT_PROGRAMS.SC_RLFC;
+  if (value.includes("CDC personnalisé")) return AUDIT_PROGRAMS.CUSTOM_CDC;
+  return AUDIT_PROGRAMS.PA_DGFIP;
 }
 
 function controlsForProgram(programId) {
@@ -179,6 +182,10 @@ function controlsForProgram(programId) {
 
 function normalizeKey(value = "") {
   return String(value || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function nonBlankEntries(object = {}) {
+  return Object.fromEntries(Object.entries(object).filter(([, value]) => value !== "" && value !== null && value !== undefined));
 }
 
 function digits(value = "") {
@@ -234,7 +241,7 @@ async function findOrSaveClient(db, tenantId, body, program) {
     country: body.country || existing?.country || "France",
     scope: {
       ...(existing?.scope || {}),
-      ...nextScope,
+      ...nonBlankEntries(nextScope),
       audit_program: program.id,
       audit_program_label: program.label
     },
@@ -261,9 +268,11 @@ function controlsFromMissionDefinition(program, body) {
 }
 
 function missionProgramId(mission = {}) {
+  const inferred = programFromReferential(mission.referential_version).id;
+  if (inferred) return inferred;
   const scope = mission.client_scope || mission.scope || {};
   if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return scope.audit_program;
-  return programFromReferential(mission.referential_version).id;
+  return AUDIT_PROGRAMS.PA_DGFIP.id;
 }
 
 async function countMissionQuestions(db, tenantId, missionId) {

@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.3",
-  release: "Correctif doublons et suppression",
+  version: "1.0.4",
+  release: "Correctif brouillon mission",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -237,9 +237,17 @@ function bindEvents() {
 
 function prepareNewMission(options = {}) {
   showTab("mission_form");
-  if (options.blank) resetMissionForm();
+  if (options.blank) {
+    state.missionId = "";
+    state.selected = null;
+    resetMissionForm();
+    if ($("missionSelect")) $("missionSelect").value = "";
+    renderMissionList();
+    renderClientFacts();
+    $("opinion").innerHTML = "<strong>Nouveau brouillon d’audit</strong><br>Aucune mission existante n’est modifiée tant que tu ne cliques pas “Créer mission + questionnaire”.";
+  }
   $("clientName")?.focus();
-  setStatus("Mode création : renseigne/import le client, choisis le programme PA, SC ou CDC, puis clique “Créer mission + questionnaire”.", "info", "createStatus");
+  setStatus("Nouveau brouillon : renseigne/import le client, choisis le programme PA, SC ou CDC, puis clique “Créer mission + questionnaire”. Aucune mission existante n’est active.", "info", "createStatus");
 }
 
 async function createMissionFromTopBar() {
@@ -582,9 +590,12 @@ function selectedAuditProgramId() {
 }
 
 function auditProgramFromMission(mission = {}) {
+  const referential = String(mission.referential_version || "");
+  if (referential.includes("RLF-C:SC")) return AUDIT_PROGRAMS.SC_RLFC;
+  if (referential.includes("CDC personnalisé")) return AUDIT_PROGRAMS.CUSTOM_CDC;
   const scope = mission.client_scope || {};
   if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return auditProgram(scope.audit_program);
-  return String(mission.referential_version || "").includes("RLF-C:SC") ? AUDIT_PROGRAMS.SC_RLFC : AUDIT_PROGRAMS.PA_DGFIP;
+  return AUDIT_PROGRAMS.PA_DGFIP;
 }
 
 function applyAuditProgramDefaults() {
