@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.4",
-  release: "Correctif brouillon mission",
+  version: "1.0.5",
+  release: "Correctif fiche mission",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -742,6 +742,17 @@ async function createMission() {
 }
 
 async function updateMissionProfile() {
+  if (!state.missionId) {
+    const selectedMissionId = $("missionSelect")?.value || "";
+    if (selectedMissionId) {
+      await openMission(selectedMissionId);
+      setStatus("Mission sélectionnée ouverte. Modifie la fiche puis clique à nouveau sur “Enregistrer fiche”.", "info", "createStatus");
+      return;
+    }
+    setStatus("Brouillon détecté : DIAM crée maintenant la mission et son questionnaire au lieu de modifier une ancienne mission.", "info", "createStatus");
+    await createMission();
+    return;
+  }
   requireMission();
   if (state.demo) return demoOnly("Mise à jour réelle indisponible en aperçu local. Ouvre l’URL Cloudflare pour enregistrer en base Supabase.");
   $("createStatus").textContent = "Mise à jour de la fiche mission...";
@@ -1221,7 +1232,13 @@ function reportHtml(out) {
 
 function REG_LABEL() { return $("baseline").textContent; }
 function requireSelection() { if (!state.selected) throw new Error("Sélectionne d'abord une question dans la chaîne d'audit."); }
-function requireMission() { if (!state.missionId) throw new Error("Crée ou sélectionne d'abord une mission. Sans mission, DIAM ne peut pas rattacher le questionnaire, les preuves et le rapport."); }
+function requireMission() {
+  const selectedMissionId = $("missionSelect")?.value || "";
+  if (!state.missionId && selectedMissionId) state.missionId = selectedMissionId;
+  if (!state.missionId) {
+    throw new Error("Aucune mission ouverte. Si tu es sur un nouveau brouillon, clique “Créer mission + questionnaire”. Si tu veux travailler une mission existante, clique “Ouvrir mission”.");
+  }
+}
 function showTab(name, options = {}) {
   state.activeTab = name;
   const layout = document.querySelector(".layout");

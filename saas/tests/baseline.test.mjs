@@ -122,9 +122,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.4");
-  assert.match(app, /version: "1\.0\.4"/);
-  assert.match(worker, /version: "1\.0\.4"/);
+  assert.equal(pkg.version, "1.0.5");
+  assert.match(app, /version: "1\.0\.5"/);
+  assert.match(worker, /version: "1\.0\.5"/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
@@ -188,6 +188,17 @@ test("preparing a new audit detaches the active mission before editing", async (
   assert.match(app, /Nouveau brouillon d’audit/);
   assert.match(app, /referential\.includes\("RLF-C:SC"\)/);
   assert.match(app, /referential\.includes\("CDC personnalisé"\)/);
+});
+
+test("saving the mission form handles draft and selected mission states explicitly", async () => {
+  const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"));
+  assert.match(app, /async function updateMissionProfile/);
+  assert.match(app, /Brouillon détecté : DIAM crée maintenant la mission/);
+  assert.match(app, /await createMission\(\)/);
+  assert.match(app, /Mission sélectionnée ouverte/);
+  assert.match(app, /function requireMission/);
+  assert.match(app, /if \(!state\.missionId && selectedMissionId\) state\.missionId = selectedMissionId/);
+  assert.match(app, /Aucune mission ouverte/);
 });
 
 test("Business Suite import is country-aware and persists the active mission", async () => {

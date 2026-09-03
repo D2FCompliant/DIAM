@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.0.4",
-  release: "Correctif brouillon mission",
+  version: "1.0.5",
+  release: "Correctif fiche mission",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
-  lastChange: "Correctif production : préparer un nouvel audit détache l’ancienne mission et les champs vides ne remplacent plus l’identité client existante"
+  lastChange: "Correctif production : la fiche mission distingue clairement brouillon, mission sélectionnée et mission ouverte"
 };
 
 const D2F_BUSINESS_SUITE = {
