@@ -1,0 +1,69 @@
+{
+  "schema": "application/vnd.d2f.marketplace-app+json;version=1",
+  "id": "d2f-diam-saas",
+  "slug": "diam",
+  "name": "DIAM SaaS",
+  "publisher": "D2F Compliant",
+  "category": "Audit & conformité",
+  "status": "production",
+  "version": "1.3.1",
+  "release": "Correctif exposition manifeste marketplace",
+  "releasedAt": "2026-09-03",
+  "summary": "Plateforme d’audit PA/SC et référentiels personnalisés : questionnaire, preuves, constats, analyse assistée D2F, espace client et rapport DGFiP.",
+  "description": "DIAM SaaS structure les audits de conformité autour de la preuve : exigence, preuve attendue, preuve collectée SHA-256, analyse assistée, décision auditeur, constat, action corrective, clôture et rapport.",
+  "launchUrl": "https://diam.d2fcompliant.workers.dev",
+  "supportUrl": "https://www.d2fcompliant.org",
+  "icon": {
+    "type": "text",
+    "value": "D2F"
+  },
+  "capabilities": [
+    "Audits PA / DGFiP + PDP Integrity",
+    "Audits SC / RLF-C:SC",
+    "Types d’audit personnalisés : SAE, CFN, GED, CDC, interne ou autre",
+    "Dépôt documentaire et preuve SHA-256",
+    "Analyse assistée D2F avec validation humaine",
+    "Espace client sécurisé pour réponses et preuves",
+    "Rapport DGFiP en français",
+    "Connexion D2F Business Suite audit-clients:read",
+    "Préparation archivage SAE/LAE"
+  ],
+  "regulatoryBaseline": {
+    "label": "PA : DGFiP audit guide v1.3 + PDP Integrity v3.2 ; SC : RLF-C:SC v2.1",
+    "checkedAt": "2026-09-02",
+    "publicSources": [
+      "https://www.impots.gouv.fr/facturation-electronique-et-plateformes-agreees",
+      "https://www.impots.gouv.fr/professionnel/je-passe-la-facturation-electronique",
+      "https://www.impots.gouv.fr/actualite/facturation-electronique-publication-des-nouvelles-versions-des-specifications-externes"
+    ]
+  },
+  "auditPrograms": [
+    {
+      "id": "PA_DGFIP",
+      "label": "Audit PA / DGFiP",
+      "shortLabel": "PA"
+    },
+    {
+      "id": "SC_RLFC",
+      "label": "Audit SC / Solution Compatible",
+      "shortLabel": "SC"
+    },
+    {
+      "id": "CUSTOM_CDC",
+      "label": "Audit personnalisé / référentiel libre",
+      "shortLabel": "LIBRE"
+    }
+  ],
+  "security": {
+    "httpsRequired": true,
+    "adminAuthentication": true,
+    "secretsExposed": false,
+    "browserStoresServiceKeys": false
+  },
+  "endpoints": {
+    "manifest": "https://diam.d2fcompliant.workers.dev/.well-known/d2f-marketplace-app.json",
+    "apiManifest": "https://diam.d2fcompliant.workers.dev/api/marketplace/app",
+    "health": "https://diam.d2fcompliant.workers.dev/api/health",
+    "launch": "https://diam.d2fcompliant.workers.dev"
+  }
+}

@@ -5,8 +5,8 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.3.0",
-  release: "Publication marketplace D2F Compliant",
+  version: "1.3.1",
+  release: "Correctif exposition manifeste marketplace",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",

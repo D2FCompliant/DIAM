@@ -130,9 +130,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.3.0");
-  assert.match(app, /version: "1\.3\.0"/);
-  assert.match(worker, /version: "1\.3\.0"/);
+  assert.equal(pkg.version, "1.3.1");
+  assert.match(app, /version: "1\.3\.1"/);
+  assert.match(worker, /version: "1\.3\.1"/);
   assert.match(app, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(worker, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(html, /Préparer nouvel audit/);
@@ -189,10 +189,12 @@ test("version banner always exposes a usable build reference", async () => {
 
 test("worker exposes a public D2F marketplace manifest without secrets", async () => {
   const fs = await import("node:fs/promises");
-  const [worker, readme] = await Promise.all([
+  const [worker, readme, manifestRaw] = await Promise.all([
     fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8"),
-    fs.readFile(new URL("../README.md", import.meta.url), "utf8")
+    fs.readFile(new URL("../README.md", import.meta.url), "utf8"),
+    fs.readFile(new URL("../public/.well-known/d2f-marketplace-app.json", import.meta.url), "utf8")
   ]);
+  const manifest = JSON.parse(manifestRaw);
   assert.match(worker, /function marketplaceManifest/);
   assert.match(worker, /application\/vnd\.d2f\.marketplace-app\+json;version=1/);
   assert.match(worker, /d2f-diam-saas/);
@@ -202,6 +204,10 @@ test("worker exposes a public D2F marketplace manifest without secrets", async (
   assert.match(worker, /browserStoresServiceKeys: false/);
   assert.match(readme, /Publication marketplace D2F Compliant/);
   assert.match(readme, /\.well-known\/d2f-marketplace-app\.json/);
+  assert.equal(manifest.id, "d2f-diam-saas");
+  assert.equal(manifest.version, "1.3.1");
+  assert.equal(manifest.security.secretsExposed, false);
+  assert.match(manifest.endpoints.apiManifest, /\/api\/marketplace\/app$/);
 });
 
 test("custom audit missions are explicit and generate their own audit chain", async () => {
