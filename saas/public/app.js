@@ -8,10 +8,11 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.6",
-  release: "Correctif traçabilité build",
+  version: "1.1.0",
+  release: "Évolution fonctionnelle audit multilingue",
   schemaVersion: "202609020010_global_reference_documents",
-  buildCommit: "local-v1.0.6"
+  buildCommit: "local-v1.1.0",
+  versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
 const AUDIT_PROGRAMS = {
@@ -188,11 +189,13 @@ function bindEvents() {
   $("topCreateMission").onclick = () => run(createMissionFromTopBar, "createStatus");
   $("topSaveMission").onclick = () => run(updateMissionProfile, "createStatus");
   $("topOpenMission").onclick = () => run(openSelectedMissionFromTopBar, "createStatus");
-  $("topGlobalLibrary").onclick = () => prepareGlobalLibrary();
+  $("topGlobalLibrary").onclick = () => showTab("admin");
   $("topDgfipFile").onclick = () => run(prepareDgfipAnalysis, "createStatus");
   $("topReport").onclick = () => run(generateReport, "createStatus");
   $("updateMissionProfile").onclick = () => run(updateMissionProfile, "createStatus");
   $("prepareDgfipAnalysis").onclick = () => run(prepareDgfipAnalysis, "createStatus");
+  $("adminPrepareCustomAudit").onclick = () => prepareCustomAuditFromAdmin();
+  $("adminOpenGlobalLibrary").onclick = () => prepareGlobalLibrary();
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
   $("searchD2FClients").onclick = () => run(searchD2FClients, "d2fSyncStatus");
@@ -309,6 +312,24 @@ function prepareGlobalLibrary() {
   showTab("documents");
   setStatus("Bibliothèque transverse : dépose ici nouveau guide DGFiP, texte, CR DGFiP/AIFE ou référentiel D2F applicable à tous les audits.", "info", "documentStatus");
   $("auditDocumentFile")?.focus();
+}
+
+function prepareCustomAuditFromAdmin() {
+  const name = $("adminAuditTypeName").value.trim();
+  const referentials = $("adminAuditReferentials").value.trim();
+  const controls = $("adminAuditControls").value.trim();
+  if (!name || !referentials || !controls) {
+    setStatus("Renseigne le nom du type d’audit, au moins un référentiel/source et au moins un contrôle.", "error", "adminStatus");
+    return;
+  }
+  prepareNewMission({ blank: true });
+  $("auditProgram").value = "CUSTOM_CDC";
+  $("customAuditTypeName").value = name;
+  $("customReferentials").value = referentials;
+  $("customControlsText").value = controls;
+  $("missionTitle").value = name;
+  applyAuditProgramDefaults();
+  setStatus("Type d’audit préparé : complète le client puis clique “Créer mission + questionnaire”. Les contrôles saisis généreront la chaîne CDC.", "success", "createStatus");
 }
 
 function showLogin(details = {}) {
@@ -690,7 +711,8 @@ function renderClientFacts() {
       <div><span>Pays</span><strong>${escapeHtml(mission.client_country || "Non renseigné")}</strong></div>
       <div><span>Adresse</span><strong>${escapeHtml([mission.client_address, scope.client_address_line_2, [scope.client_postal_code, mission.client_city].filter(Boolean).join(" ")].filter(Boolean).join(", ") || "Non renseignée")}</strong></div>
       <div><span>Contact</span><strong>${escapeHtml([scope.client_email, scope.client_phone].filter(Boolean).join(" · ") || "Non renseigné")}</strong></div>
-      <div><span>Langue</span><strong>${escapeHtml(languageLabel(mission.client_language || scope.client_language || "fr"))}</strong></div>
+      <div><span>Conduite audit</span><strong>${escapeHtml(languageLabel(mission.client_language || scope.client_language || "fr"))}</strong></div>
+      <div><span>Rapport DGFiP</span><strong>Français obligatoire</strong></div>
       <div><span>Dossier DGFiP</span><strong>${escapeHtml(applicationStatusLabel(scope.dgfip_application_status))}</strong></div>
       <div><span>Périmètre déclaré</span><strong>${escapeHtml(scope.declared_scope || "À cadrer par dossier de candidature accepté")}</strong></div>
       <div><span>Cycle label</span><strong>${escapeHtml(auditTypeLabel(mission.audit_type))}</strong></div>
@@ -825,7 +847,7 @@ function renderChain() {
   if (!state.chain.length) {
     $("chainTable").querySelector("tbody").innerHTML = `
       <tr class="noRows">
-        <td colspan="7">
+        <td colspan="8">
           <strong>Aucune ligne d’audit à afficher.</strong><br>
           Crée une mission : DIAM générera alors le questionnaire PA ou SC, les preuves attendues et la chaîne d’audit.
         </td>
@@ -836,6 +858,7 @@ function renderChain() {
     <tr data-index="${i}" class="${state.selected?.question_id === r.question_id ? "selected" : ""}">
       <td>${escapeHtml(r.reference)}</td>
       <td>${escapeHtml(r.question)}</td>
+      <td>${applicabilityBadge(r.applicabilite_statut)}<br><span class="muted smallText">${escapeHtml(r.applicabilite_raison || "")}</span></td>
       <td>${badge(r.qualification_base)}</td>
       <td>${badge(r.qualification_retenue)}</td>
       <td>${escapeHtml(r.reponse_statut)}</td>
@@ -854,6 +877,11 @@ function selectQuestion(index) {
   $("detailTitle").textContent = `${state.selected.reference} - ${state.selected.question}`;
   $("requirement").textContent = state.selected.attendu_dgfip;
   $("expectedEvidence").textContent = state.selected.preuves_attendues;
+  $("applicabilityNote").innerHTML = `
+    <strong>${escapeHtml(applicabilityLabel(state.selected.applicabilite_statut))}</strong><br>
+    ${escapeHtml(state.selected.applicabilite_raison || "Applicabilité à confirmer par l'auditeur.")}<br>
+    <span class="muted">${escapeHtml(state.selected.conduite_audit || auditLanguagePolicy(currentMission()?.client_language || "fr"))}</span>
+  `;
   $("checklist").innerHTML = state.selected.checklist.map((x) => `<li>${escapeHtml(x)}</li>`).join("");
   $("answerStatus").value = state.selected.reponse_statut;
   $("clientAnswer").value = state.selected.reponse_client;
@@ -1278,6 +1306,7 @@ function renderVersionStack(app = appRelease) {
     · schéma ${escapeHtml(schema.current || app.schemaVersion || "-")}${schemaOk ? " ✓" : schema.current ? " ⚠ migration à vérifier" : ""}
     · D2F Suite ${app.d2fBusinessSuite?.configured ? "connectée" : "clé absente"}
     · build ${escapeHtml(String(build).slice(0, 24))}
+    <br><span>${escapeHtml(app.versioningPolicy || "Versioning DIAM : patch=correction, minor=évolution, major=rupture")}</span>
   `;
 }
 function enterClientPortalMode() {
@@ -1335,6 +1364,22 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 }
 function badge(value) { return `<strong>${escapeHtml(value)}</strong>`; }
+function applicabilityLabel(value) {
+  return ({
+    OBLIGATOIRE: "Obligatoire",
+    CONDITIONNEL: "Conditionnel",
+    HORS_PERIMETRE_A_CONFIRMER: "Hors périmètre à confirmer"
+  })[value] || "À cadrer";
+}
+function applicabilityBadge(value) {
+  const cls = value === "OBLIGATOIRE" ? "criticalBadge" : value === "CONDITIONNEL" ? "warningBadge" : "neutralBadge";
+  return `<strong class="${cls}">${escapeHtml(applicabilityLabel(value))}</strong>`;
+}
+function auditLanguagePolicy(language = "fr") {
+  return String(language || "fr").toLowerCase() === "en"
+    ? "Conduite FR/EN : réponses client en anglais acceptées, rapport DGFiP final en français."
+    : "Conduite en français : rapport DGFiP final en français.";
+}
 function assessmentLabel(value) {
   return ({
     POTENTIAL_GAP: "Écart potentiel",

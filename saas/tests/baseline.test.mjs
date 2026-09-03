@@ -85,17 +85,25 @@ test("frontend contains document AI review and report workflow controls", async 
     "copyClientLink",
     "refreshMissions",
     "evidenceFile",
-    "uploadEvidence"
+    "uploadEvidence",
+    "adminAuditTypeName",
+    "adminAuditReferentials",
+    "adminAuditControls",
+    "adminPrepareCustomAudit",
+    "adminOpenGlobalLibrary",
+    "applicabilityNote"
   ]) {
     assert.ok(html.includes(`id="${id}"`), `missing #${id}`);
   }
   for (const id of ["topNewMission", "topCreateMission", "topSaveMission", "topOpenMission", "topGlobalLibrary", "topDgfipFile", "topReport"]) {
     assert.ok(html.includes(`id="${id}"`), `missing top action #${id}`);
   }
-  for (const tab of ["dashboard", "mission_form", "audit", "detail", "documents", "client", "report"]) {
+  for (const tab of ["dashboard", "mission_form", "admin", "audit", "detail", "documents", "client", "report"]) {
     assert.ok(html.includes(`data-tab="${tab}"`), `missing tab ${tab}`);
     assert.ok(html.includes(`data-panel="${tab}"`), `missing panel ${tab}`);
   }
+  assert.match(html, /<th>Applicabilité<\/th>/);
+  assert.match(html, /Admin référentiels/);
 });
 
 test("top cockpit actions are wired to real handlers", async () => {
@@ -122,9 +130,11 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.6");
-  assert.match(app, /version: "1\.0\.6"/);
-  assert.match(worker, /version: "1\.0\.6"/);
+  assert.equal(pkg.version, "1.1.0");
+  assert.match(app, /version: "1\.1\.0"/);
+  assert.match(worker, /version: "1\.1\.0"/);
+  assert.match(app, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
+  assert.match(worker, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
@@ -132,6 +142,28 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
   assert.match(css, /body\s*\{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*display: flex;[^}]*flex-direction: column;/s);
   assert.match(css, /\.layout\s*\{[^}]*flex: 1 1 auto;[^}]*overflow: hidden;/s);
   assert.match(css, /\.card\s*\{[^}]*overflow: auto;/s);
+});
+
+test("audit scoping is multilingual and dynamically frames applicability", async () => {
+  const fs = await import("node:fs/promises");
+  const [app, worker, html] = await Promise.all([
+    fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8"),
+    fs.readFile(new URL("../public/index.html", import.meta.url), "utf8")
+  ]);
+  assert.match(worker, /function assessApplicability/);
+  assert.match(worker, /OBLIGATOIRE/);
+  assert.match(worker, /CONDITIONNEL/);
+  assert.match(worker, /HORS_PERIMETRE_A_CONFIRMER/);
+  assert.match(worker, /auditLanguagePolicy/);
+  assert.match(worker, /rapport final DGFiP obligatoirement en français/);
+  assert.match(worker, /moteur d'analyse assistée D2F Compliant/);
+  assert.match(worker, /lis et exploite les preuves en français ou en anglais/);
+  assert.match(app, /applicabilite_statut/);
+  assert.match(app, /applicabilityBadge/);
+  assert.match(app, /Rapport DGFiP<\/span><strong>Français obligatoire/);
+  assert.match(html, /Langue de conduite \/ réponses client/);
+  assert.match(html, /Nouveau type d’audit from scratch/);
 });
 
 test("version banner always exposes a usable build reference", async () => {

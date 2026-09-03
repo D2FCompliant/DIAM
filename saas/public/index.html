@@ -13,7 +13,7 @@
         <div>
           <p class="eyebrow">D2F Compliant · Audit & conformité</p>
           <h1>DIAM SaaS</h1>
-          <p class="tagline">Plateforme d’audit PA/SC — questionnaire, preuves, constats, analyse assistée et rapports.</p>
+          <p class="tagline">Plateforme d’audit PA/SC — questionnaire, preuves, constats, analyse assistée D2F et rapports.</p>
         </div>
       </div>
       <div class="topPanel">
@@ -39,6 +39,7 @@
     <nav class="tabs" aria-label="Navigation DIAM">
       <button class="tab active" data-tab="dashboard" type="button">Pilotage</button>
       <button class="tab" data-tab="mission_form" type="button">Fiche mission</button>
+      <button class="tab" data-tab="admin" type="button">Admin référentiels</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
       <button class="tab" data-tab="documents" type="button">Documents & IA</button>
@@ -51,7 +52,7 @@
       <button id="topCreateMission" type="button">Créer depuis fiche</button>
       <button id="topSaveMission" class="secondary" type="button">Enregistrer fiche</button>
       <button id="topOpenMission" class="secondary" type="button">Ouvrir sélection</button>
-      <button id="topGlobalLibrary" class="secondary" type="button">Documents globaux</button>
+      <button id="topGlobalLibrary" class="secondary" type="button">Référentiels / CR</button>
       <button id="topDgfipFile" class="secondary" type="button">Dossier DGFiP</button>
       <button id="topReport" type="button">Rapport</button>
     </nav>
@@ -70,7 +71,7 @@
             <span>Validation auditeur</span>
           </div>
         </div>
-        <p>Approche inspirée ISO/ISAE 3000 : exigence, preuve, analyse assistée, jugement auditeur, traçabilité et rapport. L’analyse propose ; l’auditeur décide.</p>
+        <p>Approche inspirée ISO/ISAE 3000 : exigence, preuve, analyse assistée D2F, jugement auditeur, traçabilité et rapport. L’analyse propose ; l’auditeur décide.</p>
         <p class="notice" id="runtimeNotice" hidden></p>
       </section>
 
@@ -105,7 +106,7 @@
           <label>Ville <input id="clientCity" placeholder="Ville" /></label>
           <label>E-mail <input id="clientEmail" type="email" placeholder="contact@client.eu" /></label>
           <label>Téléphone <input id="clientPhone" type="tel" placeholder="+32 ..." /></label>
-          <label>Langue client
+          <label>Langue de conduite / réponses client
             <select id="clientLanguage">
               <option value="fr">Français</option>
               <option value="en">English</option>
@@ -140,6 +141,39 @@
           <p class="status" id="d2fSyncStatus"></p>
         </div>
         <p class="status" id="createStatus"></p>
+      </section>
+
+      <section class="card wide" data-panel="admin" hidden>
+        <div class="sectionHeader">
+          <div>
+            <p class="eyebrow dark">Administration</p>
+            <h2>Référentiels et types d’audit</h2>
+          </div>
+        </div>
+        <p class="muted">PA et SC sont des programmes socle. Pour un CDC, un audit SAE, éditeur, interne ou tout autre référentiel, prépare ici un type d’audit dédié puis crée la mission associée. Les guides, référentiels, textes, CR DGFiP/AIFE et notes D2F déposés en bibliothèque transverse sont applicables à toutes les missions.</p>
+        <div class="twoCols">
+          <div class="integrationBox">
+            <h3>Nouveau type d’audit from scratch</h3>
+            <label>Nom du type d’audit <input id="adminAuditTypeName" placeholder="Ex. CDC éditeur, audit SAE, audit conformité interne..." /></label>
+            <label>Référentiels / sources à rattacher <textarea id="adminAuditReferentials" placeholder="Un référentiel ou document source par ligne : nom, version, date, origine."></textarea></label>
+            <label>Contrôles initiaux à générer <textarea id="adminAuditControls" placeholder="Une ligne par contrôle : critère, objectif ou exigence à auditer."></textarea></label>
+            <div class="row">
+              <button id="adminPrepareCustomAudit" type="button">Préparer mission CDC</button>
+              <button id="adminOpenGlobalLibrary" class="secondary" type="button">Charger référentiel / CR</button>
+            </div>
+          </div>
+          <div class="integrationBox">
+            <h3>Règles DIAM</h3>
+            <ul>
+              <li>Audit PA : chaîne DGFiP/PDP Integrity, cadrée par dossier accepté DGFiP.</li>
+              <li>Audit SC : chaîne RLF-C:SC, adaptée au périmètre éditeur/solution compatible.</li>
+              <li>Audit CDC : chaîne générée depuis les contrôles saisis et les référentiels chargés.</li>
+              <li>Conduite FR/EN possible ; rapport DGFiP toujours en français.</li>
+              <li>Analyse assistée D2F : l’IA propose, l’auditeur décide et justifie.</li>
+            </ul>
+          </div>
+        </div>
+        <p class="status" id="adminStatus"></p>
       </section>
 
       <section class="card" data-panel="dashboard">
@@ -194,7 +228,7 @@
           <table id="chainTable">
             <thead>
               <tr>
-                <th>Réf.</th><th>Question</th><th>Base</th><th>Retenue</th><th>Réponse</th><th>Constat</th><th>Preuves</th>
+                <th>Réf.</th><th>Question</th><th>Applicabilité</th><th>Base</th><th>Retenue</th><th>Réponse</th><th>Constat</th><th>Preuves</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -213,6 +247,8 @@
               <p id="requirement"></p>
               <h4>Preuves attendues</h4>
               <p id="expectedEvidence"></p>
+              <h4>Applicabilité / cadrage</h4>
+              <p id="applicabilityNote" class="notice"></p>
               <h4>Checklist auditeur</h4>
               <ul id="checklist"></ul>
             </div>

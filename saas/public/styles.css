@@ -258,6 +258,7 @@ h4 { margin-bottom: 8px; color: #243b5a; }
 }
 .card[data-panel="audit"],
 .card[data-panel="mission_form"],
+.card[data-panel="admin"],
 .card[data-panel="documents"],
 .card[data-panel="client"],
 .card[data-panel="report"],
@@ -482,7 +483,7 @@ button.small {
 .card[data-panel="documents"] .tableWrap { max-height: 26vh; }
 .card[data-panel="client"] .tableWrap { max-height: 34vh; }
 #missionsTable { min-width: 920px; }
-#chainTable { min-width: 1180px; }
+#chainTable { min-width: 1420px; }
 #documentsTable { min-width: 900px; }
 #suggestionsTable { min-width: 1320px; }
 #clientFindingsTable { min-width: 1250px; }
@@ -522,6 +523,24 @@ td strong {
   background: #eef4fb;
   color: #24476f;
   font-size: 12px;
+}
+.smallText {
+  display: block;
+  max-width: 280px;
+  font-size: 11px;
+  line-height: 1.3;
+}
+.criticalBadge {
+  background: #fff5d7;
+  color: #7a4f00;
+}
+.warningBadge {
+  background: #fff7ed;
+  color: #9a3412;
+}
+.neutralBadge {
+  background: #f2f4f7;
+  color: #475467;
 }
 hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
 #report {
