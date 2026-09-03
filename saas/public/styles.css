@@ -344,7 +344,27 @@ h4 { margin-bottom: 8px; color: #243b5a; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .twoCols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.adminLibraryHint { grid-column: 1 / -1; }
+.adminLibraryHint,
+.adminAuditors { grid-column: 1 / -1; }
+.compact { gap: 10px; }
+.compactGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+.smallTable {
+  max-height: 220px;
+  overflow: auto;
+}
+body.limitedUser [data-tab="admin"],
+body.limitedUser #topNewMission,
+body.limitedUser #topCreateMission,
+body.limitedUser #topGlobalLibrary,
+body.limitedUser #createMission,
+body.limitedUser #deleteMission,
+body.limitedUser [data-delete-mission],
+body.limitedUser .adminOnly {
+  display: none !important;
+}
 .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
 .formActions {
   display: flex;

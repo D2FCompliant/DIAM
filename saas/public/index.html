@@ -182,6 +182,58 @@
               <button id="adminOpenDgfipFile" class="secondary" type="button">Déposer dossier DGFiP</button>
             </div>
           </div>
+          <div class="integrationBox adminAuditors">
+            <h3>Collaborateurs auditeurs et accès par mission</h3>
+            <p class="muted">Le patron / manager DIAM invite les collaborateurs, puis les missionne audit par audit. Un auditeur invité sans affectation ne voit aucune mission ; un auditeur affecté ne voit que les audits sur lesquels il intervient.</p>
+            <div class="twoCols compact">
+              <div>
+                <h4>Inviter un collaborateur</h4>
+                <div class="grid compactGrid">
+                  <label>E-mail collaborateur <input id="auditorEmail" type="email" autocomplete="off" placeholder="auditeur@d2fcompliant.com" /></label>
+                  <label>Nom affiché <input id="auditorName" autocomplete="off" placeholder="Prénom Nom" /></label>
+                  <label>Rôle global
+                    <select id="auditorRole">
+                      <option value="AUDITOR">Auditeur</option>
+                      <option value="MANAGER">Manager audit</option>
+                      <option value="CLIENT">Client interne</option>
+                    </select>
+                  </label>
+                  <label>Mot de passe temporaire <input id="auditorPassword" type="password" autocomplete="new-password" placeholder="Minimum 10 caractères" /></label>
+                </div>
+                <button id="inviteAuditor" type="button">Inviter collaborateur</button>
+              </div>
+              <div>
+                <h4>Affecter à une mission</h4>
+                <div class="grid compactGrid">
+                  <label>Collaborateur <select id="assignmentAuditor"><option value="">Aucun auditeur invité</option></select></label>
+                  <label>Mission autorisée <select id="assignmentMission"><option value="">Aucune mission disponible</option></select></label>
+                  <label>Rôle sur la mission
+                    <select id="assignmentRole">
+                      <option value="AUDITOR">Auditeur</option>
+                      <option value="LEAD">Responsable mission</option>
+                      <option value="REVIEWER">Relecteur</option>
+                    </select>
+                  </label>
+                </div>
+                <button id="assignAuditor" type="button">Missionner sur cet audit</button>
+              </div>
+            </div>
+            <p class="status" id="auditorAdminStatus"></p>
+            <div class="twoCols compact">
+              <div class="tableWrap smallTable">
+                <table id="auditorsTable">
+                  <thead><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th>Statut</th><th>Missions</th></tr></thead>
+                  <tbody><tr class="noRows"><td colspan="5">Aucun collaborateur chargé.</td></tr></tbody>
+                </table>
+              </div>
+              <div class="tableWrap smallTable">
+                <table id="assignmentsTable">
+                  <thead><tr><th>Collaborateur</th><th>E-mail</th><th>Mission</th><th>Rôle</th><th>Action</th></tr></thead>
+                  <tbody><tr class="noRows"><td colspan="5">Aucune affectation active.</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
         <p class="status" id="adminStatus"></p>
       </section>

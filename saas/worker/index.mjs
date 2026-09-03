@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.3.2",
-  release: "Correctif accès documents mission existante",
-  schemaVersion: "202609020010_global_reference_documents",
+  version: "1.4.0",
+  release: "Gestion multi-auditeur et accès par mission",
+  schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Ajout d'un accès explicite aux documents de la mission ouverte et distinction claire avec les documents globaux"
+  lastChange: "Ajout des collaborateurs auditeurs, invitations, affectations par mission et contrôle d'accès serveur"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -367,6 +367,13 @@ function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), { status, headers });
 }
 
+class HttpError extends Error {
+  constructor(message, status = 400) {
+    super(message);
+    this.status = status;
+  }
+}
+
 function html(data, status = 200) {
   return new Response(data, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
@@ -442,13 +449,44 @@ async function expectedPasswordHash(env) {
   return "";
 }
 
-async function verifyCredential(env, email, password) {
+function emailKey(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function adminEmail(env) {
+  return emailKey(env.DIAM_ADMIN_EMAIL || env.DIAM_OWNER_EMAIL || "");
+}
+
+function isAdminEmail(env, email) {
+  const expected = adminEmail(env);
+  return expected && emailKey(email) === expected;
+}
+
+async function verifyCredential(env, email, password, db = null, tenantId = "") {
   if (!authConfigured(env)) return { ok: false, setupRequired: true };
-  const expectedEmail = String(env.DIAM_ADMIN_EMAIL || "").trim().toLowerCase();
-  if (expectedEmail && String(email || "").trim().toLowerCase() !== expectedEmail) return { ok: false };
   const gotHash = await sha256Hex(String(password || ""));
-  const expectedHash = await expectedPasswordHash(env);
-  return { ok: safeEqual(gotHash, expectedHash), setupRequired: false };
+  if (isAdminEmail(env, email) || !adminEmail(env)) {
+    const expectedHash = await expectedPasswordHash(env);
+    if (safeEqual(gotHash, expectedHash)) return { ok: true, setupRequired: false, role: "OWNER" };
+  }
+  if (db && tenantId && email) {
+    try {
+      const users = await db.select("diam_users", `?tenant_id=eq.${tenantId}&email_key=eq.${encodeURIComponent(emailKey(email))}`);
+      const user = users[0];
+      if (user && user.status !== "DISABLED" && user.password_sha256 && safeEqual(gotHash, String(user.password_sha256).toLowerCase())) {
+        await db.patch("diam_users", `?id=eq.${user.id}&tenant_id=eq.${tenantId}`, {
+          status: user.status === "INVITED" ? "ACTIVE" : user.status,
+          activated_at: user.activated_at || new Date().toISOString(),
+          last_login_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+        return { ok: true, setupRequired: false, role: user.role || "AUDITOR", user_id: user.id };
+      }
+    } catch {
+      // Migration multi-auditeur non appliquée : seul le compte administrateur Cloudflare peut entrer.
+    }
+  }
+  return { ok: false, setupRequired: false };
 }
 
 async function issueSession(email, env) {
@@ -481,6 +519,62 @@ async function readSession(request, env) {
   }
 }
 
+async function resolveCurrentUser(db, tenantId, session, env) {
+  if (!authEnabled(env)) {
+    return { email: actor({ headers: new Headers() }, env), role: "OWNER", fullAccess: true, authDisabled: true };
+  }
+  if (!session?.email) return null;
+  if (isAdminEmail(env, session.email) || !adminEmail(env)) {
+    return { email: emailKey(session.email), role: "OWNER", fullAccess: true, source: "cloudflare-secret" };
+  }
+  try {
+    const users = await db.select("diam_users", `?tenant_id=eq.${tenantId}&email_key=eq.${encodeURIComponent(emailKey(session.email))}`);
+    const user = users[0];
+    if (!user || user.status === "DISABLED") return null;
+    return { ...user, fullAccess: ["OWNER", "MANAGER"].includes(user.role) };
+  } catch (e) {
+    throw new HttpError("Gestion multi-auditeur non initialisée : applique la migration Supabase 202609030001_multi_auditor_access.sql.", 503);
+  }
+}
+
+function requireAdminUser(currentUser) {
+  if (!currentUser?.fullAccess) throw new HttpError("Action réservée au patron / administrateur DIAM.", 403);
+}
+
+async function assignedMissionIds(db, tenantId, currentUser) {
+  if (!currentUser || currentUser.fullAccess) return null;
+  const assignments = await db.select("diam_mission_auditors", `?tenant_id=eq.${tenantId}&user_id=eq.${currentUser.id}&revoked_at=is.null`);
+  return new Set(assignments.map((a) => a.mission_id));
+}
+
+async function ensureMissionAccess(db, tenantId, missionId, currentUser) {
+  if (!missionId) throw new HttpError("Mission manquante.", 400);
+  if (currentUser?.fullAccess) {
+    const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenantId}`))[0];
+    if (!mission) throw new HttpError("Mission introuvable.", 404);
+    return mission;
+  }
+  const assignments = await db.select("diam_mission_auditors", `?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&user_id=eq.${currentUser?.id || "00000000-0000-0000-0000-000000000000"}&revoked_at=is.null`);
+  if (!assignments.length) throw new HttpError("Accès refusé : cet auditeur n’est pas missionné sur cet audit.", 403);
+  const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenantId}`))[0];
+  if (!mission) throw new HttpError("Mission introuvable.", 404);
+  return mission;
+}
+
+async function missionIdFromQuestion(db, tenantId, questionId, currentUser) {
+  const q = (await db.select("diam_questions", `?id=eq.${questionId}&tenant_id=eq.${tenantId}`))[0];
+  if (!q) throw new HttpError("Contrôle introuvable.", 404);
+  await ensureMissionAccess(db, tenantId, q.mission_id, currentUser);
+  return q.mission_id;
+}
+
+async function missionIdFromFinding(db, tenantId, findingId, currentUser) {
+  const finding = (await db.select("diam_findings", `?id=eq.${findingId}&tenant_id=eq.${tenantId}`))[0];
+  if (!finding) throw new HttpError("Constat introuvable.", 404);
+  await missionIdFromQuestion(db, tenantId, finding.question_id, currentUser);
+  return finding;
+}
+
 function authCookie(value, maxAge) {
   return `diam_session=${value}; Max-Age=${maxAge}; Path=/; HttpOnly; Secure; SameSite=Strict`;
 }
@@ -496,7 +590,7 @@ function pathAllowedWithoutAdminAuth(path, url) {
   return false;
 }
 
-async function handleAuth(request, env) {
+async function handleAuth(request, env, db = null, tenant = null) {
   const url = new URL(request.url);
   if (url.pathname === "/api/auth/me") {
     const session = await readSession(request, env);
@@ -515,7 +609,7 @@ async function handleAuth(request, env) {
 
   if (url.pathname === "/api/auth/login" && request.method === "POST") {
     const body = await readBody(request);
-    const check = await verifyCredential(env, body.email, body.password);
+    const check = await verifyCredential(env, body.email, body.password, db, tenant?.id || "");
     if (check.setupRequired) {
       return json({
         error: "Credentials DIAM non configurés côté Cloudflare. Définir DIAM_ADMIN_EMAIL, DIAM_ADMIN_PASSWORD_SHA256 ou DIAM_ADMIN_PASSWORD, et DIAM_SESSION_SECRET.",
@@ -524,7 +618,7 @@ async function handleAuth(request, env) {
     }
     if (!check.ok) return json({ error: "Identifiants DIAM invalides." }, 401);
     const session = await issueSession(body.email, env);
-    return json({ ok: true, actor: String(body.email || env.DIAM_ADMIN_EMAIL || "").trim().toLowerCase() }, 200, {
+    return json({ ok: true, actor: emailKey(body.email || env.DIAM_ADMIN_EMAIL || ""), role: check.role || "AUDITOR" }, 200, {
       "set-cookie": authCookie(session.value, session.maxAge)
     });
   }
@@ -616,7 +710,7 @@ function supabase(env) {
 }
 
 async function ensureTenant(db, env, request) {
-  const email = actor(request, env);
+  const email = adminEmail(env) || actor(request, env);
   const slug = email.split("@")[0].toLowerCase().replace(/[^a-z0-9]+/g, "-") || "default";
   return db.upsert("diam_tenants", { slug, name: "D2F Compliant DIAM", owner_email: email }, "slug");
 }
@@ -638,10 +732,12 @@ async function ensureClientMissionAccess(db, tenant, request) {
   return mission;
 }
 
-async function listMissions(db, tenantId) {
+async function listMissions(db, tenantId, currentUser) {
   const missions = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&order=created_at.desc`);
+  const allowedIds = await assignedMissionIds(db, tenantId, currentUser);
+  const visibleMissions = allowedIds ? missions.filter((mission) => allowedIds.has(mission.id)) : missions;
   const enriched = [];
-  for (const mission of missions) {
+  for (const mission of visibleMissions) {
     const client = (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenantId}`))[0] || {};
     enriched.push({
       ...mission,
@@ -654,6 +750,82 @@ async function listMissions(db, tenantId) {
     });
   }
   return enriched;
+}
+
+async function listAuditorAdministration(db, tenantId) {
+  const [users, assignments, missions] = await Promise.all([
+    db.select("diam_users", `?tenant_id=eq.${tenantId}&order=created_at.desc`),
+    db.select("diam_mission_auditors", `?tenant_id=eq.${tenantId}&order=assigned_at.desc`),
+    db.select("diam_missions", `?tenant_id=eq.${tenantId}&order=created_at.desc`)
+  ]);
+  const activeAssignments = assignments.filter((a) => !a.revoked_at);
+  return {
+    users: users.map(({ password_sha256, ...user }) => ({
+      ...user,
+      assigned_missions: activeAssignments.filter((a) => a.user_id === user.id).length
+    })),
+    assignments: activeAssignments.map((assignment) => {
+      const user = users.find((u) => u.id === assignment.user_id) || {};
+      const mission = missions.find((m) => m.id === assignment.mission_id) || {};
+      return {
+        ...assignment,
+        auditor_email: user.email || "",
+        auditor_name: user.display_name || "",
+        mission_number: mission.number || "",
+        mission_title: mission.title || ""
+      };
+    })
+  };
+}
+
+async function inviteAuditor(db, tenantId, body, who) {
+  const email = emailKey(body.email);
+  if (!email || !email.includes("@")) throw new HttpError("E-mail auditeur obligatoire.", 400);
+  const password = String(body.temp_password || "").trim();
+  if (password.length < 10) throw new HttpError("Mot de passe temporaire obligatoire : minimum 10 caractères.", 400);
+  const role = ["MANAGER", "AUDITOR", "CLIENT"].includes(body.role) ? body.role : "AUDITOR";
+  const payload = {
+    tenant_id: tenantId,
+    email,
+    email_key: email,
+    display_name: body.display_name || email,
+    role,
+    status: body.status || "INVITED",
+    password_sha256: await sha256Hex(password),
+    invited_by: who,
+    updated_at: new Date().toISOString()
+  };
+  const existing = (await db.select("diam_users", `?tenant_id=eq.${tenantId}&email_key=eq.${encodeURIComponent(email)}`))[0];
+  const user = existing
+    ? await db.patch("diam_users", `?id=eq.${existing.id}&tenant_id=eq.${tenantId}`, payload)
+    : await db.insert("diam_users", { ...payload, invited_at: new Date().toISOString() });
+  const { password_sha256, ...safeUser } = user || { ...payload, id: existing?.id };
+  return safeUser;
+}
+
+async function assignAuditor(db, tenantId, body, who) {
+  const userId = body.user_id;
+  const missionId = body.mission_id;
+  if (!userId || !missionId) throw new HttpError("Choisis un auditeur et une mission.", 400);
+  const user = (await db.select("diam_users", `?id=eq.${userId}&tenant_id=eq.${tenantId}`))[0];
+  if (!user || user.status === "DISABLED") throw new HttpError("Auditeur introuvable ou désactivé.", 404);
+  const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenantId}`))[0];
+  if (!mission) throw new HttpError("Mission introuvable.", 404);
+  const missionRole = ["LEAD", "AUDITOR", "REVIEWER"].includes(body.mission_role) ? body.mission_role : "AUDITOR";
+  const existing = (await db.select("diam_mission_auditors", `?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&user_id=eq.${userId}`)).find((a) => !a.revoked_at);
+  if (existing) {
+    return db.patch("diam_mission_auditors", `?id=eq.${existing.id}&tenant_id=eq.${tenantId}`, {
+      mission_role: missionRole,
+      updated_at: new Date().toISOString()
+    });
+  }
+  return db.insert("diam_mission_auditors", {
+    tenant_id: tenantId,
+    mission_id: missionId,
+    user_id: userId,
+    mission_role: missionRole,
+    assigned_by: who
+  });
 }
 
 async function readSchemaVersion(db) {
@@ -1248,7 +1420,7 @@ async function handleApi(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
 
-  if (path.startsWith("/api/auth/")) return handleAuth(request, env);
+  if (path.startsWith("/api/auth/") && path !== "/api/auth/login") return handleAuth(request, env);
 
   if (path === "/api/health") {
     return json({
@@ -1299,6 +1471,11 @@ async function handleApi(request, env) {
     throw e;
   }
   const who = session?.email || actor(request, env);
+  if (path === "/api/auth/login") return handleAuth(request, env, db, tenant);
+  const currentUser = session ? await resolveCurrentUser(db, tenant.id, session, env) : null;
+  if (authEnabled(env) && session && !currentUser) {
+    return json({ error: "Session DIAM reconnue mais utilisateur désactivé ou non autorisé." }, 403, { "set-cookie": clearAuthCookie() });
+  }
 
   if (path === "/api/bootstrap") return json({
     tenant: session ? tenant : null,
@@ -1314,19 +1491,23 @@ async function handleApi(request, env) {
       configured: authConfigured(env),
       authenticated: Boolean(session),
       actor: session?.email || null,
+      role: currentUser?.role || null,
+      full_access: Boolean(currentUser?.fullAccess),
       https_required: true
     }
   });
 
   if (path === "/api/integrations/d2f-business-suite/audit-clients" && request.method === "GET") {
+    requireAdminUser(currentUser);
     return json(await fetchD2FBusinessSuiteClients(env, url.searchParams));
   }
 
   if (path === "/api/missions" && request.method === "GET") {
-    return json(await listMissions(db, tenant.id));
+    return json(await listMissions(db, tenant.id, currentUser));
   }
 
   if (path === "/api/missions" && request.method === "POST") {
+    requireAdminUser(currentUser);
     const body = await readBody(request);
     const program = auditProgram(body.audit_program || "PA_DGFIP");
     const controls = controlsFromMissionDefinition(program, body);
@@ -1371,6 +1552,7 @@ async function handleApi(request, env) {
 
   if (path.startsWith("/api/missions/") && request.method === "PATCH") {
     const missionId = path.split("/").pop();
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     const body = await readBody(request);
     const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`))[0];
     if (!mission) return json({ error: "Mission introuvable." }, 404);
@@ -1418,19 +1600,49 @@ async function handleApi(request, env) {
   }
 
   if (path.startsWith("/api/missions/") && request.method === "DELETE") {
+    requireAdminUser(currentUser);
     const missionId = path.split("/").pop();
     await db.delete("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`);
     return json({ deleted: true, mission_id: missionId });
   }
 
+  if (path === "/api/admin/auditors" && request.method === "GET") {
+    requireAdminUser(currentUser);
+    return json(await listAuditorAdministration(db, tenant.id));
+  }
+
+  if (path === "/api/admin/auditors" && request.method === "POST") {
+    requireAdminUser(currentUser);
+    const body = await readBody(request);
+    return json(await inviteAuditor(db, tenant.id, body, who), 201);
+  }
+
+  if (path === "/api/admin/mission-auditors" && request.method === "POST") {
+    requireAdminUser(currentUser);
+    const body = await readBody(request);
+    return json(await assignAuditor(db, tenant.id, body, who), 201);
+  }
+
+  if (path.match(/^\/api\/admin\/mission-auditors\/[^/]+$/) && request.method === "DELETE") {
+    requireAdminUser(currentUser);
+    const id = path.split("/")[3];
+    const updated = await db.patch("diam_mission_auditors", `?id=eq.${id}&tenant_id=eq.${tenant.id}`, {
+      revoked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+    return json({ revoked: true, assignment: updated });
+  }
+
   if (path === "/api/audit-chain") {
     const missionId = url.searchParams.get("mission_id");
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     const chain = await auditChain(db, tenant.id, missionId);
     return json({ chain, result: opinion(chain) });
   }
 
   if (path === "/api/client-link" && request.method === "GET") {
     const missionId = url.searchParams.get("mission_id");
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     const mission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`))[0];
     if (!mission) return json({ error: "Mission introuvable." }, 404);
     const link = `${url.origin}/?portal=client&mission_id=${encodeURIComponent(mission.id)}&token=${encodeURIComponent(mission.client_access_token)}`;
@@ -1439,6 +1651,7 @@ async function handleApi(request, env) {
 
   if (path === "/api/answers" && request.method === "POST") {
     const b = await readBody(request);
+    await missionIdFromQuestion(db, tenant.id, b.question_id, currentUser);
     const answer = await db.upsert("diam_answers", {
       tenant_id: tenant.id,
       question_id: b.question_id,
@@ -1453,6 +1666,7 @@ async function handleApi(request, env) {
 
   if (path === "/api/findings" && request.method === "POST") {
     const b = await readBody(request);
+    await missionIdFromQuestion(db, tenant.id, b.question_id, currentUser);
     const q = (await db.select("diam_questions", `?id=eq.${b.question_id}&tenant_id=eq.${tenant.id}`))[0];
     const finding = await db.upsert("diam_findings", {
       tenant_id: tenant.id,
@@ -1470,6 +1684,7 @@ async function handleApi(request, env) {
 
   if (path.match(/^\/api\/findings\/[^/]+\/status$/) && request.method === "PATCH") {
     const id = path.split("/")[3];
+    await missionIdFromFinding(db, tenant.id, id, currentUser);
     const b = await readBody(request);
     return json(await db.patch("diam_findings", `?id=eq.${id}&tenant_id=eq.${tenant.id}`, {
       status: b.status,
@@ -1481,12 +1696,14 @@ async function handleApi(request, env) {
 
   if (path.match(/^\/api\/findings\/[^/]+\/evidences$/) && request.method === "POST") {
     const id = path.split("/")[3];
+    await missionIdFromFinding(db, tenant.id, id, currentUser);
     const b = await readBody(request);
     return json(await db.upsert("diam_finding_evidences", { finding_id: id, evidence_id: b.evidence_id }, "finding_id,evidence_id"), 201);
   }
 
   if (path === "/api/evidences" && request.method === "GET") {
     const missionId = url.searchParams.get("mission_id");
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     return json(await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=uploaded_at.desc`));
   }
 
@@ -1497,6 +1714,9 @@ async function handleApi(request, env) {
     const questionId = form.get("question_id") || null;
     const findingId = form.get("finding_id") || null;
     if (!file || !missionId) return json({ error: "Fichier et mission obligatoires." }, 400);
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
+    if (questionId) await missionIdFromQuestion(db, tenant.id, questionId, currentUser);
+    if (findingId) await missionIdFromFinding(db, tenant.id, findingId, currentUser);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
     const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${file.name}`;
@@ -1535,6 +1755,7 @@ async function handleApi(request, env) {
       return json(await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&document_scope=eq.GLOBAL&order=uploaded_at.desc`));
     }
     if (!missionId) return json({ error: "Mission obligatoire pour lister les documents de mission. Utilise scope=global pour les référentiels transverses." }, 400);
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     if (includeGlobal) {
       return json(await db.select("diam_documents", `?tenant_id=eq.${tenant.id}&or=(mission_id.eq.${missionId},document_scope.eq.GLOBAL)&order=uploaded_at.desc`));
     }
@@ -1551,6 +1772,8 @@ async function handleApi(request, env) {
     const missionId = documentScope === "GLOBAL" ? null : requestedMissionId;
     if (!file) return json({ error: "Fichier obligatoire." }, 400);
     if (documentScope === "MISSION" && !missionId) return json({ error: "Mission obligatoire pour un document client ou une preuve de mission." }, 400);
+    if (documentScope === "GLOBAL") requireAdminUser(currentUser);
+    if (documentScope === "MISSION") await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
     const existingQuery = documentScope === "GLOBAL"
@@ -1600,6 +1823,7 @@ async function handleApi(request, env) {
     const form = await request.formData();
     const analysisMissionId = form.get("mission_id") || document.mission_id;
     if (!analysisMissionId) return json({ error: "Ouvre une mission pour analyser ce document au regard d'un programme d'audit." }, 400);
+    await ensureMissionAccess(db, tenant.id, analysisMissionId, currentUser);
     let file = form.get("file");
     if (!file) {
       const bytes = await db.downloadFromBucket("diam-documents", document.storage_path);
@@ -1683,6 +1907,7 @@ async function handleApi(request, env) {
 
   if (path === "/api/ai-suggestions" && request.method === "GET") {
     const missionId = url.searchParams.get("mission_id");
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     return json(await db.select("diam_ai_gap_suggestions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=created_at.desc`));
   }
 
@@ -1691,6 +1916,7 @@ async function handleApi(request, env) {
     const body = await readBody(request);
     const suggestion = (await db.select("diam_ai_gap_suggestions", `?id=eq.${id}&tenant_id=eq.${tenant.id}`))[0];
     if (!suggestion || !suggestion.question_id) return json({ error: "Suggestion non rattachée à une question." }, 400);
+    await ensureMissionAccess(db, tenant.id, suggestion.mission_id, currentUser);
     const q = (await db.select("diam_questions", `?id=eq.${suggestion.question_id}&tenant_id=eq.${tenant.id}`))[0];
     const finding = await db.upsert("diam_findings", {
       tenant_id: tenant.id,
@@ -1725,6 +1951,7 @@ async function handleApi(request, env) {
     const body = await readBody(request);
     const suggestion = (await db.select("diam_ai_gap_suggestions", `?id=eq.${id}&tenant_id=eq.${tenant.id}`))[0];
     if (!suggestion) return json({ error: "Suggestion introuvable." }, 404);
+    await ensureMissionAccess(db, tenant.id, suggestion.mission_id, currentUser);
     const decision = {
       action: "REJECTED",
       by: who,
@@ -1812,6 +2039,7 @@ async function handleApi(request, env) {
 
   if (path === "/api/reports" && request.method === "POST") {
     const b = await readBody(request);
+    await ensureMissionAccess(db, tenant.id, b.mission_id, currentUser);
     const chain = await auditChain(db, tenant.id, b.mission_id);
     const result = opinion(chain);
     const mission = (await db.select("diam_missions", `?id=eq.${b.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};
@@ -1858,7 +2086,7 @@ export default {
       if (url.pathname.startsWith("/api/")) return cors(await handleApi(request, env));
       return env.ASSETS.fetch(request);
     } catch (e) {
-      return cors(json({ error: e.message || String(e) }, 500));
+      return cors(json({ error: e.message || String(e) }, e.status || 500));
     }
   }
 };

@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], d2fImportedClientUpdatedAt: "", clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "" };
+let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], d2fImportedClientUpdatedAt: "", auditors: [], auditorAssignments: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "", authRole: "" };
 
 const DEMO_BASELINE = {
   label: "Aperçu local — DGFiP audit guide v1.3 + PDP Integrity v3.2",
@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.3.2",
-  release: "Correctif accès documents mission existante",
-  schemaVersion: "202609020010_global_reference_documents",
-  buildCommit: "local-v1.3.2",
+  version: "1.4.0",
+  release: "Gestion multi-auditeur et accès par mission",
+  schemaVersion: "202609030001_multi_auditor_access",
+  buildCommit: "local-v1.4.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -162,6 +162,8 @@ async function init() {
     $("runtimeMode").textContent = "API connectée";
     $("runtimeMode").className = "modePill ok";
     appRelease = boot.app || appRelease;
+    state.authRole = boot.auth?.role || "";
+    applyAccessUi(Boolean(boot.auth?.full_access));
     $("baseline").textContent = `${boot.baseline.label} - sources vérifiées ${boot.baseline.checkedAt}`;
     renderVersionStack(appRelease);
     if (state.clientPortal) {
@@ -169,6 +171,7 @@ async function init() {
       showTab("client", { scroll: false });
     } else {
       await loadMissions();
+      if (boot.auth?.full_access) await loadAuditorAdmin();
     }
   } catch (e) {
     enableDemoMode(e);
@@ -200,6 +203,8 @@ function bindEvents() {
   $("adminOpenGlobalLibrary2").onclick = () => prepareGlobalLibrary();
   $("adminAddMissionDocs").onclick = () => run(prepareMissionDocuments, "adminStatus");
   $("adminOpenDgfipFile").onclick = () => run(prepareDgfipAnalysis, "adminStatus");
+  $("inviteAuditor") && ($("inviteAuditor").onclick = () => run(inviteAuditor, "auditorAdminStatus"));
+  $("assignAuditor") && ($("assignAuditor").onclick = () => run(assignAuditorToMission, "auditorAdminStatus"));
   $("openMission").onclick = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("copyClientLink").onclick = () => run(copyClientLink, "createStatus");
   $("searchD2FClients").onclick = () => run(searchD2FClients, "d2fSyncStatus");
@@ -550,6 +555,7 @@ async function loadMissions() {
     renderClientFacts();
     renderChain();
     renderMissionList();
+    renderAuditorAdmin();
     renderDocuments();
     renderSuggestions();
     renderClientFindings();
@@ -563,6 +569,7 @@ async function loadMissions() {
   fillMissionForm(currentMission());
   renderClientFacts();
   renderMissionList();
+  renderAuditorAdmin();
   if (state.missionId) await refreshAll();
 }
 
@@ -703,6 +710,102 @@ function renderMissionList() {
   }
 }
 
+function applyAccessUi(fullAccess) {
+  document.body.classList.toggle("limitedUser", !fullAccess);
+  if (!fullAccess && state.activeTab === "admin") showTab("dashboard", { scroll: false });
+}
+
+async function loadAuditorAdmin() {
+  if (state.demo || state.clientPortal) return;
+  try {
+    const out = await api("/api/admin/auditors");
+    state.auditors = out.users || [];
+    state.auditorAssignments = out.assignments || [];
+    renderAuditorAdmin();
+  } catch (e) {
+    setStatus(e.message || "Administration auditeurs indisponible.", "error", "auditorAdminStatus");
+  }
+}
+
+function renderAuditorAdmin() {
+  const auditorSelect = $("assignmentAuditor");
+  const missionSelect = $("assignmentMission");
+  const auditorsBody = $("auditorsTable")?.querySelector("tbody");
+  const assignmentsBody = $("assignmentsTable")?.querySelector("tbody");
+  if (!auditorSelect || !missionSelect || !auditorsBody || !assignmentsBody) return;
+
+  auditorSelect.innerHTML = state.auditors.length
+    ? state.auditors.map((u) => `<option value="${u.id}">${escapeHtml(u.display_name || u.email)} — ${escapeHtml(u.email)} (${escapeHtml(u.role)})</option>`).join("")
+    : `<option value="">Aucun auditeur invité</option>`;
+  missionSelect.innerHTML = state.missions.length
+    ? state.missions.map((m) => `<option value="${m.id}">${escapeHtml(m.number)} — ${escapeHtml(m.title)}${m.client_name ? " · " + escapeHtml(m.client_name) : ""}</option>`).join("")
+    : `<option value="">Aucune mission disponible</option>`;
+
+  auditorsBody.innerHTML = state.auditors.length
+    ? state.auditors.map((u) => `
+      <tr>
+        <td>${escapeHtml(u.display_name || "-")}</td>
+        <td>${escapeHtml(u.email)}</td>
+        <td>${escapeHtml(u.role)}</td>
+        <td>${escapeHtml(u.status)}</td>
+        <td>${u.assigned_missions || 0}</td>
+      </tr>`).join("")
+    : `<tr class="noRows"><td colspan="5">Aucun collaborateur invité. Ajoute un auditeur avec un mot de passe temporaire.</td></tr>`;
+
+  assignmentsBody.innerHTML = state.auditorAssignments.length
+    ? state.auditorAssignments.map((a) => `
+      <tr>
+        <td>${escapeHtml(a.auditor_name || a.auditor_email)}</td>
+        <td>${escapeHtml(a.auditor_email)}</td>
+        <td>${escapeHtml(a.mission_number)} — ${escapeHtml(a.mission_title)}</td>
+        <td>${escapeHtml(a.mission_role)}</td>
+        <td><button class="small danger" data-revoke-assignment="${a.id}" type="button">Retirer</button></td>
+      </tr>`).join("")
+    : `<tr class="noRows"><td colspan="5">Aucune affectation active. Un auditeur invité sans affectation ne verra aucune mission.</td></tr>`;
+
+  for (const button of assignmentsBody.querySelectorAll("[data-revoke-assignment]")) {
+    button.onclick = () => run(() => revokeAuditorAssignment(button.dataset.revokeAssignment), "auditorAdminStatus");
+  }
+}
+
+async function inviteAuditor() {
+  const email = $("auditorEmail").value.trim();
+  const displayName = $("auditorName").value.trim();
+  const role = $("auditorRole").value;
+  const tempPassword = $("auditorPassword").value;
+  if (!email || !tempPassword) throw new Error("Renseigne l’e-mail auditeur et un mot de passe temporaire.");
+  await api("/api/admin/auditors", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, display_name: displayName, role, temp_password: tempPassword })
+  });
+  $("auditorPassword").value = "";
+  setStatus("Collaborateur invité. Il pourra se connecter, mais ne verra que les missions affectées.", "success", "auditorAdminStatus");
+  await loadAuditorAdmin();
+}
+
+async function assignAuditorToMission() {
+  const userId = $("assignmentAuditor").value;
+  const missionId = $("assignmentMission").value || state.missionId;
+  const missionRole = $("assignmentRole").value;
+  if (!userId || !missionId) throw new Error("Choisis un auditeur et une mission.");
+  await api("/api/admin/mission-auditors", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ user_id: userId, mission_id: missionId, mission_role: missionRole })
+  });
+  setStatus("Auditeur affecté à la mission. Son accès est maintenant limité à cette mission côté serveur.", "success", "auditorAdminStatus");
+  await loadAuditorAdmin();
+}
+
+async function revokeAuditorAssignment(assignmentId) {
+  if (!assignmentId) throw new Error("Affectation introuvable.");
+  if (!confirm("Retirer cet auditeur de la mission ? Il ne pourra plus ouvrir cet audit.")) return;
+  await api(`/api/admin/mission-auditors/${assignmentId}`, { method: "DELETE" });
+  setStatus("Affectation retirée. L’accès à cette mission est coupé.", "success", "auditorAdminStatus");
+  await loadAuditorAdmin();
+}
+
 function renderClientFacts() {
   const box = $("clientFacts");
   if (!box) return;
@@ -770,6 +873,7 @@ async function createMission() {
     : `${out.mission.number} créée avec ${out.seeded_controls} contrôles ${out.audit_program?.shortLabel || auditProgram($("auditProgram").value).shortLabel}.`;
   state.missionId = out.mission.id;
   await loadMissions();
+  await loadAuditorAdmin();
   state.missionId = out.mission.id;
   if ($("missionSelect")) $("missionSelect").value = state.missionId;
   await refreshAll();
@@ -827,6 +931,7 @@ async function deleteMissionById(missionId) {
   state.selected = null;
   setStatus("Mission supprimée.", "success", "createStatus");
   await loadMissions();
+  await loadAuditorAdmin();
 }
 
 async function copyClientLink() {
