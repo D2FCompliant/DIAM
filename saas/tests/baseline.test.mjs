@@ -122,9 +122,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.5");
-  assert.match(app, /version: "1\.0\.5"/);
-  assert.match(worker, /version: "1\.0\.5"/);
+  assert.equal(pkg.version, "1.0.6");
+  assert.match(app, /version: "1\.0\.6"/);
+  assert.match(worker, /version: "1\.0\.6"/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
@@ -132,6 +132,20 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
   assert.match(css, /body\s*\{[^}]*height: 100%;[^}]*overflow: hidden;[^}]*display: flex;[^}]*flex-direction: column;/s);
   assert.match(css, /\.layout\s*\{[^}]*flex: 1 1 auto;[^}]*overflow: hidden;/s);
   assert.match(css, /\.card\s*\{[^}]*overflow: auto;/s);
+});
+
+test("version banner always exposes a usable build reference", async () => {
+  const fs = await import("node:fs/promises");
+  const [app, worker] = await Promise.all([
+    fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8")
+  ]);
+  assert.match(worker, /const gitCommit = env\.DIAM_BUILD_COMMIT \|\| env\.CF_PAGES_COMMIT_SHA \|\| ""/);
+  assert.match(worker, /buildRef = gitCommit \|\| `\$\{APP_RELEASE\.channel\}-v\$\{APP_RELEASE\.version\}-/);
+  assert.match(worker, /buildSource: gitCommit \? "git" : "release"/);
+  assert.match(app, /const build = app\.buildCommit \|\| `\$\{app\.channel \|\| "local"\}-v/);
+  assert.doesNotMatch(app, /build \$\{escapeHtml\(\(app\.buildCommit \|\| "non renseigné"\)/);
+  assert.doesNotMatch(worker, /buildCommit: env\.DIAM_BUILD_COMMIT \|\| env\.CF_PAGES_COMMIT_SHA \|\| "non renseigné"/);
 });
 
 test("custom CDC missions are explicit and generate their own audit chain", async () => {

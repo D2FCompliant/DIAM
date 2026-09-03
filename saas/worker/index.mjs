@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.0.5",
-  release: "Correctif fiche mission",
+  version: "1.0.6",
+  release: "Correctif traçabilité build",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
-  lastChange: "Correctif production : la fiche mission distingue clairement brouillon, mission sélectionnée et mission ouverte"
+  lastChange: "Correctif production : la bannière version affiche toujours une référence de build exploitable"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -607,9 +607,12 @@ async function readSchemaVersion(db) {
 }
 
 async function appMetadata(env, db) {
+  const gitCommit = env.DIAM_BUILD_COMMIT || env.CF_PAGES_COMMIT_SHA || "";
+  const buildRef = gitCommit || `${APP_RELEASE.channel}-v${APP_RELEASE.version}-${APP_RELEASE.schemaVersion.slice(0, 12)}`;
   return {
     ...APP_RELEASE,
-    buildCommit: env.DIAM_BUILD_COMMIT || env.CF_PAGES_COMMIT_SHA || "non renseigné",
+    buildCommit: buildRef,
+    buildSource: gitCommit ? "git" : "release",
     auditPrograms: Object.values(AUDIT_PROGRAMS),
     controlCounts: {
       PA_DGFIP: BASE_CONTROLS.length,

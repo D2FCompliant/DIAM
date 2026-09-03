@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.5",
-  release: "Correctif fiche mission",
+  version: "1.0.6",
+  release: "Correctif traçabilité build",
   schemaVersion: "202609020010_global_reference_documents",
-  buildCommit: "mode local"
+  buildCommit: "local-v1.0.6"
 };
 
 const AUDIT_PROGRAMS = {
@@ -1270,13 +1270,14 @@ function renderVersionStack(app = appRelease) {
   const el = $("versionStack");
   if (!el) return;
   const schemaOk = schema.ok === true;
+  const build = app.buildCommit || `${app.channel || "local"}-v${app.version || "-"}-${String(app.schemaVersion || "schema").slice(0, 12)}`;
   el.classList.toggle("warn", !schemaOk && schema.current);
   el.innerHTML = `
     <strong>${escapeHtml(app.name || "DIAM SaaS")} v${escapeHtml(app.version || "-")}</strong>
     · ${escapeHtml(app.release || "release")}
     · schéma ${escapeHtml(schema.current || app.schemaVersion || "-")}${schemaOk ? " ✓" : schema.current ? " ⚠ migration à vérifier" : ""}
     · D2F Suite ${app.d2fBusinessSuite?.configured ? "connectée" : "clé absente"}
-    · build ${escapeHtml((app.buildCommit || "non renseigné").slice(0, 12))}
+    · build ${escapeHtml(String(build).slice(0, 24))}
   `;
 }
 function enterClientPortalMode() {
