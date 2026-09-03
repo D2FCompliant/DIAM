@@ -130,9 +130,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.2.0");
-  assert.match(app, /version: "1\.2\.0"/);
-  assert.match(worker, /version: "1\.2\.0"/);
+  assert.equal(pkg.version, "1.3.0");
+  assert.match(app, /version: "1\.3\.0"/);
+  assert.match(worker, /version: "1\.3\.0"/);
   assert.match(app, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(worker, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(html, /Préparer nouvel audit/);
@@ -185,6 +185,23 @@ test("version banner always exposes a usable build reference", async () => {
   assert.match(app, /const build = app\.buildCommit \|\| `\$\{app\.channel \|\| "local"\}-v/);
   assert.doesNotMatch(app, /build \$\{escapeHtml\(\(app\.buildCommit \|\| "non renseigné"\)/);
   assert.doesNotMatch(worker, /buildCommit: env\.DIAM_BUILD_COMMIT \|\| env\.CF_PAGES_COMMIT_SHA \|\| "non renseigné"/);
+});
+
+test("worker exposes a public D2F marketplace manifest without secrets", async () => {
+  const fs = await import("node:fs/promises");
+  const [worker, readme] = await Promise.all([
+    fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8"),
+    fs.readFile(new URL("../README.md", import.meta.url), "utf8")
+  ]);
+  assert.match(worker, /function marketplaceManifest/);
+  assert.match(worker, /application\/vnd\.d2f\.marketplace-app\+json;version=1/);
+  assert.match(worker, /d2f-diam-saas/);
+  assert.match(worker, /\/\.well-known\/d2f-marketplace-app\.json/);
+  assert.match(worker, /path === "\/api\/marketplace\/app"/);
+  assert.match(worker, /secretsExposed: false/);
+  assert.match(worker, /browserStoresServiceKeys: false/);
+  assert.match(readme, /Publication marketplace D2F Compliant/);
+  assert.match(readme, /\.well-known\/d2f-marketplace-app\.json/);
 });
 
 test("custom audit missions are explicit and generate their own audit chain", async () => {

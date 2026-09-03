@@ -8,10 +8,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.2.0",
-  release: "Refonte cockpit UX adaptatif et audit personnalisé",
+  version: "1.3.0",
+  release: "Publication marketplace D2F Compliant",
   schemaVersion: "202609020010_global_reference_documents",
-  buildCommit: "local-v1.2.0",
+  buildCommit: "local-v1.3.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 

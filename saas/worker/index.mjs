@@ -5,13 +5,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.2.0",
-  release: "Refonte cockpit UX adaptatif et audit personnalisé",
+  version: "1.3.0",
+  release: "Publication marketplace D2F Compliant",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Cockpit d'audit compact : barre fixe, panneaux métier scrollables, administration des référentiels libres SAE/CFN/GED/CDC/autres"
+  lastChange: "DIAM expose un manifeste marketplace D2F Compliant public et versionné, sans secret ni donnée client"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -490,7 +490,7 @@ function clearAuthCookie() {
 }
 
 function pathAllowedWithoutAdminAuth(path, url) {
-  if (path === "/api/health" || path === "/api/bootstrap") return true;
+  if (path === "/api/health" || path === "/api/bootstrap" || path === "/api/marketplace/app") return true;
   if (path.startsWith("/api/auth/")) return true;
   if (path.startsWith("/api/client/") && url.searchParams.get("mission_id") && url.searchParams.get("token")) return true;
   return false;
@@ -697,6 +697,74 @@ async function appMetadata(env, db) {
       configured: Boolean(env.D2F_BUSINESS_SUITE_API_KEY)
     },
     schema: db ? await readSchemaVersion(db) : { expected: APP_RELEASE.schemaVersion, current: "not_checked", ok: false }
+  };
+}
+
+async function marketplaceManifest(env, url) {
+  const origin = url.origin;
+  const app = await appMetadata(env, null);
+  return {
+    schema: "application/vnd.d2f.marketplace-app+json;version=1",
+    id: "d2f-diam-saas",
+    slug: "diam",
+    name: "DIAM SaaS",
+    publisher: "D2F Compliant",
+    category: "Audit & conformité",
+    status: "production",
+    version: app.version,
+    release: app.release,
+    releasedAt: app.releasedAt,
+    summary: "Plateforme d’audit PA/SC et référentiels personnalisés : questionnaire, preuves, constats, analyse assistée D2F, espace client et rapport DGFiP.",
+    description: "DIAM SaaS structure les audits de conformité autour de la preuve : exigence, preuve attendue, preuve collectée SHA-256, analyse assistée, décision auditeur, constat, action corrective, clôture et rapport.",
+    launchUrl: origin,
+    supportUrl: "https://www.d2fcompliant.org",
+    icon: {
+      type: "text",
+      value: "D2F"
+    },
+    capabilities: [
+      "Audits PA / DGFiP + PDP Integrity",
+      "Audits SC / RLF-C:SC",
+      "Types d’audit personnalisés : SAE, CFN, GED, CDC, interne ou autre",
+      "Dépôt documentaire et preuve SHA-256",
+      "Analyse assistée D2F avec validation humaine",
+      "Espace client sécurisé pour réponses et preuves",
+      "Rapport DGFiP en français",
+      "Connexion D2F Business Suite audit-clients:read",
+      "Préparation archivage SAE/LAE"
+    ],
+    regulatoryBaseline: REGULATORY_BASELINE,
+    auditPrograms: app.auditPrograms,
+    integrations: {
+      d2fBusinessSuite: {
+        requiredScope: D2F_BUSINESS_SUITE.requiredScope,
+        accept: D2F_BUSINESS_SUITE.accept,
+        configured: app.d2fBusinessSuite.configured
+      },
+      supabase: {
+        configured: Boolean(env.SUPABASE_URL && (env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_PUBLISHABLE_KEY || env.SUPABASE_ANON_KEY))
+      },
+      openai: {
+        model: env.OPENAI_MODEL || env.MODEL || "gpt-5",
+        configured: Boolean(env.OPENAI_API_KEY)
+      },
+      sae: {
+        provider: saeProvider(env),
+        enabled: archiveEnabled(env)
+      }
+    },
+    security: {
+      httpsRequired: true,
+      adminAuthentication: authEnabled(env),
+      secretsExposed: false,
+      browserStoresServiceKeys: false
+    },
+    endpoints: {
+      manifest: `${origin}/.well-known/d2f-marketplace-app.json`,
+      apiManifest: `${origin}/api/marketplace/app`,
+      health: `${origin}/api/health`,
+      launch: origin
+    }
   };
 }
 
@@ -1198,6 +1266,10 @@ async function handleApi(request, env) {
       sae_endpoint_configured: Boolean(env.SAE_ENDPOINT),
       baseline: REGULATORY_BASELINE
     });
+  }
+
+  if (path === "/api/marketplace/app") {
+    return json(await marketplaceManifest(env, url));
   }
 
   const session = await readSession(request, env);
@@ -1782,6 +1854,7 @@ export default {
       return Response.redirect(url.toString(), 301);
     }
     try {
+      if (url.pathname === "/.well-known/d2f-marketplace-app.json") return cors(json(await marketplaceManifest(env, url)));
       if (url.pathname.startsWith("/api/")) return cors(await handleApi(request, env));
       return env.ASSETS.fetch(request);
     } catch (e) {

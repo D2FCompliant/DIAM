@@ -98,6 +98,21 @@ le navigateur.
 
 `OPENAI_MODEL` peut être omis ; le Worker utilise alors `gpt-5`.
 
+## Publication marketplace D2F Compliant
+
+DIAM expose une fiche marketplace publique, versionnée et sans secret :
+
+```text
+https://diam.d2fcompliant.workers.dev/.well-known/d2f-marketplace-app.json
+https://diam.d2fcompliant.workers.dev/api/marketplace/app
+```
+
+D2F Business Suite peut indexer ce manifeste pour afficher DIAM dans le
+marketplace D2F Compliant. Le manifeste contient l'identité applicative, la
+version DIAM, les programmes d'audit disponibles, les capacités, les endpoints
+publics et l'état de configuration des intégrations, sans exposer de clé API,
+service role Supabase, OpenAI ou SAE.
+
 ## Raccordement SAE / LAE Stratow
 
 DIAM conserve Supabase comme base opérationnelle, mais les éléments probants
