@@ -122,9 +122,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.0.2");
-  assert.match(app, /version: "1\.0\.2"/);
-  assert.match(worker, /version: "1\.0\.2"/);
+  assert.equal(pkg.version, "1.0.3");
+  assert.match(app, /version: "1\.0\.3"/);
+  assert.match(worker, /version: "1\.0\.3"/);
   assert.match(html, /Préparer nouvel audit/);
   assert.match(html, /Créer depuis fiche/);
   assert.match(html, /CDC \/ audit personnalisé/);
@@ -147,6 +147,7 @@ test("custom CDC missions are explicit and generate their own audit chain", asyn
   assert.match(app, /custom_controls_text: \$\("customControlsText"\)\.value/);
   assert.match(app, /Audit CDC\/personnalisé : renseigne au moins un contrôle à générer/);
   assert.match(app, /state\.missionId = out\.mission\.id/);
+  assert.match(app, /reused_existing/);
   assert.match(worker, /function controlsFromMissionDefinition/);
   assert.match(worker, /reference: `CDC-\$\{String\(index \+ 1\)\.padStart\(2, "0"\)\}`/);
   assert.match(worker, /Audit personnalisé : ajoute au moins un contrôle/);
@@ -161,6 +162,20 @@ test("server reuses the client before creating another mission", async () => {
   assert.match(worker, /wantedVat && wantedVat === normalizeKey\(scope\.client_vat_id\)/);
   assert.match(worker, /wantedName && wantedName === normalizeKey\(client\.name\)/);
   assert.match(worker, /const previous = allPrevious\.filter/);
+});
+
+test("portfolio exposes delete per mission and server avoids open mission duplicates", async () => {
+  const fs = await import("node:fs/promises");
+  const [app, worker] = await Promise.all([
+    fs.readFile(new URL("../public/app.js", import.meta.url), "utf8"),
+    fs.readFile(new URL("../worker/index.mjs", import.meta.url), "utf8")
+  ]);
+  assert.match(app, /data-delete-mission="\$\{m\.id\}"/);
+  assert.match(app, /async function deleteMissionById/);
+  assert.match(app, /button\.dataset\.deleteMission/);
+  assert.match(worker, /async function findReusableOpenMission/);
+  assert.match(worker, /reused_existing: true/);
+  assert.match(worker, /Mission ouverte existante réutilisée/);
 });
 
 test("Business Suite import is country-aware and persists the active mission", async () => {

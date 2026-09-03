@@ -5,12 +5,12 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.0.2",
-  release: "Correctif programmes d’audit",
+  version: "1.0.3",
+  release: "Correctif doublons et suppression",
   schemaVersion: "202609020010_global_reference_documents",
   channel: "main",
   releasedAt: "2026-09-03",
-  lastChange: "Correctif production : création verrouillée sur le programme d’audit choisi, client dédupliqué et chaîne personnalisée CDC générée depuis la fiche"
+  lastChange: "Correctif production : bouton supprimer par mission et anti-doublon sur mission ouverte du même client/programme"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -258,6 +258,26 @@ function controlsFromMissionDefinition(program, body) {
     verification_method: "Contrôle à préciser par l’auditeur selon le CDC, le référentiel attaché et les preuves collectées.",
     expected_evidence: "Référentiel/CDC applicable ; preuve client ; constat auditeur ; justification ; élément probant horodaté"
   }));
+}
+
+function missionProgramId(mission = {}) {
+  const scope = mission.client_scope || mission.scope || {};
+  if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return scope.audit_program;
+  return programFromReferential(mission.referential_version).id;
+}
+
+async function countMissionQuestions(db, tenantId, missionId) {
+  const questions = await db.select("diam_questions", `?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&select=id`);
+  return questions.length;
+}
+
+async function findReusableOpenMission(db, tenantId, clientId, programId) {
+  const missions = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&client_id=eq.${clientId}&order=created_at.desc`);
+  for (const mission of missions) {
+    if (["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(mission.status || "").toUpperCase())) continue;
+    if (missionProgramId(mission) === programId) return mission;
+  }
+  return null;
 }
 
 function json(data, status = 200, extraHeaders = {}) {
@@ -1147,6 +1167,17 @@ async function handleApi(request, env) {
     const controls = controlsFromMissionDefinition(program, body);
     if (program.id === "CUSTOM_CDC" && !controls.length) return json({ error: "Audit personnalisé : ajoute au moins un contrôle à générer dans la fiche mission." }, 400);
     const client = await findOrSaveClient(db, tenant.id, body, program);
+    const reusableMission = await findReusableOpenMission(db, tenant.id, client.id, program.id);
+    if (reusableMission) {
+      return json({
+        client,
+        mission: reusableMission,
+        seeded_controls: await countMissionQuestions(db, tenant.id, reusableMission.id),
+        audit_program: program,
+        reused_existing: true,
+        message: "Mission ouverte existante réutilisée pour éviter un doublon client/programme."
+      }, 200);
+    }
     const lifecycle = await determineAuditLifecycle(db, tenant.id, client.id, body);
     const mission = await db.insert("diam_missions", {
       tenant_id: tenant.id,

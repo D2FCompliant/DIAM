@@ -8,8 +8,8 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.0.2",
-  release: "Correctif programmes d’audit",
+  version: "1.0.3",
+  release: "Correctif doublons et suppression",
   schemaVersion: "202609020010_global_reference_documents",
   buildCommit: "mode local"
 };
@@ -645,10 +645,16 @@ function renderMissionList() {
       <td>${escapeHtml(m.title)}<br><span class="muted">${escapeHtml(m.client_name || "")}${m.client_country ? " · " + escapeHtml(m.client_country) : ""} · ${escapeHtml(auditProgramFromMission(m).shortLabel)} · ${escapeHtml(auditTypeLabel(m.audit_type))}</span></td>
       <td>${escapeHtml(m.status || "IN_PROGRESS")}</td>
       <td>${formatDate(m.created_at)}</td>
-      <td><button class="small" data-open-mission="${m.id}" type="button">Ouvrir</button></td>
+      <td>
+        <button class="small" data-open-mission="${m.id}" type="button">Ouvrir</button>
+        <button class="small danger" data-delete-mission="${m.id}" type="button">Supprimer</button>
+      </td>
     </tr>`).join("");
   for (const button of tbody.querySelectorAll("[data-open-mission]")) {
     button.onclick = () => run(() => openMission(button.dataset.openMission), "createStatus");
+  }
+  for (const button of tbody.querySelectorAll("[data-delete-mission]")) {
+    button.onclick = () => run(() => deleteMissionById(button.dataset.deleteMission), "createStatus");
   }
 }
 
@@ -713,7 +719,9 @@ async function createMission() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(missionProfilePayload())
   });
-  $("createStatus").textContent = `${out.mission.number} créée avec ${out.seeded_controls} contrôles ${out.audit_program?.shortLabel || auditProgram($("auditProgram").value).shortLabel}.`;
+  $("createStatus").textContent = out.reused_existing
+    ? `${out.mission.number} existait déjà pour ce client et ce programme : mission rouverte, aucun doublon créé.`
+    : `${out.mission.number} créée avec ${out.seeded_controls} contrôles ${out.audit_program?.shortLabel || auditProgram($("auditProgram").value).shortLabel}.`;
   state.missionId = out.mission.id;
   await loadMissions();
   state.missionId = out.mission.id;
@@ -748,12 +756,17 @@ function prepareDgfipAnalysis() {
 
 async function deleteMission() {
   requireMission();
+  await deleteMissionById(state.missionId);
+}
+
+async function deleteMissionById(missionId) {
+  if (!missionId) throw new Error("Choisis une mission à supprimer.");
   if (state.demo) return demoOnly("Suppression réelle indisponible en aperçu local.");
-  const mission = state.missions.find((m) => m.id === state.missionId);
+  const mission = state.missions.find((m) => m.id === missionId);
   const label = mission ? `${mission.number} - ${mission.title}` : "la mission sélectionnée";
   if (!confirm(`Supprimer définitivement ${label} et sa chaîne d'audit ?`)) return;
-  await api(`/api/missions/${state.missionId}`, { method: "DELETE" });
-  state.missionId = "";
+  await api(`/api/missions/${missionId}`, { method: "DELETE" });
+  if (state.missionId === missionId) state.missionId = "";
   state.selected = null;
   setStatus("Mission supprimée.", "success", "createStatus");
   await loadMissions();
