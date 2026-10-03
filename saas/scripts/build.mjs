@@ -6,6 +6,6 @@ const dist = resolve(root, "dist");
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
-await cp(resolve(root, "public"), dist, { recursive: true });
+await cp(resolve(root, "public"), dist, { recursive: true, filter: (source) => !source.split(/[\\/]/).at(-1).startsWith("._") });
 
 console.log("DIAM SaaS build OK:", dist);

@@ -174,3 +174,87 @@ npm test
 
 Sans Supabase configuré, le frontend se charge mais les appels API renvoient un
 message explicite de configuration manquante.
+
+## Version 1.5.0 — Rapport PA structuré et cycles de vie (2026-10-03)
+
+Le modèle PA reprend la présentation du rapport D2F Compliant fourni pour cette
+évolution : couverture, synthèse, périmètre, méthode, résultats par domaine,
+contradictoire, chapitre 6 consacré aux cycles de vie, intégrité, conclusion,
+annexes A (contrôles), B (bordereau SHA-256), C (tests détaillés).
+Les chiffres et constats proviennent de la mission ; aucune conclusion de
+l'exemple fourni n'est utilisée comme résultat réel. La typographie Aptos,
+le bleu #18324A et l'or #C7A15B reprennent sa présentation.
+
+### Conduire un nouvel audit PA
+
+1. Créer / ouvrir la mission et documenter le périmètre et les références.
+2. Déposer les pièces sources via le contrôle sélectionné : messages, payloads,
+   journaux, résultats de validation et rapprochements.
+3. Ouvrir **Cycles de vie**. Déclarer la version du référentiel, son localisateur,
+   le périmètre, les 14 statuts et les exclusions. Documenter les cas applicables
+   de la campagne de 53 tests : 14 statuts, 6 parcours, 13 tests négatifs,
+   13 axes transverses, 1 rapprochement d'encaissement et 6 motifs de rejet.
+4. Renseigner les observations réelles et sélectionner les pièces de la mission.
+   L'empreinte du payload est reprise de la pièce déposée, jamais saisie librement.
+5. Enregistrer la matrice. Chaque version est une preuve JSON immuable au sens
+   applicatif (aucun écrasement), liée à DGFiP-3.9 ; l'archivage probant dépend
+   toujours du connecteur SAE réellement configuré. L'export/import JSON permet
+   de préparer la campagne hors ligne ; l'import reste un brouillon à enregistrer.
+6. Générer le rapport. Les résultats, la matrice et le bordereau sont figés dans
+   `diam_reports.payload`. Relire le dernier rapport permet de retrouver ce
+   snapshot. Télécharger le HTML autonome ou imprimer/exporter en PDF.
+7. Effectuer la revue professionnelle et signer la version finale avant envoi.
+
+Un résultat PASS n'est retenu que si ses champs probatoires et ses rattachements
+sont complets. DIAM ne réalise pas les tests de la PA : il structure les travaux
+et vérifie la complétude du dossier. La pertinence et l'authenticité des pièces
+restent à apprécier par l'auditeur. Les statuts facultatifs déclarés implémentés
+ne peuvent pas être exclus par une simple mention « non applicable ». Les quatre
+capacités obligatoires doivent faire l'objet de scénarios adaptés, sans supposer
+que les quatre événements se produisent sur chaque facture.
+
+Un dossier incomplet, absent ou dont l'empreinte ne correspond plus au dépôt
+empêche de restituer DGFiP-3.9 comme conforme. La réponse précédemment enregistrée
+n'est pas effacée : `recorded_reponse_statut` la conserve dans la restitution.
+Les missions SC et libres sans DGFiP-3.9 gardent leur modèle antérieur.
+Les statuts et scénarios sont une grille de travail ; l'auditeur doit préciser
+l'édition applicable de XP Z12-012 et les règles de transition de son périmètre.
+Source de cadrage : https://www.impots.gouv.fr/specifications-externes-b2b
+
+### Stockage et traçabilité
+
+Aucune nouvelle table, migration ou système de tickets. Les routes
+`GET/POST /api/lifecycle` utilisent les autorisations tenant/mission existantes,
+`diam_evidences`, le bucket privé `diam-evidence`, `diam_audit_events` et le
+connecteur SAE existant. Les événements `LIFECYCLE_DOSSIER_SAVED` et
+`STRUCTURED_REPORT_GENERATED` conservent les références de version, empreinte,
+objet et acteur. La dernière matrice est relue et son SHA-256 vérifié ; le rapport
+ne prétend pas avoir relu tous les autres fichiers. Un contrôle optimiste sur la
+version chargée empêche l'enregistrement d'une version déjà périmée ; des dépôts
+strictement simultanés restent deux pièces distinctes, à réconcilier par l'auditeur.
+
+Le dépôt DIAM ne contient pas de module Support/ticket, ni d'API d'écriture dans
+le Support de Gestion : son intégration Gestion est la lecture des clients.
+Aucun ticket parallèle n'est créé. La demande est tracée par le commit, cette
+note de version et les événements d'audit DIAM ; le rattachement à un dossier
+Support Gestion demeure à faire via son mécanisme autorisé lorsqu'il est accessible.
+
+### Validation et exploitation
+
+Utiliser Node 22. Commandes : `npm ci`, `npm test`, `npm run build`, puis
+`npx wrangler deploy --dry-run --config wrangler.toml` depuis `saas/`.
+Le déploiement DIAM vise le Worker `diam` et
+https://diam.d2fcompliant.workers.dev ; ce service est distinct de D2F Gestion.
+Déployer le commit testé avec `--var DIAM_BUILD_COMMIT:<SHA complet>` pour exposer
+sa référence dans `/api/health`. Les variables existantes sont conservées par
+`keep_vars = true`. Aucune migration de base n'est requise.
+
+Avant cette évolution, DIAM servait la version 1.4.4, commit source
+`6c873e22e8897cb8dd36152842f2c5bc0d3fb7b7`, version Cloudflare active
+`daa7e915-095f-459b-b6f1-521069f4c193`. Le retour arrière Cloudflare vers cette
+version conserve les nouvelles pièces et les snapshots JSON ; l'ancienne UI
+ne les présente pas sous la nouvelle forme. Vérifier `/api/health` après rollback.
+
+Limite préexistante : `npm audit` signale quatre entrées high dans l'outillage de
+build (wrangler, miniflare, sharp, undici). Cette évolution ne change pas ces
+dépendances ; leur mise à niveau nécessite une validation distincte.

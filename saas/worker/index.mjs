@@ -1,3 +1,6 @@
+import { LIFECYCLE_FILE, normalizeLifecycle, assessLifecycle } from "../public/lifecycle.mjs";
+import { REPORT_TEMPLATE } from "../public/report-template.mjs";
+import { readLifecycle, sha256, applyLifecycleGate, applyEvidenceGates } from "./lifecycle-store.mjs";
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store"
@@ -5,13 +8,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.4.4",
-  release: "Restriction stricte des collaborateurs par mission",
+  version: "1.5.0",
+  release: "Rapport PA structuré et audit des cycles de vie",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
-  releasedAt: "2026-09-03",
+  releasedAt: "2026-10-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Seul le compte patron/admin Cloudflare a accès global ; tous les collaborateurs sont limités aux missions affectées"
+  lastChange: "Modèle D2F Compliant : rapport PA en huit chapitres, cycle de vie documenté, annexes de preuves et journalisation"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -1417,13 +1420,18 @@ async function auditChain(db, tenantId, missionId) {
     const f = findings.find((x) => x.question_id === q.id);
     const linked = f ? findingLinks.filter((l) => l.finding_id === f.id).map((l) => evidences.find((e) => e.id === l.evidence_id)).filter(Boolean) : [];
     const questionProofs = evidences.filter((e) => e.question_id === q.id);
-    const allProofs = [...questionProofs, ...linked].map((e) => `${e.number} - ${e.original_name}`).join(" | ");
+    const allProofs = [...new Map([...questionProofs, ...linked].map(e => [e.id, e])).values()].map((e) => `${e.number} - ${e.original_name}`).join(" | ");
     const relatedNc = f ? ncs.filter((n) => n.finding_id === f.id) : [];
     const relatedActions = actions.filter((act) => relatedNc.some((n) => n.id === act.non_conformity_id));
     return {
       question_id: q.id,
       reference: q.reference,
       question: q.title,
+      chapter: q.chapter,
+      source: q.source,
+      evidence_ids: [...new Set([...questionProofs, ...linked].map(e => e.id))],
+      recommandation: f?.recommendation || "",
+      commentaire_cloture: f?.closure_comment || "",
       attendu_dgfip: q.requirement,
       applicabilite_statut: applicability.status,
       applicabilite_raison: applicability.reason,
@@ -1674,7 +1682,12 @@ async function handleApi(request, env) {
     const missionId = url.searchParams.get("mission_id");
     await ensureMissionAccess(db, tenant.id, missionId, currentUser);
     const chain = await auditChain(db, tenant.id, missionId);
-    return json({ chain, result: opinion(chain) });
+    const question = chain.find(r => r.reference === "DGFiP-3.9");
+    if (!question) return json({ chain, result: opinion(chain) });
+    const evidences = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=uploaded_at.desc`);
+    const lifecycle = await readLifecycle(db, tenant.id, missionId, question.question_id, evidences);
+    const effectiveChain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidences);
+    return json({ chain: effectiveChain, result: opinion(effectiveChain), lifecycle: lifecycle.assessment });
   }
 
   if (path === "/api/client-link" && request.method === "GET") {
@@ -1752,8 +1765,11 @@ async function handleApi(request, env) {
     const findingId = form.get("finding_id") || null;
     if (!file || !missionId) return json({ error: "Fichier et mission obligatoires." }, 400);
     await ensureMissionAccess(db, tenant.id, missionId, currentUser);
-    if (questionId) await missionIdFromQuestion(db, tenant.id, questionId, currentUser);
-    if (findingId) await missionIdFromFinding(db, tenant.id, findingId, currentUser);
+    if (questionId && await missionIdFromQuestion(db, tenant.id, questionId, currentUser) !== missionId) return json({ error: "Contrôle extérieur à la mission." }, 400);
+    if (findingId) {
+      const finding = await missionIdFromFinding(db, tenant.id, findingId, currentUser);
+      if (await missionIdFromQuestion(db, tenant.id, finding.question_id, currentUser) !== missionId) return json({ error: "Constat extérieur à la mission." }, 400);
+    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
     const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${file.name}`;
@@ -2074,15 +2090,65 @@ async function handleApi(request, env) {
     return json({ reply, evidence }, 201);
   }
 
+  if (path === "/api/lifecycle" && ["GET", "POST"].includes(request.method)) {
+    const b = request.method === "POST" ? await readBody(request) : null;
+    const missionId = b?.mission_id || url.searchParams.get("mission_id");
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
+    const questions = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&reference=eq.DGFiP-3.9`);
+    const question = questions[0];
+    if (!question) return json({ error: "Cette mission ne comporte pas le contrôle DGFiP-3.9." }, 400);
+    const evidences = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=uploaded_at.desc`);
+    const current = await readLifecycle(db, tenant.id, missionId, question.id, evidences);
+    if (request.method === "GET") return json({ ...current, proofs: evidences.map(({id,number,original_name,sha256,mission_id}) => ({id,number,original_name,sha256,mission_id})) });
+    const dossier = normalizeLifecycle(b.dossier, missionId, evidences);
+    const bytes = new TextEncoder().encode(JSON.stringify(dossier, null, 2));
+    if (bytes.length > 1024 * 1024) return json({ error: "Matrice limitée à 1 Mo." }, 400);
+    const hash = await sha256(bytes);
+    if (hash === current.evidence?.sha256) return json({ ...current, unchanged: true });
+    if ((b.base_evidence_id || null) !== (current.evidence?.id || null)) return json({ error: "La matrice a été modifiée. Recharge-la avant d’enregistrer pour conserver les travaux de l’autre auditeur." }, 409);
+    const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${LIFECYCLE_FILE}`;
+    await db.upload(storagePath, bytes, "application/json");
+    const evidence = await db.insert("diam_evidences", {
+      tenant_id: tenant.id, mission_id: missionId, question_id: question.id,
+      number: `EVD-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      original_name: LIFECYCLE_FILE, storage_path: storagePath, mime_type: "application/json",
+      file_size: bytes.length, sha256: hash, uploaded_by: who
+    });
+    await db.insert("diam_audit_events", {
+      tenant_id: tenant.id, mission_id: missionId, actor: who, event_type: "LIFECYCLE_DOSSIER_SAVED",
+      object_type: "EVIDENCE", object_id: evidence.id,
+      details: { previous_evidence_id: current.evidence?.id || null, sha256: hash, template: REPORT_TEMPLATE, version: APP_RELEASE.version }
+    });
+    const archive = await archiveObject(db, env, tenant, { object_type: "EVIDENCE", object_id: evidence.id, mission_id: missionId, original_name: LIFECYCLE_FILE, mime_type: "application/json", file_size: bytes.length, sha256: hash, bytes });
+    return json({ dossier, assessment: assessLifecycle(dossier, evidences), evidence: { id:evidence.id, number:evidence.number, sha256:hash }, archive }, 201);
+  }
+
+  if (path === "/api/reports" && request.method === "GET") {
+    const missionId = url.searchParams.get("mission_id");
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
+    const reports = await db.select("diam_reports", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=generated_at.desc&limit=1`);
+    const report = reports[0];
+    return json(report ? { ...report.payload, report: { id: report.id, report_number: report.report_number, generated_at: report.generated_at, generated_by: report.generated_by } } : null);
+  }
+
   if (path === "/api/reports" && request.method === "POST") {
     const b = await readBody(request);
     await ensureMissionAccess(db, tenant.id, b.mission_id, currentUser);
-    const chain = await auditChain(db, tenant.id, b.mission_id);
-    const result = opinion(chain);
+    let chain = await auditChain(db, tenant.id, b.mission_id);
     const mission = (await db.select("diam_missions", `?id=eq.${b.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};
     const client = mission.client_id ? (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0] || {} : {};
     const clientReplies = await db.select("diam_client_replies", `?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=submitted_at.desc`);
-    const reportPayload = { baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain };
+    const evidenceRows = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=uploaded_at.desc`);
+    const lifecycleQuestion = chain.find(r => r.reference === "DGFiP-3.9");
+    const lifecycle = lifecycleQuestion ? await readLifecycle(db, tenant.id, b.mission_id, lifecycleQuestion.question_id, evidenceRows) : null;
+    if (lifecycle) chain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidenceRows);
+    const result = opinion(chain);
+    if (clientReplies.some(r => r.message_language !== "fr" && (!r.french_translation || !r.translation_validated))) {
+      result.opinion = "AUDIT INCOMPLET";
+      result.reason = "Au moins une réponse client nécessite une traduction française validée.";
+    }
+    const evidences = evidenceRows.map(({id,number,original_name,sha256,uploaded_at,uploaded_by,archive_status,archive_id}) => ({id,number,original_name,sha256,uploaded_at,uploaded_by,archive_status,archive_id}));
+    const reportPayload = { baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain, evidences, lifecycle, template: lifecycleQuestion ? REPORT_TEMPLATE : null, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
     const report = await db.insert("diam_reports", {
       tenant_id: tenant.id,
       mission_id: b.mission_id,
@@ -2104,7 +2170,8 @@ async function handleApi(request, env) {
       sha256: reportHash,
       payload: reportPayload
     });
-    return json({ report: { ...report, archive }, mission, client, client_replies: clientReplies, result, chain }, 201);
+    await db.insert("diam_audit_events", { tenant_id: tenant.id, mission_id: b.mission_id, actor: who, event_type: "STRUCTURED_REPORT_GENERATED", object_type: "REPORT", object_id: report.id, details: { template: reportPayload.template, sha256: reportHash, version: APP_RELEASE.version, build: reportPayload.release.buildCommit } });
+    return json({ ...reportPayload, report: { ...report, archive } }, 201);
   }
 
   return json({ error: "Not found" }, 404);

@@ -1,3 +1,6 @@
+import { structuredReportHtml, standaloneReport } from "./report-template.mjs";
+import { bindLifecycle, downloadFile } from "./lifecycle-ui.mjs";
+let lastReport = null;
 const $ = (id) => document.getElementById(id);
 let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], d2fImportedClientUpdatedAt: "", auditors: [], auditorAssignments: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "", authRole: "" };
 
@@ -8,10 +11,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.4.4",
-  release: "Restriction stricte des collaborateurs par mission",
+  version: "1.5.0",
+  release: "Rapport PA structuré et audit des cycles de vie",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.4.4",
+  buildCommit: "local-v1.5.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -218,6 +221,20 @@ function bindEvents() {
   $("closeFinding").onclick = () => run(updateFindingStatus);
   $("uploadEvidence").onclick = () => run(uploadEvidence);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
+  bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
+  $("loadLastReport").onclick = () => run(async () => {
+    requireMission();
+    const out = await api(`/api/reports?mission_id=${encodeURIComponent(state.missionId)}`);
+    if (!out) throw new Error("Aucun rapport enregistré pour cette mission.");
+    lastReport = out; $("report").innerHTML = reportHtml(out);
+  }, "createStatus");
+  $("downloadReport").onclick = () => run(async () => {
+    if (!lastReport || lastReport.mission?.id !== state.missionId) throw new Error("Génère ou relis le rapport de la mission active.");
+    if (!lastReport.template) throw new Error("Ce rapport historique utilise l’ancien modèle. Génère une nouvelle version pour utiliser le modèle D2F.");
+    const response = await fetch("./report.css");
+    if (!response.ok) throw new Error("La mise en page du rapport n’a pas pu être chargée.");
+    downloadFile(`${lastReport.report.report_number}.html`, standaloneReport(lastReport, await response.text()), "text/html;charset=utf-8");
+  }, "createStatus");
   $("uploadAuditDocument").onclick = () => run(uploadAuditDocument, "documentStatus");
   $("uploadAndAnalyzeDocument").onclick = () => run(uploadAndAnalyzeDocument, "documentStatus");
   $("analyzeAuditDocument").onclick = () => run(analyzeAuditDocument, "documentStatus");
@@ -1010,7 +1027,7 @@ function renderChain() {
       <td>${applicabilityBadge(r.applicabilite_statut)}<br><span class="muted smallText">${escapeHtml(r.applicabilite_raison || "")}</span></td>
       <td>${badge(r.qualification_base)}</td>
       <td>${badge(r.qualification_retenue)}</td>
-      <td>${escapeHtml(r.reponse_statut)}</td>
+      <td>${escapeHtml(r.reponse_statut)}${r.report_limitation ? `<br><small>${escapeHtml(r.report_limitation)}</small>` : ""}</td>
       <td>${escapeHtml(r.constat || "-")}<br>${escapeHtml(r.statut_constat || "")}</td>
       <td>${escapeHtml(r.preuves_associees || "Aucune preuve liée")}</td>
     </tr>`).join("");
@@ -1373,12 +1390,18 @@ async function generateReport() {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ mission_id: state.missionId })
   });
+  lastReport = out;
   $("reportCard").hidden = false;
   $("report").innerHTML = reportHtml(out);
   showTab("report");
 }
 
 function reportHtml(out) {
+  if (out.template?.id === "D2F-PA-STRUCTURED") return structuredReportHtml(out);
+  return legacyReportHtml(out);
+}
+
+function legacyReportHtml(out) {
   const scope = out.client?.scope || {};
   const identifier = countryIdentifier({ client_country: out.client?.country, client_siren: out.client?.siren }, scope);
   return `

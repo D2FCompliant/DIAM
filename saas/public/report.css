@@ -1,0 +1,30 @@
+.d2fReport { color:#222; background:#fff; font:9pt Aptos,Calibri,Arial,sans-serif; line-height:1.45; max-width:1100px; margin:auto; padding:32px; }
+.d2fReport h1 { font-size:26pt; line-height:1.15; color:#18324a; margin:40px 0 24px; }
+.d2fReport h2 { font-size:16pt; color:#18324a; border-bottom:2px solid #c7a15b; padding-bottom:8px; margin-top:24px; }
+.d2fReport h3 { font-size:11.5pt; color:#9b783b; margin-top:24px; }
+.d2fReport .reportBrand { color:#c7a15b; font-size:18pt; font-weight:bold; letter-spacing:2px; }
+.d2fReport .reportSubtitle { color:#18324a; font-weight:bold; }
+.d2fReport .reportCover { min-height:800px; }
+.d2fReport .reportOpinion,.d2fReport .reportNotice { border-left:4px solid #c7a15b; background:#f6f4ee; padding:14px; }
+.d2fReport table { width:100%; border-collapse:collapse; table-layout:fixed; margin:14px 0 24px; font-size:8pt; }
+.d2fReport th { color:#fff; background:#18324a; font-weight:bold; }
+.d2fReport td,.d2fReport th { border:1px solid #ccd3da; padding:7px; text-align:left; vertical-align:top; white-space:pre-wrap; overflow-wrap:anywhere; }
+.d2fReport tbody tr:nth-child(even) { background:#f3f5f7; }
+.d2fReport footer { border-top:1px solid #c7a15b; margin-top:30px; padding-top:12px; color:#18324a; }
+.lcFields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.lcFields textarea { min-height:66px; }
+#lc-proof-list { max-height:300px; overflow:auto; }
+@media print {
+  @page { size:A4 portrait; margin:15mm 12mm; }
+  html,body { display:block!important; height:auto!important; overflow:visible!important; background:white!important; }
+  body > header, .tabs,.topActions,.topbar,body > nav, .actionBar, #reportCard > h2, #reportCard > button, .reportTools, [data-panel]:not(#reportCard) { display:none!important; }
+  main.layout, #reportCard, #report { display:block!important; height:auto!important; max-height:none!important; overflow:visible!important; width:auto!important; padding:0!important; margin:0!important; border:0!important; }
+  .d2fReport { padding:0; max-width:none; }
+  .d2fReport .reportCover { min-height:0; break-after:page; }
+  .d2fReport .reportSection { break-before:page; }
+  .d2fReport h2,.d2fReport h3 { break-after:avoid; }
+  .d2fReport tr { break-inside:avoid; }
+  .d2fReport thead { display:table-header-group; }
+  .d2fReport th { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+}
+@media(max-width:700px){.lcFields{grid-template-columns:1fr}.d2fReport{padding:12px}}

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>DIAM SaaS - Audits PA et SC</title>
     <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./report.css" />
   </head>
   <body>
     <header class="topbar">
@@ -41,6 +42,7 @@
       <button class="tab" data-tab="mission_form" type="button">Fiche mission</button>
       <button class="tab" data-tab="admin" type="button">Admin référentiels</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
+      <button class="tab" data-tab="lifecycle" id="openLifecycle" type="button">Cycles de vie</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
       <button class="tab" data-tab="documents" type="button">Documents & IA</button>
       <button class="tab" data-tab="client" type="button">Espace client</button>
@@ -460,8 +462,17 @@
         </div>
       </section>
 
+      <section class="card wide" data-panel="lifecycle" hidden>
+        <h2>Cycles de vie — DGFiP-3.9</h2>
+        <p>Les observations et pièces doivent provenir des tests effectués. Les modèles vierges ne constituent pas des preuves de conformité.</p>
+        <div class="actions"><button id="saveLifecycle">Enregistrer une version de la matrice</button><button id="exportLifecycle">Exporter la matrice JSON</button></div>
+        <label>Importer une matrice de cette mission<input type="file" id="importLifecycle" accept=".json,application/json"></label>
+        <p class="status" id="lifecycleStatus"></p><div id="lifecycleEditor"></div>
+      </section>
+
       <section class="card wide" id="reportCard" data-panel="report" hidden>
-        <h2>Rapport DGFiP</h2>
+        <h2>Rapport DGFiP — modèle D2F Compliant</h2>
+        <div class="reportTools"><button id="openLifecycleReport">Préparer les cycles de vie</button><button id="loadLastReport">Relire le dernier rapport enregistré</button><button id="downloadReport">Télécharger le rapport HTML</button></div>
         <button onclick="window.print()">Imprimer / exporter PDF</button>
         <div id="report"></div>
       </section>
