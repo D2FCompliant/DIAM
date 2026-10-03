@@ -1,3 +1,4 @@
+import {blankCyber} from '../public/cyber.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {blankLifecycle,normalizeLifecycle,assessLifecycle,STATUSES,TESTS,LIFECYCLE_FILE} from '../public/lifecycle.mjs';
@@ -47,9 +48,9 @@ test('corrupt latest snapshot fails closed rather than falling back to old PASS'
  const d=await readLifecycle({downloadFromBucket:async()=>new Uint8Array([1,2])},'tenant','m1','q1',[e,proof]);assert.equal(d.assessment.status,'NOT_STARTED');assert.equal(d.dossier,null);assert.match(d.integrity,/ÉCHEC/);
 });
 test('snapshot read never follows a different tenant storage path',async()=>{let called=false;const e={...proof,original_name:LIFECYCLE_FILE,storage_path:'other/m1/matrix'};const d=await readLifecycle({downloadFromBucket:async()=>{called=true;}},'tenant','m1','q1',[e]);assert.equal(called,false);assert.equal(d.dossier,null);});
-test('PA report has ordered 8 chapters and three annexes, real counts and full hashes',()=>{
+test('PA report has ordered 9 chapters and four annexes, real counts and full hashes',()=>{
  const d=complete(), out={template:{id:'D2F-PA-STRUCTURED'},mission:{id:'m1',title:'Audit réel'},client:{name:'Client réel'},chain:[{reference:'DGFiP-3.9',reponse_statut:'COMPLIANT',evidence_ids:['p1']}],evidences:[proof],lifecycle:{dossier:d,assessment:assessLifecycle(d,[proof])},result:{opinion:'CONFORME'}};
- const html=structuredReportHtml(out);let at=-1;for(const title of ['1. Synthèse','2. Périmètre','3. Méthode','4. Résultats','5. Constats','6. Audit','7. Contrôle','8. Conclusion','Annexe A','Annexe B','Annexe C']){const next=html.indexOf(title);assert.ok(next>at,title);at=next;}
+ const html=structuredReportHtml(out);let at=-1;for(const title of ['1. Synthèse','2. Périmètre','3. Méthode','4. Résultats','5. Audit','6. Cybersécurité','7. Constats','8. Contrôle','9. Conclusion','Annexe A','Annexe B','Annexe C','Annexe D']){const next=html.indexOf(title);assert.ok(next>at,title);at=next;}
  assert.ok(html.includes(proof.sha256));assert.ok(html.includes('53/53'));assert.equal(reportSummary(out.chain).find(r=>r[0]==='Conforme')[1],1);
  assert.ok(standaloneReport(out).startsWith('<!doctype html>'));
 });
@@ -118,3 +119,47 @@ test('audit period validates real dates and roundtrips PostgreSQL exclusive end 
  assert.equal(auditPeriod('',''),null);
 });
 test('new matrices never presume a platform implements a status',()=>{assert.ok(blankLifecycle('m1').statuses.every(s=>s.implemented==='UNKNOWN'));});
+
+test('API Cyber snapshots are append-only, mission scoped, retry safe and detect stale edits',async()=>{
+ const originalFetch=globalThis.fetch, rows=[], events=[], objects=new Map();let allow=true;
+ globalThis.fetch=async(url,options={})=>{
+   const u=new URL(url), name=u.pathname.split('/').at(-1), body=options.body && typeof options.body==='string'?JSON.parse(options.body):null;
+   if(u.pathname.includes('/storage/')) {
+     const key=u.pathname.split('/diam-evidence/')[1];
+     if(options.method==='POST'){objects.set(key,options.body);return new Response('{}');}
+     return new Response(objects.get(key));
+   }
+   let data=[];
+   if(name==='diam_tenants') data=[{id:'tenant'}];
+   if(name==='diam_users') data=[{id:'auditor',role:'AUDITOR',status:'ACTIVE'}];
+   if(name==='diam_mission_auditors') data=allow?[{id:'assignment'}]:[];
+   if(name==='diam_missions') data=[{id:'m1'}];
+   if(name==='diam_questions') data=[{id:'q1',reference:'DGFiP-7.3',mission_id:'m1'}];
+   if(name==='diam_evidences') {
+     if(options.method==='POST'){const e={...body,id:`e${rows.length}`,uploaded_at:new Date().toISOString()};rows.unshift(e);data=[e];}
+     else if(options.method==='PATCH'){Object.assign(rows[0],body);data=[rows[0]];}
+     else data=rows;
+   }
+   if(name==='diam_audit_events'&&options.method==='POST'){events.push(body);data=[{id:'event',...body}];}
+   if(name==='diam_archive_events') data=[{id:'archive',...body}];
+   return new Response(JSON.stringify(data),{headers:{'content-type':'application/json'}});
+ };
+ const env={DIAM_ADMIN_EMAIL:'owner@example.invalid',DIAM_ADMIN_PASSWORD:'fixture-password',DIAM_SESSION_SECRET:'fixture-secret',SUPABASE_URL:'https://db.invalid',SUPABASE_SERVICE_ROLE_KEY:'fixture-only',SAE_ENABLED:'false'};
+ const payload=Buffer.from(JSON.stringify({email:'auditor@example.invalid',exp:Math.floor(Date.now()/1000)+300})).toString('base64url');
+ const cookie=`diam_session=${payload}.${createHmac('sha256',env.DIAM_SESSION_SECRET).update(payload).digest('hex')}`;
+ const call=(method,body)=>worker.fetch(new Request('https://diam.test/api/cyber?mission_id=m1',{method,headers:{cookie,'content-type':'application/json'},...(body?{body:JSON.stringify(body)}:{})}),env);
+ try {
+   allow=false;assert.equal((await call('GET')).status,403);assert.equal(rows.length,0);
+   allow=true;const first=await (await call('GET')).json();assert.equal(first.evidence,null);
+   const input={mission_id:'m1',base_evidence_id:null,dossier:blankCyber('m1')};
+   const savedResponse=await call('POST',input);assert.equal(savedResponse.status,201);const saved=await savedResponse.json();
+   assert.equal(rows.length,1);assert.equal(events.length,1);assert.equal(rows[0].question_id,'q1');assert.equal(rows[0].tenant_id,'tenant');
+   const reopened=await (await call('GET')).json();assert.equal(reopened.evidence.id,saved.evidence.id);assert.match(reopened.integrity,/vérifié/);
+   input.base_evidence_id=saved.evidence.id;
+   const retry=await (await call('POST',input)).json();assert.equal(retry.unchanged,true);assert.equal(rows.length,1);
+   input.dossier.tests[0].scope='Nouveau périmètre';assert.equal((await call('POST',input)).status,201);assert.equal(rows.length,2);
+   assert.equal((await call('POST',input)).status,200);assert.equal(rows.length,2);
+   input.dossier.tests[0].scope='Modification concurrente';assert.equal((await call('POST',input)).status,409);assert.equal(rows.length,2);
+   assert.equal(events.length,2);assert.equal(events[1].details.previous_evidence_id,saved.evidence.id);
+ } finally {globalThis.fetch=originalFetch;}
+});

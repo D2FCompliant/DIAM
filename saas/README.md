@@ -269,3 +269,47 @@ Les nouvelles matrices demandent une déclaration explicite de prise en charge
 pour les 14 statuts ; les messages de complétude emploient des libellés français.
 Validation de production 1.5.0 : matrice de démonstration EVD-2026-AA581E7D et
 rapport RAP-2026-739DEB46 ; aucun audit réel ni test de PA réalisé par ces essais.
+
+
+## 1.6.0 — 2026-10-03 : couverture Cyber et rapport PA
+
+Demande : aligner DIAM sur le dossier DIAM-DEMO-2026-001, rapport v1.4,
+avec neuf chapitres et la terminologie des matrices jointes.
+
+- Onglet Cybersécurité : 17 domaines repris littéralement de la matrice,
+  applicabilité justifiée, source vérifiée, périmètre, procédure, observation,
+  pièces, revue, action, responsable, échéance et contre-test.
+- Versions JSON conservées dans le stockage de preuves existant, SHA-256 relu,
+  accès par mission et protection contre les enregistrements obsolètes.
+- Les contrôles liés à un domaine insuffisamment démontré sont non évalués
+  dans la chaîne et le rapport sans écraser la réponse historique.
+- Bouton d’ouverture des écarts des deux matrices : regroupement par contrôle
+  dans les constats existants. Numéros et anciennes décisions conservés ;
+  état précédent journalisé avant modification. Les écarts ne sont jamais
+  clôturés automatiquement. Une relance sur les mêmes versions est sans doublon.
+- Rapport : cycles de vie chapitre 5, Cyber chapitre 6, contradictoire chapitre 7,
+  intégrité chapitre 8, conclusion chapitre 9. Annexe C Cyber et annexe D tests.
+- Le certificat ISO/IEC 27001 ne remplace pas les preuves opérationnelles.
+  Références du modèle à vérifier pour chaque mission ; aucune obligation nouvelle
+  n’est réputée vérifiée par la simple reprise de la matrice.
+
+Validation : tests métier et API (autorisation, snapshots, idempotence,
+constats historiques, exclusions et preuves), build Node 22 et Worker dry-run.
+Aucune migration de base. Tables diam_evidences, diam_findings et
+ diam_audit_events réutilisées. L’intégration Gestion disponible est en lecture
+(audit-clients:read), pas une API Support : aucun ticket Support Gestion créé.
+La trace des modifications de mission figure dans diam_audit_events.
+
+Limites : la revue professionnelle et les tests opérationnels restent nécessaires.
+Le stockage de fichiers et leur hash ne constituent pas une qualification SAE.
+La protection de version est optimiste ; deux écritures strictement simultanées
+peuvent encore créer deux versions, toutes deux conservées. Une réconciliation
+interrompue conserve ses événements et les constats déjà traités ; relancer pour
+les autres. Aucune donnée client ni ancien rapport n’est supprimé.
+
+Déploiement : Node 22, npm test, npm run build, Wrangler depuis saas ; vérifier
+le commit servi sur https://diam.d2fcompliant.workers.dev/api/health.
+Le déploiement Git automatique peut entrer en concurrence avec Wrangler :
+attendre sa fin puis publier le même commit testé avec DIAM_BUILD_COMMIT.
+Rollback connu : version 1.5.1, commit 431b301661adf583662d630e86bf73959c8c15bc,
+Cloudflare 5587de4b-efc7-4d30-894a-87219b9487f9 ; aucune migration à inverser.

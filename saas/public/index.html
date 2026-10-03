@@ -43,6 +43,7 @@
       <button class="tab" data-tab="admin" type="button">Admin référentiels</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
       <button class="tab" data-tab="lifecycle" id="openLifecycle" type="button">Cycles de vie</button>
+      <button class="tab" data-tab="cyber" id="openCyber" type="button">Cybersécurité</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
       <button class="tab" data-tab="documents" type="button">Documents & IA</button>
       <button class="tab" data-tab="client" type="button">Espace client</button>
@@ -472,6 +473,13 @@
         <p class="status" id="lifecycleStatus"></p><div id="lifecycleEditor"></div>
       </section>
 
+      <section class="card wide" data-panel="cyber" hidden>
+        <h2>Cybersécurité : effectivité opérationnelle, résilience et preuves post-production</h2>
+        <p>Les 17 domaines de la matrice du rapport D2F Compliant. Une certification ISO/IEC 27001 ne remplace pas la preuve de l’effectivité opérationnelle. Documenter les exclusions et vérifier les références applicables.</p>
+        <div class="actions"><button id="saveCyber">Enregistrer la matrice Cyber</button><button id="exportCyber">Exporter la matrice Cyber</button><button id="openMatrixFindings">Ouvrir les écarts des matrices cycles de vie et Cyber</button></div>
+        <label>Importer une matrice de cette mission<input id="importCyber" type="file" accept=".json,application/json"></label>
+        <p id="cyberStatus" class="status"></p><div id="cyberEditor"></div>
+      </section>
       <section class="card wide" id="reportCard" data-panel="report" hidden>
         <h2>Rapport DGFiP — modèle D2F Compliant</h2>
         <div class="reportTools"><button id="openLifecycleReport">Préparer les cycles de vie</button><button id="loadLastReport">Relire le dernier rapport enregistré</button><button id="downloadReport">Télécharger le rapport HTML</button></div>

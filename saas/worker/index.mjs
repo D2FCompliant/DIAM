@@ -1,7 +1,10 @@
+import {reconcileMatrixFindings} from './matrix-findings.mjs';
+import {CYBER_FILE,blankCyber,normalizeCyber,assessCyber} from '../public/cyber.mjs';
+const cyberConfig={file:CYBER_FILE,blank:blankCyber,normalize:normalizeCyber,assess:assessCyber};
 import { auditPeriod } from "../public/audit-period.mjs";
 import { LIFECYCLE_FILE, normalizeLifecycle, assessLifecycle } from "../public/lifecycle.mjs";
 import { REPORT_TEMPLATE } from "../public/report-template.mjs";
-import { readLifecycle, sha256, applyLifecycleGate, applyEvidenceGates } from "./lifecycle-store.mjs";
+import { readLifecycle, sha256, applyLifecycleGate, applyEvidenceGates, applyCyberGate } from "./lifecycle-store.mjs";
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store"
@@ -9,13 +12,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.5.1",
-  release: "Rapport PA structuré et audit des cycles de vie",
+  version: "1.6.0",
+  release: "Rapport PA, cycles de vie et cybersécurité",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-10-03",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Modèle D2F Compliant : rapport PA en huit chapitres, cycle de vie documenté, annexes de preuves et journalisation"
+  lastChange: "Modèle D2F Compliant : rapport PA en neuf chapitres, cycle de vie documenté, annexes de preuves et journalisation"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -1691,7 +1694,10 @@ async function handleApi(request, env) {
     if (!question) return json({ chain, result: opinion(chain) });
     const evidences = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=uploaded_at.desc`);
     const lifecycle = await readLifecycle(db, tenant.id, missionId, question.question_id, evidences);
-    const effectiveChain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidences);
+    const cy=chain.find(r=>r.reference==='DGFiP-7.3');
+    const cyber=cy?await readLifecycle(db,tenant.id,missionId,cy.question_id,evidences,cyberConfig):null;
+    const baseChain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidences);
+    const effectiveChain = cyber ? applyCyberGate(baseChain,cyber) : baseChain;
     return json({ chain: effectiveChain, result: opinion(effectiveChain), lifecycle: lifecycle.assessment });
   }
 
@@ -1723,16 +1729,17 @@ async function handleApi(request, env) {
     const b = await readBody(request);
     await missionIdFromQuestion(db, tenant.id, b.question_id, currentUser);
     const q = (await db.select("diam_questions", `?id=eq.${b.question_id}&tenant_id=eq.${tenant.id}`))[0];
+    const previous = (await db.select("diam_findings", `?tenant_id=eq.${tenant.id}&question_id=eq.${b.question_id}`))[0];
     const finding = await db.upsert("diam_findings", {
       tenant_id: tenant.id,
       question_id: b.question_id,
-      number: `CST-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+      number: previous?.number || `CST-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       summary: b.summary || "Constat à compléter",
       base_qualification: q.base_qualification,
       retained_qualification: b.retained_qualification || q.base_qualification,
       recommendation: b.recommendation || "",
       status: b.status || "OPEN",
-      created_by: who
+      created_by: previous?.created_by || who
     }, "question_id");
     return json(finding, 201);
   }
@@ -2095,37 +2102,52 @@ async function handleApi(request, env) {
     return json({ reply, evidence }, 201);
   }
 
-  if (path === "/api/lifecycle" && ["GET", "POST"].includes(request.method)) {
+  if (path === '/api/matrix-findings' && request.method === 'POST') {
+    const b=await readBody(request);
+    await ensureMissionAccess(db,tenant.id,b.mission_id,currentUser);
+    const chain=await auditChain(db,tenant.id,b.mission_id);
+    const lc=chain.find(r=>r.reference==='DGFiP-3.9'),cy=chain.find(r=>r.reference==='DGFiP-7.3');
+    if(!lc||!cy) return json({error:'Les contrôles cycles de vie et Cyber sont requis.'},400);
+    const proofs=await db.select('diam_evidences',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=uploaded_at.desc`);
+    const lifecycle=await readLifecycle(db,tenant.id,b.mission_id,lc.question_id,proofs);
+    const cyber=await readLifecycle(db,tenant.id,b.mission_id,cy.question_id,proofs,cyberConfig);
+    const revision=await sha256(new TextEncoder().encode(JSON.stringify([lifecycle.evidence,cyber.evidence])));
+    return json(await reconcileMatrixFindings(db,{tenantId:tenant.id,missionId:b.mission_id,actor:who,chain,lifecycle,cyber,revision}));
+  }
+
+  if (["/api/lifecycle","/api/cyber"].includes(path) && ["GET", "POST"].includes(request.method)) {
+    const cyber = path === "/api/cyber";
+    const matrixFile = cyber ? CYBER_FILE : LIFECYCLE_FILE;
     const b = request.method === "POST" ? await readBody(request) : null;
     const missionId = b?.mission_id || url.searchParams.get("mission_id");
     await ensureMissionAccess(db, tenant.id, missionId, currentUser);
-    const questions = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&reference=eq.DGFiP-3.9`);
+    const questions = await db.select("diam_questions", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&reference=eq.${cyber ? "DGFiP-7.3" : "DGFiP-3.9"}`);
     const question = questions[0];
     if (!question) return json({ error: "Cette mission ne comporte pas le contrôle DGFiP-3.9." }, 400);
     const evidences = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=uploaded_at.desc`);
-    const current = await readLifecycle(db, tenant.id, missionId, question.id, evidences);
+    const current = await readLifecycle(db, tenant.id, missionId, question.id, evidences, cyber ? cyberConfig : undefined);
     if (request.method === "GET") return json({ ...current, proofs: evidences.map(({id,number,original_name,sha256,mission_id}) => ({id,number,original_name,sha256,mission_id})) });
-    const dossier = normalizeLifecycle(b.dossier, missionId, evidences);
+    const dossier = (cyber ? normalizeCyber : normalizeLifecycle)(b.dossier, missionId, evidences);
     const bytes = new TextEncoder().encode(JSON.stringify(dossier, null, 2));
     if (bytes.length > 1024 * 1024) return json({ error: "Matrice limitée à 1 Mo." }, 400);
     const hash = await sha256(bytes);
     if (hash === current.evidence?.sha256) return json({ ...current, unchanged: true });
     if ((b.base_evidence_id || null) !== (current.evidence?.id || null)) return json({ error: "La matrice a été modifiée. Recharge-la avant d’enregistrer pour conserver les travaux de l’autre auditeur." }, 409);
-    const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${LIFECYCLE_FILE}`;
+    const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${matrixFile}`;
     await db.upload(storagePath, bytes, "application/json");
     const evidence = await db.insert("diam_evidences", {
       tenant_id: tenant.id, mission_id: missionId, question_id: question.id,
       number: `EVD-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-      original_name: LIFECYCLE_FILE, storage_path: storagePath, mime_type: "application/json",
+      original_name: matrixFile, storage_path: storagePath, mime_type: "application/json",
       file_size: bytes.length, sha256: hash, uploaded_by: who
     });
     await db.insert("diam_audit_events", {
-      tenant_id: tenant.id, mission_id: missionId, actor: who, event_type: "LIFECYCLE_DOSSIER_SAVED",
+      tenant_id: tenant.id, mission_id: missionId, actor: who, event_type: cyber ? "CYBER_DOSSIER_SAVED" : "LIFECYCLE_DOSSIER_SAVED",
       object_type: "EVIDENCE", object_id: evidence.id,
       details: { previous_evidence_id: current.evidence?.id || null, sha256: hash, template: REPORT_TEMPLATE, version: APP_RELEASE.version }
     });
-    const archive = await archiveObject(db, env, tenant, { object_type: "EVIDENCE", object_id: evidence.id, mission_id: missionId, original_name: LIFECYCLE_FILE, mime_type: "application/json", file_size: bytes.length, sha256: hash, bytes });
-    return json({ dossier, assessment: assessLifecycle(dossier, evidences), evidence: { id:evidence.id, number:evidence.number, sha256:hash }, archive }, 201);
+    const archive = await archiveObject(db, env, tenant, { object_type: "EVIDENCE", object_id: evidence.id, mission_id: missionId, original_name: matrixFile, mime_type: "application/json", file_size: bytes.length, sha256: hash, bytes });
+    return json({ dossier, assessment: (cyber ? assessCyber : assessLifecycle)(dossier, evidences), evidence: { id:evidence.id, number:evidence.number, sha256:hash }, archive }, 201);
   }
 
   if (path === "/api/reports" && request.method === "GET") {
@@ -2147,14 +2169,18 @@ async function handleApi(request, env) {
     const lifecycleQuestion = chain.find(r => r.reference === "DGFiP-3.9");
     const lifecycle = lifecycleQuestion ? await readLifecycle(db, tenant.id, b.mission_id, lifecycleQuestion.question_id, evidenceRows) : null;
     if (lifecycle) chain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidenceRows);
+    const cyberQuestion = chain.find(r => r.reference === 'DGFiP-7.3');
+    const cyber = cyberQuestion ? await readLifecycle(db, tenant.id, b.mission_id, cyberQuestion.question_id, evidenceRows, cyberConfig) : null;
+    if(cyber) chain=applyCyberGate(chain,cyber);
     const result = opinion(chain);
+    if (cyber && cyber.assessment.status !== 'COMPLIANT') { if(result.opinion === 'CONFORME') result.opinion='AUDIT INCOMPLET'; result.reason += ' Cybersécurité : '+cyber.assessment.issues.join(' '); }
     if (lifecycleQuestion && !mission.audit_period) { result.opinion = "AUDIT INCOMPLET"; result.reason += " Période auditée à renseigner dans la fiche mission."; }
     if (clientReplies.some(r => r.message_language !== "fr" && (!r.french_translation || !r.translation_validated))) {
       result.opinion = "AUDIT INCOMPLET";
       result.reason = "Au moins une réponse client nécessite une traduction française validée.";
     }
     const evidences = evidenceRows.map(({id,number,original_name,sha256,uploaded_at,uploaded_by,archive_status,archive_id}) => ({id,number,original_name,sha256,uploaded_at,uploaded_by,archive_status,archive_id}));
-    const reportPayload = { baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain, evidences, lifecycle, template: lifecycleQuestion ? REPORT_TEMPLATE : null, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
+    const reportPayload = { baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : null, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
     const report = await db.insert("diam_reports", {
       tenant_id: tenant.id,
       mission_id: b.mission_id,

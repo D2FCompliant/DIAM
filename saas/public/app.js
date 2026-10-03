@@ -1,3 +1,4 @@
+import {bindCyber} from './cyber-ui.mjs';
 import { periodDates } from "./audit-period.mjs";
 import { structuredReportHtml, standaloneReport } from "./report-template.mjs";
 import { bindLifecycle, downloadFile } from "./lifecycle-ui.mjs";
@@ -12,10 +13,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.5.1",
-  release: "Rapport PA structuré et audit des cycles de vie",
+  version: "1.6.0",
+  release: "Rapport PA, cycles de vie et cybersécurité",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.5.1",
+  buildCommit: "local-v1.6.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -222,6 +223,7 @@ function bindEvents() {
   $("closeFinding").onclick = () => run(updateFindingStatus);
   $("uploadEvidence").onclick = () => run(uploadEvidence);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
+  bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   $("loadLastReport").onclick = () => run(async () => {
     requireMission();
