@@ -258,3 +258,14 @@ ne les présente pas sous la nouvelle forme. Vérifier `/api/health` après roll
 Limite préexistante : `npm audit` signale quatre entrées high dans l'outillage de
 build (wrangler, miniflare, sharp, undici). Cette évolution ne change pas ces
 dépendances ; leur mise à niveau nécessite une validation distincte.
+
+### Correctif 1.5.1 — période auditée et rédaction (2026-10-03)
+
+La fiche mission expose désormais les dates de début et de fin inclusive de la
+période auditée, dans le champ `audit_period` existant. Le rapport restitue les
+dates en clair, en tenant compte de la borne supérieure exclusive PostgreSQL.
+Les anciens clients qui omettent ces champs conservent la période existante.
+Les nouvelles matrices demandent une déclaration explicite de prise en charge
+pour les 14 statuts ; les messages de complétude emploient des libellés français.
+Validation de production 1.5.0 : matrice de démonstration EVD-2026-AA581E7D et
+rapport RAP-2026-739DEB46 ; aucun audit réel ni test de PA réalisé par ces essais.

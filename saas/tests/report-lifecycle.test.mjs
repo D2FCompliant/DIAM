@@ -108,3 +108,13 @@ test('PA evidence gate blocks unsupported compliance and unjustified exclusion',
  assert.ok(applyEvidenceGates(rows,[proof]).every(r=>r.reponse_statut==='NOT_STARTED'));
  rows[0].evidence_ids=['p1'];assert.equal(applyEvidenceGates(rows,[proof])[0].reponse_statut,'COMPLIANT');
 });
+
+test('audit period validates real dates and roundtrips PostgreSQL exclusive end dates',async()=>{
+ const {auditPeriod,periodDates,periodLabel}=await import('../public/audit-period.mjs');
+ assert.equal(auditPeriod('2026-09-01','2026-09-30'),'[2026-09-01,2026-09-30]');
+ assert.deepEqual(periodDates('[2026-09-01,2026-10-01)'),{start:'2026-09-01',end:'2026-09-30'});
+ assert.equal(periodLabel('[2026-09-01,2026-10-01)'),'2026-09-01 au 2026-09-30');
+ for(const dates of [['2026-02-30','2026-03-01'],['2026-10-03','2026-09-30'],['2026-09-01','']])assert.throws(()=>auditPeriod(...dates),/invalide/);
+ assert.equal(auditPeriod('',''),null);
+});
+test('new matrices never presume a platform implements a status',()=>{assert.ok(blankLifecycle('m1').statuses.every(s=>s.implemented==='UNKNOWN'));});

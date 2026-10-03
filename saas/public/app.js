@@ -1,3 +1,4 @@
+import { periodDates } from "./audit-period.mjs";
 import { structuredReportHtml, standaloneReport } from "./report-template.mjs";
 import { bindLifecycle, downloadFile } from "./lifecycle-ui.mjs";
 let lastReport = null;
@@ -11,10 +12,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.5.0",
+  version: "1.5.1",
   release: "Rapport PA structuré et audit des cycles de vie",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.5.0",
+  buildCommit: "local-v1.5.1",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -299,6 +300,8 @@ function resetMissionForm() {
   $("customReferentials").value = "";
   $("customControlsText").value = "";
   $("missionTitle").value = AUDIT_PROGRAMS.PA_DGFIP.defaultTitle;
+  $("auditPeriodStart").value = "";
+  $("auditPeriodEnd").value = "";
   $("clientCountry").value = "France";
   $("clientAddress").value = "";
   $("clientAddressLine2").value = "";
@@ -603,6 +606,9 @@ function fillMissionForm(mission) {
   $("vatId").value = scope.client_vat_id || "";
   $("auditProgram").value = auditProgramFromMission(mission).id;
   $("missionTitle").value = mission.title || "Audit de conformité PA";
+  const period = periodDates(mission.audit_period);
+  $("auditPeriodStart").value = period.start;
+  $("auditPeriodEnd").value = period.end;
   $("clientCountry").value = mission.client_country || "France";
   $("clientAddress").value = mission.client_address || "";
   $("clientAddressLine2").value = scope.client_address_line_2 || "";
@@ -683,6 +689,8 @@ function missionProfilePayload() {
     ...clientIdentityPayload(),
     audit_program: selectedAuditProgramId(),
     title: $("missionTitle").value,
+    audit_period_start: $("auditPeriodStart").value,
+    audit_period_end: $("auditPeriodEnd").value,
     client_language: $("clientLanguage").value,
     dgfip_application_status: $("dgfipApplicationStatus").value,
     d2f_business_suite_client_id: $("d2fSuiteClientId").value,

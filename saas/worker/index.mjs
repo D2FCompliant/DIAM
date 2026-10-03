@@ -1,3 +1,4 @@
+import { auditPeriod } from "../public/audit-period.mjs";
 import { LIFECYCLE_FILE, normalizeLifecycle, assessLifecycle } from "../public/lifecycle.mjs";
 import { REPORT_TEMPLATE } from "../public/report-template.mjs";
 import { readLifecycle, sha256, applyLifecycleGate, applyEvidenceGates } from "./lifecycle-store.mjs";
@@ -8,7 +9,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.5.0",
+  version: "1.5.1",
   release: "Rapport PA structuré et audit des cycles de vie",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
@@ -1548,6 +1549,7 @@ async function handleApi(request, env) {
   if (path === "/api/missions" && request.method === "POST") {
     requireAdminUser(currentUser);
     const body = await readBody(request);
+    const period = auditPeriod(body.audit_period_start, body.audit_period_end);
     const program = auditProgram(body.audit_program || "PA_DGFIP");
     const controls = controlsFromMissionDefinition(program, body);
     if (program.id === "CUSTOM_CDC" && !controls.length) return json({ error: "Audit personnalisé : ajoute au moins un contrôle à générer dans la fiche mission." }, 400);
@@ -1569,6 +1571,7 @@ async function handleApi(request, env) {
       client_id: client.id,
       number: `MIS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       title: body.title || program.defaultTitle,
+      audit_period: period,
       referential_version: program.referentialVersion,
       client_access_token: crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""),
       client_language: body.client_language || "fr",
@@ -1599,6 +1602,7 @@ async function handleApi(request, env) {
     if (!client) return json({ error: "Client rattaché à la mission introuvable." }, 404);
     const currentScope = client.scope || {};
     const program = auditProgram(body.audit_program || currentScope.audit_program || programFromReferential(mission.referential_version).id);
+    const periodUpdate = ("audit_period_start" in body || "audit_period_end" in body) ? { audit_period: auditPeriod(body.audit_period_start, body.audit_period_end) } : {};
     const nextScope = {
       ...currentScope,
       client_language: body.client_language || mission.client_language || currentScope.client_language || "fr",
@@ -1630,6 +1634,7 @@ async function handleApi(request, env) {
     });
     const updatedMission = await db.patch("diam_missions", `?id=eq.${mission.id}&tenant_id=eq.${tenant.id}`, {
       title: body.title || mission.title || program.defaultTitle,
+      ...periodUpdate,
       client_language: body.client_language || mission.client_language || "fr",
       referential_version: program.referentialVersion,
       lifecycle_notes: body.lifecycle_notes ?? mission.lifecycle_notes,
@@ -2143,6 +2148,7 @@ async function handleApi(request, env) {
     const lifecycle = lifecycleQuestion ? await readLifecycle(db, tenant.id, b.mission_id, lifecycleQuestion.question_id, evidenceRows) : null;
     if (lifecycle) chain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidenceRows);
     const result = opinion(chain);
+    if (lifecycleQuestion && !mission.audit_period) { result.opinion = "AUDIT INCOMPLET"; result.reason += " Période auditée à renseigner dans la fiche mission."; }
     if (clientReplies.some(r => r.message_language !== "fr" && (!r.french_translation || !r.translation_validated))) {
       result.opinion = "AUDIT INCOMPLET";
       result.reason = "Au moins une réponse client nécessite une traduction française validée.";

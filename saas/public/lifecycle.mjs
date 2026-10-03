@@ -45,7 +45,7 @@ export const TEST_FIELDS = {
 export function blankLifecycle(missionId='') {
   return {schema:LIFECYCLE_SCHEMA,mission_id:missionId,control:'DGFiP-3.9',mode:'REAL',
     reference_version:'',reference_locator:'',scope:'',reviewer:'',reviewed_at:'',
-    statuses:STATUSES.map(s=>({code:s.code,implemented:s.mandatory?'YES':'UNKNOWN',justification:''})),
+    statuses:STATUSES.map(s=>({code:s.code,implemented:'UNKNOWN',justification:''})),
     tests:TESTS.map(t=>({id:t.id,result:'NOT_STARTED',...Object.fromEntries(Object.keys(TEST_FIELDS).map(k=>[k,''])),evidence_ids:[],payload_evidence_id:''}))};
 }
 const text = v => { if(typeof v!=='string') return ''; if(v.length>12000) fail('Un champ dépasse la limite de 12 000 caractères.'); return v.trim(); };
@@ -78,7 +78,7 @@ export function assessLifecycle(dossier,evidences=[]) {
   if(!dossier) return {status:'NOT_STARTED',issues:['Dossier cycle de vie non constitué.'],tests:[],statuses:[],passed:0,total:TESTS.length};
   const proofs=new Map(evidences.filter(e=>e.mission_id===dossier.mission_id).map(e=>[e.id,e]));
   const issues=[];
-  for(const k of ['reference_version','reference_locator','scope','reviewer','reviewed_at']) if(!dossier[k]) issues.push(`À renseigner : ${k}.`);
+  for(const [k,label] of Object.entries({reference_version:'version du référentiel',reference_locator:'document et section de référence',scope:'périmètre audité',reviewer:'auditeur chargé de la revue',reviewed_at:'date de revue'})) if(!dossier[k]) issues.push(`À renseigner : ${label}.`);
   if(dossier.reviewed_at && !Number.isFinite(Date.parse(dossier.reviewed_at))) issues.push('Date de revue invalide.');
   if(dossier.mode!=='REAL') issues.push('Dossier de démonstration : aucune conclusion de conformité réelle.');
   const statuses=STATUSES.map(s=>{

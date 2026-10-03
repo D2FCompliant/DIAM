@@ -1,5 +1,6 @@
+import { periodLabel } from "./audit-period.mjs";
 import { DIMENSIONS, STATUSES } from './lifecycle.mjs';
-export const REPORT_TEMPLATE = {id:'D2F-PA-STRUCTURED',version:'1.0.0',language:'fr'};
+export const REPORT_TEMPLATE = {id:'D2F-PA-STRUCTURED',version:'1.0.1',language:'fr'};
 export const esc = v => String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels={COMPLIANT:'Conforme',PARTIALLY_COMPLIANT:'Partiellement conforme',NON_COMPLIANT:'Non conforme',NOT_STARTED:'Non évalué',NOT_APPLICABLE:'Non applicable',PASS:'Démontré',FAIL:'Échec'};
 export const resultLabel = v => labels[v]||v||'Non évalué';
@@ -21,6 +22,7 @@ export function reportSummary(chain=[]) {
 }
 export function structuredReportHtml(out) {
   const {mission={},client={},chain=[],client_replies:replies=[],evidences=[],lifecycle={},release={}}=out;
+  const template=out.template||REPORT_TEMPLATE;
   const scope=client.scope||{}, assessment=lifecycle.assessment||{status:'NOT_STARTED',issues:['Dossier non constitué.'],tests:[],statuses:[],passed:0,total:0};
   const dossier=lifecycle.dossier;
   const demo=dossier?.mode==='DEMO'||/DEMO|FICTI|APERÇU/i.test(`${mission.title||''} ${client.name||''}`);
@@ -34,8 +36,8 @@ export function structuredReportHtml(out) {
   <section class="reportCover"><p class="reportBrand">D2F COMPLIANT</p><h1>Rapport d’audit de conformité réglementaire</h1><p class="reportSubtitle">PLATEFORME AGRÉÉE — ${demo?'DÉMONSTRATION FICTIVE — NON OPPOSABLE':'DOSSIER D’AUDIT — À REVOIR ET SIGNER'}</p>
   ${table(['Identification','Dossier'],[
     ['Entité auditée',client.name||'Non renseignée'],['Référence mission',mission.number||mission.id],['Rapport',report.report_number||'Aperçu'],
-    ['Programme','PA / DGFiP'],['Période auditée',mission.audit_period||'Non renseignée'],['Référentiel retenu',mission.referential_version],
-    ['Modèle',`${REPORT_TEMPLATE.id} v${REPORT_TEMPLATE.version}`],['Généré le / par',`${report.generated_at||out.generated_at||'—'} / ${report.generated_by||out.generated_by||'—'}`],
+    ['Programme','PA / DGFiP'],['Période auditée',periodLabel(mission.audit_period)],['Référentiel retenu',mission.referential_version],
+    ['Modèle',`${template.id} v${template.version}`],['Généré le / par',`${report.generated_at||out.generated_at||'—'} / ${report.generated_by||out.generated_by||'—'}`],
     ['Version DIAM',`${release.version||'—'} · ${release.buildCommit||'—'}`]
   ])}<p class="reportNotice">${demo?'Les données de cette mission sont des exemples. Ce document ne certifie aucune plateforme réelle.':'Document généré à partir des enregistrements de la mission. La revue, le jugement professionnel et la signature de l’auditeur restent nécessaires avant transmission.'}</p></section>
   <section class="reportSection"><h2>1. Synthèse exécutive</h2><p class="reportOpinion">Opinion calculée : ${esc(out.result?.opinion||'AUDIT INCOMPLET')}</p>${p(out.result?.reason)}
@@ -74,7 +76,7 @@ export function structuredReportHtml(out) {
   <section class="reportSection reportAnnex"><h2>Annexe A — Matrice complète des contrôles</h2>${table(['Référence / intitulé','Critère / source','Niveau','Résultat','Constat','Pièces'],chain.map(r=>[`${r.reference} — ${r.question}`,`${r.attendu_dgfip}\n${r.source||''}`,r.qualification_retenue,`${resultLabel(r.reponse_statut)}${r.report_limitation?' — '+r.report_limitation:''}`,`${r.constat} ${r.synthese_constat}`,r.preuves_associees]))}</section>
   <section class="reportSection reportAnnex"><h2>Annexe B — Bordereau des pièces et empreintes</h2>${table(['Pièce / fichier','Contrôles','Déposé le / par','SHA-256 complet','Archivage'],evidences.map(e=>[`${e.number} — ${e.original_name}`,chain.filter(r=>r.evidence_ids?.includes(e.id)).map(r=>r.reference).join(', ')||'Pièce transverse non rattachée',`${e.uploaded_at||''} / ${e.uploaded_by||''}`,e.sha256,`${e.archive_status||'Non renseigné'} ${e.archive_id||''}`]))}</section>
   <section class="reportSection reportAnnex"><h2>Annexe C — Matrice des tests de cycle de vie</h2>${assessment.tests.map(t=>`<h3>${esc(t.id)} — ${esc(t.title)}</h3>${table(['Champ','Valeur'],[['Attendu',t.expected],['Résultat déclaré / retenu',`${resultLabel(t.result)} / ${resultLabel(t.effective)}`],['Observé',t.observed],['Situation / déclencheur',`${t.initial_state||''} / ${t.trigger||''}`],['Acteur',t.actor],['Facture / corrélation',`${t.invoice_id||''} / ${t.correlation_id||''}`],['Message / horodatage',`${t.message_id||''} / ${t.timestamp||''}`],['Transitions',`${t.previous_status||''} → ${t.next_status||''} ; ${t.transition_rule||''}`],['Réception / restitution SI',`${t.reception||''} / ${t.si_restitution||''}`],['Rejeu / hors ordre',`${t.replay||''} / ${t.out_of_order||''}`],['Journal',t.journal_reference],['Pièces sources',proofNames(t.evidence_ids)],['SHA-256 payload',t.payload_sha256],['Exclusion / manques',t.exclusion||t.justification||t.missing.join(' ; ')]])}`).join('')}</section>
-  <footer>D2F Compliant · Audit &amp; Compliance · ${esc(report.report_number||'Aperçu')} · modèle ${REPORT_TEMPLATE.version}</footer></article>`;
+  <footer>D2F Compliant · Audit &amp; Compliance · ${esc(report.report_number||'Aperçu')} · modèle ${template.version}</footer></article>`;
 }
 export function standaloneReport(out, css='') {
   return `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(out.report?.report_number||'Rapport DIAM')}</title><style>${css}</style><body>${structuredReportHtml(out)}</body></html>`;
