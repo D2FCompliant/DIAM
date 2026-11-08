@@ -414,3 +414,15 @@ CSP. Les jeux de contrôle navigateur sont fictifs, distincts des pièces INTESA
 Le contexte de mission et le périmètre client sont figés dans chaque préparation.
 Une préparation terminée peut être réactualisée explicitement ; l’ancienne version
 reste dans le journal. L’ouverture répétée ne relance pas automatiquement l’IA.
+
+## 1.7.1 — 2026-11-08 : protections des pages servies par Cloudflare
+
+La vérification en ligne de 1.7.0 a confirmé les API privées protégées (401),
+mais identifié que le routage statique par défaut contournait le Worker pour
+HTML/CSS/JavaScript. Les en-têtes CSP, HSTS et anti-iframe n’atteignaient donc
+pas l’interface. `assets.run_worker_first = true` dans les deux configurations
+applique maintenant le même traitement aux pages et aux API. Aucun changement
+métier ni migration. Régression vérifiée via le serveur local Wrangler et sur
+l’URL DIAM, en plus des tests Node. Origine : 842c1a799b2352657ece96b8ef128fb53ef899e5.
+
+Routage conforme à la [documentation Cloudflare](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/).
