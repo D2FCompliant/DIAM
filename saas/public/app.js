@@ -18,10 +18,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.7.2",
+  version: "1.7.3",
   release: "Conduite guidée et préparation du dossier d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.7.2",
+  buildCommit: "local-v1.7.3",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -232,6 +232,7 @@ function bindEvents() {
   bindReferenceLibrary({api,run,showTab});
   auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
   $("printReport").onclick=()=>window.print();
+  $("changeActiveMission").onclick=()=>run(()=>auditGuide.open(),"guideStatus");
   bindDossier({api,getMission:()=>state.missionId,run,showTab,openControl:item=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0)selectQuestion(index);}});
   bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
@@ -880,9 +881,13 @@ function renderClientFacts() {
   if (!box) return;
   const mission = state.missions.find((m) => m.id === state.missionId);
   if (!mission) {
+    $("activeMissionLabel").textContent = "Aucune mission ouverte";
+    $("changeActiveMission").textContent = "Choisir un audit";
     box.innerHTML = `<p class="muted">Ouvre une mission pour afficher la fiche client, le statut du dossier DGFiP et le périmètre déclaré.</p>`;
     return;
   }
+  $("activeMissionLabel").textContent = `${mission.number} · ${mission.client_name || mission.title}`;
+  $("changeActiveMission").innerHTML = 'Changer d’audit <span aria-hidden="true">↗</span>';
   const scope = mission.client_scope || {};
   const identifier = countryIdentifier(mission, scope);
   const program = auditProgramFromMission(mission);
@@ -1528,6 +1533,7 @@ function renderVersionStack(app = appRelease) {
 }
 function enterClientPortalMode() {
   document.body.classList.add("clientPortal");
+  $("missionContext").hidden = true;
   for (const tab of document.querySelectorAll("[data-tab]")) {
     tab.hidden = tab.dataset.tab !== "client";
   }

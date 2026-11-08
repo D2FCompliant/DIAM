@@ -439,3 +439,12 @@ n’est modifié par cette correction d’affichage. Pas de migration.
 Validation : scénario navigateur à deux missions reproduit en échec avant la
 correction, puis passant ; tests de non-régression versionnés dans
 `tests/mission-selection.test.mjs`.
+
+## 1.7.3 — 2026-11-08 : identité DIAM et bandeau utile
+
+Le bandeau utilise l’icône DIAM fournie par D2F, inchangée, et l’identité
+**D2F COMPLIANT DOO**. Il affiche la mission active et permet d’en changer.
+Les informations techniques sont déplacées dans « À propos » ; la déconnexion
+reste accessible. L’icône est également utilisée comme favicon. Pas de migration.
+Validation navigateur du démarrage complet, de l’image et d’un bandeau inférieur
+à 120 pixels sur ordinateur. Les termes et la structure du rapport sont inchangés.

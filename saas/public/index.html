@@ -3,25 +3,21 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>DIAM SaaS - Audits PA et SC</title>
+    <title>DIAM — D2F COMPLIANT DOO</title>
+    <link rel="icon" href="./images/diam-icon.png" type="image/png" />
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./report.css" />
   </head>
   <body class="guidedMode technologyTheme">
-    <header class="topbar">
+    <header class="topbar productHeader">
       <div class="brandBlock">
-        <div class="brandMark">D2F</div>
-        <div>
-          <p class="eyebrow">D2F Technology · Audit & conformité</p>
-          <h1>DIAM SaaS</h1>
-          <p class="tagline">Plateforme d’audit PA/SC — questionnaire, preuves, constats, analyse assistée D2F et rapports.</p>
-        </div>
+        <img class="diamProductIcon" src="./images/diam-icon.png" width="60" height="60" alt="DIAM" />
+        <div><p class="companySignature">D2F COMPLIANT DOO</p><h1>DIAM</h1><p class="productPurpose">Conduite d’audit · Preuves · Rapports</p></div>
       </div>
-      <div class="topPanel">
-        <div class="modePill" id="runtimeMode">Connexion API…</div>
-        <div class="baseline" id="baseline">Chargement du référentiel...</div>
-        <div class="versionStack" id="versionStack">Version DIAM : chargement...</div>
-        <button id="logoutButton" class="ghostButton" type="button" hidden>Déconnexion sécurisée</button>
+      <div class="missionContext" id="missionContext"><span>Mission active</span><strong id="activeMissionLabel">Aucune mission ouverte</strong><button id="changeActiveMission" class="contextLink" type="button">Choisir un audit <span aria-hidden="true">↗</span></button></div>
+      <div class="sessionActions">
+        <details class="technicalInfo"><summary>À propos</summary><div class="technicalPopover"><div class="modePill" id="runtimeMode">Connexion API…</div><div class="baseline" id="baseline">Chargement du référentiel...</div><div class="versionStack" id="versionStack">Version DIAM : chargement...</div></div></details>
+        <button id="logoutButton" class="ghostButton" type="button" hidden>Se déconnecter</button>
       </div>
     </header>
 
