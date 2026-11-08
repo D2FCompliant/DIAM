@@ -1,3 +1,5 @@
+import {referenceLibrary} from './reference-library.mjs';
+import {dossierJobs} from './dossier-jobs.mjs';
 import {reconcileMatrixFindings} from './matrix-findings.mjs';
 import {CYBER_FILE,blankCyber,normalizeCyber,assessCyber} from '../public/cyber.mjs';
 const cyberConfig={file:CYBER_FILE,blank:blankCyber,normalize:normalizeCyber,assess:assessCyber};
@@ -12,13 +14,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.6.0",
-  release: "Rapport PA, cycles de vie et cybersécurité",
+  version: "1.7.0",
+  release: "Conduite guidée, référentiels et préparation d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
-  releasedAt: "2026-10-03",
+  releasedAt: "2026-11-08",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Modèle D2F Compliant : rapport PA en neuf chapitres, cycle de vie documenté, annexes de preuves et journalisation"
+  lastChange: "Parcours guidé D2F Technology, bibliothèque PA/SC/ISO, préparation croisée et protection des accès"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -393,12 +395,22 @@ function html(data, status = 200) {
   return new Response(data, { status, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
 
+function securityHeaders(response) {
+  const headers = new Headers(response.headers);
+  headers.set("strict-transport-security", "max-age=31536000");
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("x-frame-options", "DENY");
+  headers.set("referrer-policy", "no-referrer");
+  headers.set("permissions-policy", "camera=(), microphone=(), geolocation=()");
+  headers.set("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+  return new Response(response.body, {status:response.status,headers});
+}
 function cors(response) {
   const headers = new Headers(response.headers);
   headers.set("access-control-allow-origin", "*");
   headers.set("access-control-allow-methods", "GET,POST,PATCH,DELETE,OPTIONS");
   headers.set("access-control-allow-headers", "content-type,authorization");
-  return new Response(response.body, { status: response.status, headers });
+  return securityHeaders(new Response(response.body, { status: response.status, headers }));
 }
 
 async function readBody(request) {
@@ -1317,21 +1329,7 @@ async function uploadOpenAIFile(env, file) {
 
 async function analyzeWithAI(env, file, controls, context = {}) {
   if (!env.OPENAI_API_KEY) {
-    return {
-      suggestions: [{
-        reference: "DOCUMENT_REVIEW",
-        requirement_source: "Configuration DIAM",
-        requirement_excerpt: "OPENAI_API_KEY requise pour l'analyse assistée.",
-        evidence_locator: `${file.name} / document entier`,
-        assessment_type: "MORE_INFO_REQUIRED",
-        potential_gap: "Analyse IA non exécutée : OPENAI_API_KEY n'est pas configurée dans le Worker.",
-        basis: "Le document a été déposé et haché, mais aucun modèle d'analyse n'est disponible.",
-        missing_evidence: "Configurer OPENAI_API_KEY puis relancer l'analyse documentaire.",
-        suggested_qualification: "MEDIUM",
-        recommendation: "Ne pas conclure sur ce document avant analyse humaine ou IA configurée.",
-        confidence: 0.2
-      }]
-    };
+    throw new HttpError("Analyse non exécutée : clé API absente côté DIAM.", 503);
   }
   const uploaded = await uploadOpenAIFile(env, file);
   const missionProgram = auditProgram(context?.mission?.client_scope?.audit_program || programFromReferential(context?.mission?.referential_version).id);
@@ -1812,6 +1810,23 @@ async function handleApi(request, env) {
     return json({ ...evidence, archive }, 201);
   }
 
+  const referenceResponse = await referenceLibrary({request,path,db,tenant,currentUser,who,requireAdminUser,json});
+  if (referenceResponse) return referenceResponse;
+  const dossierResponse = await dossierJobs({request,url,path,db,env,tenant,currentUser,who,ensureMissionAccess,json});
+  if (dossierResponse) return dossierResponse;
+  if (/^\/api\/documents\/[a-f0-9-]{36}\/content$/.test(path) && request.method === "GET") {
+    const missionId = url.searchParams.get("mission_id");
+    if (!/^[a-f0-9-]{36}$/i.test(missionId || "")) return json({error:"Mission invalide."},400);
+    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
+    const doc = (await db.select("diam_documents", `?id=eq.${path.split("/")[3]}&tenant_id=eq.${tenant.id}`))[0];
+    if (!doc || (doc.document_scope !== "GLOBAL" && doc.mission_id !== missionId)) return json({error:"Document non accessible dans cette mission."},404);
+    if (!doc.storage_path?.startsWith(`${tenant.id}/`)) return json({error:"Chemin documentaire invalide."},409);
+    const bytes = await db.downloadFromBucket("diam-documents",doc.storage_path);
+    if (await sha256(bytes) !== doc.sha256) return json({error:"Intégrité documentaire invalide."},409);
+    const pdf = /\.pdf$/i.test(doc.original_name);
+    return new Response(bytes,{headers:{"content-type":pdf?"application/pdf":"application/octet-stream","content-disposition":`${pdf?"inline":"attachment"}; filename*=UTF-8''${encodeURIComponent(doc.original_name)}`,"cache-control":"no-store","x-content-type-options":"nosniff"}});
+  }
+
   if (path === "/api/documents" && request.method === "GET") {
     const missionId = url.searchParams.get("mission_id");
     const includeGlobal = url.searchParams.get("include_global") === "true";
@@ -1889,7 +1904,9 @@ async function handleApi(request, env) {
     const analysisMissionId = form.get("mission_id") || document.mission_id;
     if (!analysisMissionId) return json({ error: "Ouvre une mission pour analyser ce document au regard d'un programme d'audit." }, 400);
     await ensureMissionAccess(db, tenant.id, analysisMissionId, currentUser);
+    if (document.document_scope !== "GLOBAL" && document.mission_id !== analysisMissionId) return json({error:"Document extérieur à la mission."},403);
     let file = form.get("file");
+    if (file && await sha256(await file.arrayBuffer()) !== document.sha256) return json({error:"Le fichier ne correspond pas au document enregistré."},400);
     if (!file) {
       const bytes = await db.downloadFromBucket("diam-documents", document.storage_path);
       file = new File([bytes], document.original_name || "document-audit", { type: document.mime_type || "application/octet-stream" });
@@ -2213,6 +2230,7 @@ export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
     const url = new URL(request.url);
+    if (!["localhost", "127.0.0.1"].includes(url.hostname)) env = {...env, DIAM_AUTH_DISABLED: "false"};
     if (url.protocol === "http:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
       url.protocol = "https:";
       return Response.redirect(url.toString(), 301);
@@ -2220,7 +2238,7 @@ export default {
     try {
       if (url.pathname === "/.well-known/d2f-marketplace-app.json") return cors(json(await marketplaceManifest(env, url)));
       if (url.pathname.startsWith("/api/")) return cors(await handleApi(request, env));
-      return env.ASSETS.fetch(request);
+      return securityHeaders(await env.ASSETS.fetch(request));
     } catch (e) {
       const clean = userFacingError(e);
       return cors(json({ error: clean.message || String(clean) }, clean.status || 500));

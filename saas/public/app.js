@@ -1,3 +1,7 @@
+import {bindReferenceLibrary} from './reference-library-ui.mjs';
+import {bindGuide} from './audit-guide.mjs';
+let auditGuide;
+import {bindDossier} from './dossier-ui.mjs';
 import {bindCyber} from './cyber-ui.mjs';
 import { periodDates } from "./audit-period.mjs";
 import { structuredReportHtml, standaloneReport } from "./report-template.mjs";
@@ -13,10 +17,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.6.0",
-  release: "Rapport PA, cycles de vie et cybersécurité",
+  version: "1.7.0",
+  release: "Conduite guidée et préparation du dossier d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.6.0",
+  buildCommit: "local-v1.7.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -129,7 +133,7 @@ function friendlyApiError(data, status) {
   if (/client_access_token/i.test(raw)) return "Impossible de créer la mission : la migration Supabase du token client manque. Applique 202609020010_global_reference_documents.sql puis réessaie.";
   if (/document_scope/i.test(raw)) return "Impossible de gérer les référentiels transverses : la migration Supabase 202609020010_global_reference_documents.sql n’est pas encore appliquée.";
   if (/duplicate key|23505|already exists/i.test(raw)) return "Ce document existe déjà. Sélectionne sa ligne dans le registre puis clique “Analyser le document sélectionné”.";
-  if (/OPENAI_API_KEY|OpenAI/i.test(raw)) return "Analyse assistée indisponible : clé OpenAI absente ou invalide côté Cloudflare.";
+  if (/OPENAI_API_KEY.*(?:absente|missing|not configured)|invalid_api_key/i.test(raw)) return "Analyse assistée indisponible : clé OpenAI absente ou invalide côté Cloudflare.";
   if (/storage|bucket|diam-documents/i.test(raw)) return "Dépôt impossible : vérifie que le bucket Supabase Storage `diam-documents` existe et que la clé service role est configurée côté Cloudflare.";
   if (/relation .* does not exist|42P01/i.test(raw)) return "Base Supabase incomplète : applique les migrations SQL DIAM dans l’ordre depuis le dossier saas/supabase/migrations.";
   return raw || `Erreur API ${status}`;
@@ -177,6 +181,7 @@ async function init() {
     } else {
       await loadMissions();
       if (boot.auth?.full_access) await loadAuditorAdmin();
+      await auditGuide.open();
     }
   } catch (e) {
     enableDemoMode(e);
@@ -223,6 +228,10 @@ function bindEvents() {
   $("closeFinding").onclick = () => run(updateFindingStatus);
   $("uploadEvidence").onclick = () => run(uploadEvidence);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
+  bindReferenceLibrary({api,run,showTab});
+  auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
+  $("printReport").onclick=()=>window.print();
+  bindDossier({api,getMission:()=>state.missionId,run,showTab,openControl:item=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0)selectQuestion(index);}});
   bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   $("loadLastReport").onclick = () => run(async () => {
@@ -910,7 +919,7 @@ async function openMission(id) {
   $("detail").hidden = true;
   await refreshAll();
   renderMissionList();
-  showTab("audit");
+  await auditGuide.open();
 }
 
 async function createMission() {
@@ -935,7 +944,7 @@ async function createMission() {
   state.missionId = out.mission.id;
   if ($("missionSelect")) $("missionSelect").value = state.missionId;
   await refreshAll();
-  showTab("audit");
+  await auditGuide.open();
 }
 
 async function updateMissionProfile() {

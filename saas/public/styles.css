@@ -640,3 +640,23 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 22px 0; }
     max-height: none;
   }
 }
+
+/* D2F Technology identity — audit controls and report terminology are unchanged. */
+body.technologyTheme{--ink:#102536;--muted:#617486;--line:#d4e0e8;--brand:#0869d8;--brand-2:#082f43;--gold:#087a61;--gold-soft:#e9f7f3;--bg:#f4f8fa;background:var(--bg);font-size:14px}
+.technologyTheme .topbar{background:#fff;color:var(--ink);border-bottom:1px solid var(--line);padding:18px 28px;box-shadow:none}
+.technologyTheme .topbar h1{font-size:25px}.technologyTheme .topbar .tagline,.technologyTheme .baseline{color:var(--muted)}
+.technologyTheme .eyebrow,.technologyTheme .versionStack{color:#0869d8}.technologyTheme .brandMark{background:#082f43;color:white}
+.technologyTheme .modePill{background:#eef7f5;color:#087a61;border-color:#c5e8df}.technologyTheme .ghostButton{color:#102536;border-color:#c5d4df;background:#fff}
+.technologyTheme button{border-radius:10px}.technologyTheme .tabs{background:#fff;padding:12px 28px;border-bottom:1px solid var(--line)}
+.technologyTheme .tab{border:0;box-shadow:none;background:transparent;color:var(--muted)}.technologyTheme .tab.active{background:#eaf3ff;color:#0869d8}
+.technologyTheme .card{box-shadow:0 8px 24px rgba(16,37,54,.04)}.technologyTheme .card::before{display:none}
+.guidedMode .tabs [data-tab]:not([data-tab="guide"]):not([data-tab="dashboard"]):not([data-tab="admin"]):not(.active){display:none}
+.guidedMode .actionBar{display:none}#toggleExpert{margin-left:auto;order:100}
+.auditGuide{padding:32px!important}.guideHero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:36px;align-items:center;padding:24px 12px 36px;background:radial-gradient(circle at 90% 0%,#dcf3f3,transparent 65%)}
+.guideHero h2{font-size:clamp(30px,3.5vw,56px);line-height:1.06;letter-spacing:-.045em;margin:14px 0 20px}.guideHero h2 span{color:#087a61}.guideHero p{max-width:680px;color:var(--muted);font-size:16px;line-height:1.6}
+.guideHero aside{border-radius:22px;background:#082f43;color:#fff;padding:28px}.guideHero aside strong{font-size:21px}.guideHero aside p{color:#c1d7e3;font-size:14px}.guideHero aside button{background:#fff;color:#082f43}
+.guideMissionPicker{display:flex;align-items:end;gap:12px;padding:24px 0;border-top:1px solid var(--line)}.guideMissionPicker label{flex:1;margin:0}.guideMissionPicker button{min-height:42px}
+#guideSteps{display:grid;gap:12px}.guideStep{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:20px;align-items:center;padding:24px;border:1px solid var(--line);border-radius:14px;background:#fff}.guideNumber{font-size:14px;font-weight:800;color:#0869d8;align-self:start;margin-top:4px}.guideStep h3{font-size:19px;margin:0 0 6px}.guideStep p{margin:4px 0;line-height:1.55}.guideStep .guideState{font-size:13px;color:#617486}.guideStep button{min-width:190px}
+.dossierDocument{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:16px;align-items:center;margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:10px}.dossierDocument label{display:flex;gap:12px;align-items:center;margin:0}.dossierDocument input[type=checkbox]{width:auto;flex:0 0 auto}.dossierDocument span{overflow-wrap:anywhere}
+@media(max-width:850px){.guideHero{grid-template-columns:1fr;gap:20px}.guideStep{grid-template-columns:28px 1fr;padding:18px;gap:12px}.guideStep button{grid-column:2;justify-self:start}.guideMissionPicker{flex-wrap:wrap}.guideMissionPicker label{flex-basis:100%}.dossierDocument{grid-template-columns:1fr}.auditGuide{padding:18px!important}.technologyTheme .topbar{padding:16px}}
+.referenceBadge{display:block;font-weight:400;color:#617486;margin-top:4px}.referenceAdministration{margin-bottom:24px}.referenceAdministration small{overflow-wrap:anywhere}.referenceAdministration table{table-layout:fixed}

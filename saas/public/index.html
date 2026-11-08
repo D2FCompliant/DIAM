@@ -7,12 +7,12 @@
     <link rel="stylesheet" href="./styles.css" />
     <link rel="stylesheet" href="./report.css" />
   </head>
-  <body>
+  <body class="guidedMode technologyTheme">
     <header class="topbar">
       <div class="brandBlock">
         <div class="brandMark">D2F</div>
         <div>
-          <p class="eyebrow">D2F Compliant · Audit & conformité</p>
+          <p class="eyebrow">D2F Technology · Audit & conformité</p>
           <h1>DIAM SaaS</h1>
           <p class="tagline">Plateforme d’audit PA/SC — questionnaire, preuves, constats, analyse assistée D2F et rapports.</p>
         </div>
@@ -38,13 +38,16 @@
     </section>
 
     <nav class="tabs" aria-label="Navigation DIAM">
+      <button class="tab" data-tab="guide" id="openGuide" type="button">Conduire mon audit</button>
+      <button id="toggleExpert" class="tab" type="button">Tous les écrans</button>
       <button class="tab active" data-tab="dashboard" type="button">Pilotage</button>
       <button class="tab" data-tab="mission_form" type="button">Fiche mission</button>
-      <button class="tab" data-tab="admin" type="button">Admin référentiels</button>
+      <button class="tab" data-tab="admin" id="openReferenceAdmin" type="button">Admin référentiels</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
       <button class="tab" data-tab="lifecycle" id="openLifecycle" type="button">Cycles de vie</button>
       <button class="tab" data-tab="cyber" id="openCyber" type="button">Cybersécurité</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
+      <button class="tab" data-tab="dossier" id="openDossier" type="button">Préparation d’audit</button>
       <button class="tab" data-tab="documents" type="button">Documents & IA</button>
       <button class="tab" data-tab="client" type="button">Espace client</button>
       <button class="tab" data-tab="report" type="button">Rapport DGFiP</button>
@@ -62,6 +65,13 @@
     </nav>
 
     <main class="layout">
+      <section class="card wide auditGuide" data-panel="guide" hidden>
+        <div class="guideHero"><div><p class="eyebrow dark">DIAM · Votre parcours d’audit</p><h2>Conduisez votre audit.<br><span>Une étape à la fois.</span></h2><p>Retrouvez les sources utiles, les actions à mener et les points restant à traiter. Les exigences conservent leur libellé ; les propositions de l’IA sont soumises à votre revue.</p></div><aside><strong>Votre mission</strong><p id="guideMissionName"></p><p>Exigence → source → contrôle → constat → réponse client → contre-test → rapport.</p><button id="refreshGuide" class="secondary" type="button">Actualiser l’avancement</button></aside></div>
+        <div class="guideMissionPicker"><label>Mission existante<select id="guideMissionSelect"></select></label><button id="guideOpenMission" type="button">Ouvrir cette mission</button><button id="guideNewMission" class="secondary" type="button">Créer une mission</button></div>
+        <p id="guideStatus" class="status" role="status"></p><div id="guideSteps"></div>
+        <p class="muted">L’avancement décrit les enregistrements de DIAM. Il ne remplace pas la revue de couverture du référentiel ni la validation de l’auditeur.</p>
+      </section>
+
       <section class="card wide dashboardHero" data-panel="dashboard">
         <div class="sectionHeader">
           <div>
@@ -156,10 +166,22 @@
             <h2>Référentiels et types d’audit</h2>
           </div>
         </div>
-        <p class="muted">PA et SC sont des programmes socle. Pour un audit SAE, CFN, GED, CDC, éditeur, interne ou tout autre référentiel, prépare ici un programme d’audit dédié puis crée la mission associée. Les guides, référentiels, textes, CR DGFiP/AIFE et notes D2F déposés en bibliothèque transverse sont applicables à toutes les missions.</p>
+        <p class="muted">PA et SC sont des programmes socle. Pour un audit ISO, SAE, CFN, GED, CDC ou autre, charge la source, identifie sa version puis prépare un programme dédié. Un référentiel disponible en bibliothèque ne devient pas automatiquement applicable à toutes les missions.</p>
+        <div class="integrationBox referenceAdministration">
+          <h3>1. Charger et identifier les référentiels</h3>
+          <p>Conserve le titre et la terminologie de la source. La validation ci-dessous est une décision de l’administrateur, pas une conclusion de l’IA.</p>
+          <label>Document existant<select id="referenceExisting"><option value="">Nouveau fichier à charger</option></select></label>
+          <div class="grid"><label>Fichier source<input type="file" id="referenceFile" accept=".pdf,.docx,.txt,.md,.xml,.json,.csv"></label>
+          <label>Programme<select id="reference-program"><option value="PA_DGFIP">PA / DGFiP</option><option value="SC_RLFC">SC / Solution Compatible</option><option value="CUSTOM_CDC">Autre / ISO / programme personnalisé</option></select></label>
+          <label>Titre exact<input id="reference-title" placeholder="Titre figurant sur le document"></label><label>Version / édition<input id="reference-edition" placeholder="Version et date indiquées par l’émetteur"></label>
+          <label>Origine officielle / émetteur<input id="reference-origin" placeholder="Organisme et lien ou référence de publication"></label><label>Périmètre d’utilisation<textarea id="reference-scope" placeholder="Type d’audit, activités et exclusions à vérifier"></textarea></label>
+          <label>État de la revue<select id="reference-state"><option value="DRAFT">À vérifier</option><option value="VALIDATED">Validé par l’administrateur</option><option value="RETIRED">Retiré pour les nouveaux audits</option></select></label></div>
+          <button id="saveReference" type="button">Enregistrer le référentiel</button><button id="reloadReferences" class="secondary" type="button">Actualiser la bibliothèque</button><p id="referenceStatus" class="status" role="status"></p><div id="referenceList" class="tableWrap"></div>
+          <p>Une nouvelle édition est un nouveau fichier. Les versions utilisées dans les audits précédents restent conservées.</p>
+        </div>
         <div class="twoCols">
           <div class="integrationBox">
-            <h3>Nouveau programme libre — SAE / CFN / GED / CDC / autre</h3>
+            <h3>Nouveau programme libre — ISO / SAE / CFN / GED / CDC / autre</h3>
             <label>Nom du type d’audit <input id="adminAuditTypeName" placeholder="Ex. Audit SAE Stratow, audit CFN, audit GED, audit conformité interne..." /></label>
             <label>Référentiels / sources à rattacher <textarea id="adminAuditReferentials" placeholder="Un référentiel ou document source par ligne : nom, version, date, origine."></textarea></label>
             <label>Contrôles initiaux à générer <textarea id="adminAuditControls" placeholder="Une ligne par contrôle : critère, objectif ou exigence à auditer."></textarea></label>
@@ -180,7 +202,7 @@
           </div>
           <div class="integrationBox adminLibraryHint">
             <h3>Bibliothèque transverse</h3>
-            <p>Les référentiels, guides, CR DGFiP/AIFE, notes D2F et textes de loi chargés ici deviennent des sources communes : ils peuvent recadrer toutes les missions existantes ou futures sans être enfermés dans un seul audit.</p>
+            <p>Les sources sont disponibles pour sélection dans les missions autorisées. Leur applicabilité doit être vérifiée pour chaque audit ; une nouvelle version ne réécrit pas les travaux historiques.</p>
             <div class="quickActions">
               <button id="adminOpenGlobalLibrary2" class="secondary" type="button">Ouvrir documents globaux</button>
               <button id="adminAddMissionDocs" class="secondary" type="button">Ajouter documents à la mission ouverte</button>
@@ -367,6 +389,22 @@
         </div>
       </section>
 
+      <section class="card wide" data-panel="dossier" hidden>
+        <h2>Préparation d’audit — dossier croisé</h2>
+        <p>Ouvre la mission existante, dépose ses pièces dans Documents &amp; IA, puis sélectionne les documents client et les référentiels à croiser. Pour un audit PA, prépare successivement le socle, les cycles de vie et la cybersécurité. Les référentiels doivent être identifiés et validés dans Administration.</p>
+        <p>Les fichiers sélectionnés sont transmis au service d’analyse configuré. Maximum 20 documents et 45 Mo par lot. Les propositions restent distinctes des réponses validées et du rapport DGFiP.</p>
+        <button id="reloadDossier" type="button">Actualiser les documents</button>
+        <div id="dossierDocuments"></div>
+        <label>Volet <select id="dossierPhase"><option value="CORE">Socle du programme d’audit</option><option value="LIFECYCLE">Cycles de vie</option><option value="CYBER">Cybersécurité</option></select></label>
+        <button id="startDossier" type="button">Préparer ce volet</button>
+        <button id="retryDossier" type="button" hidden>Relancer l’analyse échouée</button>
+        <p id="dossierStatus" role="status"></p>
+        <label>Historique <select id="dossierHistory"></select></label>
+        <button id="pollDossier" type="button">Actualiser le résultat</button>
+        <button id="exportDossier" type="button">Exporter le programme et ses sources</button>
+        <div id="dossierResults"></div>
+      </section>
+
       <section class="card wide" data-panel="documents" hidden>
         <div class="sectionHeader">
           <div>
@@ -483,7 +521,7 @@
       <section class="card wide" id="reportCard" data-panel="report" hidden>
         <h2>Rapport DGFiP — modèle D2F Compliant</h2>
         <div class="reportTools"><button id="openLifecycleReport">Préparer les cycles de vie</button><button id="loadLastReport">Relire le dernier rapport enregistré</button><button id="downloadReport">Télécharger le rapport HTML</button></div>
-        <button onclick="window.print()">Imprimer / exporter PDF</button>
+        <button id="printReport" type="button">Imprimer / exporter PDF</button>
         <div id="report"></div>
       </section>
     </main>

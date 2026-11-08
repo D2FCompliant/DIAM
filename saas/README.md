@@ -313,3 +313,104 @@ Le déploiement Git automatique peut entrer en concurrence avec Wrangler :
 attendre sa fin puis publier le même commit testé avec DIAM_BUILD_COMMIT.
 Rollback connu : version 1.5.1, commit 431b301661adf583662d630e86bf73959c8c15bc,
 Cloudflare 5587de4b-efc7-4d30-894a-87219b9487f9 ; aucune migration à inverser.
+
+## 1.7.0 — 2026-11-08 : préparation croisée du dossier
+
+Le nouvel onglet **Préparation d’audit** exploite les documents de la mission
+existante et les références transverses. Il croise les pièces en un programme
+opérationnel : déclarations localisées, clarifications, demandes de pièces,
+tests à conduire, propositions d’écarts et périmètre à valider. Chaque ligne
+renvoie aux pages des documents et au contrôle existant. Les termes des
+catalogues Cycles de vie et Cybersécurité sont conservés, ainsi que le rapport
+PA en neuf chapitres. Aucun résultat IA ne modifie automatiquement une réponse,
+un constat, une matrice, une preuve ou une opinion d’audit.
+
+### Utilisation sur une mission existante
+
+1. Ouvrir la mission du client ; ne pas dupliquer la mission exemple DGFiP.
+2. Déposer les pièces client dans **Documents & IA** avec un type de mission,
+   et les référentiels contrôlés comme documents transverses.
+3. Dans **Préparation d’audit**, sélectionner les documents et confirmer leur
+   rôle « Document client » ou « Référentiel / critère ».
+4. Préparer successivement le socle, les cycles de vie et la cybersécurité.
+   Les résultats s’actualisent toutes les 15 secondes tant que la mission reste active.
+   Après fermeture, reprendre le traitement depuis l’historique.
+5. Filtrer les actions, vérifier les extraits utiles, puis ouvrir le contrôle
+   concerné pour la revue contradictoire et l’enregistrement de l’auditeur.
+   Les exigences hors catalogue restent visibles dans une rubrique séparée.
+6. Exporter le programme JSON avec les identités et empreintes des documents.
+   Réaliser les tests et lier les preuves dans les écrans existants avant de
+   produire le rapport DGFiP. Le dossier exemple reste un modèle documentaire.
+
+### Exploitation et limites
+
+- Node **22** ; commandes : `npm ci`, `npm test`, `npm run build` dans `saas`.
+- API authentifiée : `POST /api/dossier-reviews`, `GET /api/dossier-reviews?mission_id=…`,
+  `GET /api/dossier-reviews/:id?mission_id=…`. `phase` = CORE / CYBER / LIFECYCLE ;
+  `documents` = liste `{id,role}`. Une analyse FAILED se relance explicitement
+  avec `retry_of` ; les clics répétés sur le même dossier réutilisent le résultat.
+- Maximum 20 fichiers / 45 Mio par lot, à traiter par domaines pour les gros
+  fonds. Ce n’est pas un moteur d’indexation exhaustive de 20 000 pages.
+  Une limite de contexte, de crédit, de lecture ou de couverture doit rester
+  explicite. Les références et pages proposées nécessitent une revue humaine.
+- Empreintes vérifiées avant transmission ; fichiers des autres missions exclus.
+  Lecteur documentaire authentifié, cloisonné, avec vérification SHA-256.
+- Traitement Responses en arrière-plan avec le modèle déjà configuré (gpt-5).
+  Résultats et manifeste conservés dans **diam_audit_events**, sans nouvelle table.
+  Les données suivent la politique API du compte configuré ; le mode background
+  nécessite le stockage de la réponse fournisseur et n’est pas compatible ZDR.
+  Copies de fichiers supprimées après sauvegarde du résultat ; expiration de
+  secours après 24 h. Les échecs de suppression sont journalisés séparément.
+  Une interruption pendant l’envoi initial peut laisser REQUESTED : investiguer
+  l’événement avant toute relance manuelle, sans déclarer l’analyse terminée.
+- Absence de clé API = erreur réelle ; aucune suggestion fictive de configuration.
+  Les erreurs de crédits restent lisibles. L’analyse unitaire vérifie désormais
+  que le fichier appartient à la mission et correspond à l’empreinte enregistrée.
+- Pas de migration. Traçabilité opérationnelle : événements DOSSIER_REVIEW_*.
+  Aucun module Support modifiable n’existe dans ce dépôt ; ne pas créer un système
+  parallèle. Référence de livraison : branche feature/diam-dossier-review et commit.
+- Production DIAM : https://diam.d2fcompliant.workers.dev ; ne pas confondre avec
+  D2F Gestion. Le déploiement conserve les variables d’environnement existantes.
+  Retour arrière applicatif : v1.6.0, commit ee0e3dc8d06aae47bd41590da9329fd997aae155 ;
+  les événements ajoutés restent compatibles et ne doivent pas être effacés.
+
+Contrats fournisseur vérifiés :
+[traitement en arrière-plan](https://developers.openai.com/api/docs/guides/background),
+[fichiers en entrée](https://developers.openai.com/api/docs/guides/file-inputs),
+[expiration des fichiers](https://developers.openai.com/api/reference/resources/files/methods/create).
+
+### Parcours guidé et administration des référentiels
+
+- Présentation alignée sur https://d2fcompliant.org/fr/ : fond clair, accents
+  bleu/vert, cartes numérotées et navigation guidée. « Tous les écrans » conserve
+  l’accès aux écrans métier existants. Les libellés du rapport ne changent pas.
+- « Conduire mon audit » ouvre une mission existante et présente les étapes de
+  cadrage, documents, préparation, contrôles, cycles de vie, Cyber, constats et
+  rapport. Les deux matrices PA ne sont affichées que pour le programme PA.
+  Les compteurs reflètent les enregistrements, jamais une certification déduite.
+- Administration : chargement direct des référentiels, titre exact, édition,
+  origine, périmètre, programme PA/SC/personnalisé (ISO notamment), état de revue.
+  Une nouvelle édition reste un nouveau document ; aucun historique n’est réécrit.
+- Les sources transverses ne sont pas automatiquement applicables à tous les
+  audits. La sélection reste explicite. Les référentiels doivent être VALIDATED
+  par un administrateur avant préparation croisée, avec empreinte identique.
+  L’IA propose des tests et ne peut ni valider une source ni modifier son libellé.
+- Les audits ISO utilisent le programme personnalisé existant : l’administrateur
+  renseigne les contrôles validés. Aucun catalogue ISO n’est inventé ou déclaré
+  exhaustif à partir du seul nom d’une norme.
+- API `/api/reference-library` : lecture authentifiée, écriture administrateur.
+  Revue conservée dans `diam_audit_events` (REFERENCE_LIBRARY_REVIEWED), sans
+  migration. La bibliothèque et l’historique affichent au plus les 1 000 derniers
+  événements de référence : une ancienne revue non chargée reste « À vérifier ».
+- Protection : cookies HttpOnly/Secure/SameSite=Strict existants, authentification
+  obligatoire hors localhost même si le drapeau de développement est activé,
+  HSTS, CSP same-origin, interdiction d’iframe et absence d’envoi de référent.
+  Les tests ne remplacent pas un audit de sécurité indépendant complet.
+
+Validation de cette livraison : Node 22.23.3, tests Node et compilation Worker ;
+contrôle navigateur isolé de la navigation, des sélections, des citations,
+des filtres, du changement de mission, de l’administration et du démarrage avec
+CSP. Les jeux de contrôle navigateur sont fictifs, distincts des pièces INTESA.
+Le contexte de mission et le périmètre client sont figés dans chaque préparation.
+Une préparation terminée peut être réactualisée explicitement ; l’ancienne version
+reste dans le journal. L’ouverture répétée ne relance pas automatiquement l’IA.
