@@ -1,3 +1,6 @@
+import {bindAuditPreparation} from './audit-preparation-ui.mjs';
+let auditPreparation;
+let dossierWorkspace;
 import {bindReferenceLibrary} from './reference-library-ui.mjs';
 import {bindGuide} from './audit-guide.mjs';
 let auditGuide;
@@ -18,10 +21,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.7.3",
-  release: "Conduite guidée et préparation du dossier d’audit",
+  version: "1.8.0",
+  release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.7.3",
+  buildCommit: "local-v1.8.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -178,6 +181,7 @@ async function init() {
     renderVersionStack(appRelease);
     if (state.clientPortal) {
       await loadClientFindings();
+      await auditPreparation.load();
       showTab("client", { scroll: false });
     } else {
       await loadMissions();
@@ -185,7 +189,7 @@ async function init() {
       await auditGuide.open();
     }
   } catch (e) {
-    enableDemoMode(e);
+    showInitializationFailure(e);
   }
 }
 
@@ -230,10 +234,11 @@ function bindEvents() {
   $("uploadEvidence").onclick = () => run(uploadEvidence);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
   bindReferenceLibrary({api,run,showTab});
+  auditPreparation=bindAuditPreparation({api,getMission:()=>state.missionId,getClient:()=>({portal:state.clientPortal,token:state.clientToken}),showTab,run});
   auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
   $("printReport").onclick=()=>window.print();
   $("changeActiveMission").onclick=()=>run(()=>auditGuide.open(),"guideStatus");
-  bindDossier({api,getMission:()=>state.missionId,run,showTab,openControl:item=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0)selectQuestion(index);}});
+  dossierWorkspace=bindDossier({api,getMission:()=>state.missionId,run,showTab,openControl:item=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0)selectQuestion(index);}});
   bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   $("loadLastReport").onclick = () => run(async () => {
@@ -480,7 +485,7 @@ async function importD2FClient() {
   });
   state.missionId = out.mission.id;
   await loadMissions();
-  setStatus("Client importé depuis Business Suite et mission DIAM mise à jour. La synchronisation est enregistrée dans la traçabilité.", "success", "d2fSyncStatus");
+  setStatus("Données importées dans DIAM. Aucune modification n’a été renvoyée à Gestion.", "success", "d2fSyncStatus");
 }
 
 function normalizedCountry(value) {
@@ -520,7 +525,7 @@ function countryIdentifier(mission = {}, scope = {}) {
 
 function normalizeD2FClient(raw = {}) {
   const name = raw.name || raw.clientName || raw.legalName || raw.raison_sociale || raw.identity?.name || "";
-  const id = raw.dossierSourceId || raw.dossier_source_id || raw.id || raw.clientId || raw.stableId || raw.d2fClientId || raw.identity?.id || "";
+  const id = raw.id || raw.clientId || raw.dossierSourceId || raw.dossier_source_id || raw.stableId || raw.d2fClientId || raw.identity?.id || "";
   const siren = raw.siren || raw.SIREN || raw.identity?.siren || "";
   const siret = raw.siret || raw.SIRET || raw.identity?.siret || "";
   const legalIdentifier = raw.legalIdentifier || raw.legal_identifier || raw.legalId || raw.identity?.legalIdentifier || siren || siret || "";
@@ -892,6 +897,7 @@ function renderClientFacts() {
   const identifier = countryIdentifier(mission, scope);
   const program = auditProgramFromMission(mission);
   box.innerHTML = `
+    <div class="actions"><button type="button" id="editActiveClient">Compléter la fiche client / mission</button><button type="button" id="openClientIntegration">Données D2F Gestion</button></div>
     <div class="factGrid">
       <div><span>Programme</span><strong>${escapeHtml(program.label)}</strong></div>
       <div><span>Référentiel</span><strong>${escapeHtml(mission.referential_version || "Non renseigné")}</strong></div>
@@ -915,6 +921,8 @@ function renderClientFacts() {
     </div>
     <p class="notice">${escapeHtml(mission.lifecycle_notes || `Après dépôt des documents de cadrage ${program.shortLabel}, des référentiels et des notes D2F/réunions récentes, l’analyse assistée met en évidence les preuves manquantes et les demandes complémentaires applicables au périmètre déclaré.`)}</p>
   `;
+  $("editActiveClient").addEventListener("click", () => { fillMissionForm(mission); showTab("mission_form"); $("clientName").focus(); });
+  $("openClientIntegration").addEventListener("click", () => { fillMissionForm(mission); showTab("mission_form"); $("d2fClientSearch").value = mission.client_name || ""; $("d2fClientSearch").focus(); $("d2fClientSearch").scrollIntoView({block:"center"}); });
 }
 
 async function openMission(id) {
@@ -1279,29 +1287,16 @@ async function analyzeDocumentById(documentId) {
 }
 
 async function uploadAndAnalyzeDocument() {
-  if (!state.missionId) throw new Error("Ouvre une mission avant l’analyse. Les référentiels/CR peuvent être déposés en bibliothèque transverse, mais l’analyse se fait toujours contre un programme d’audit.");
+  requireMission();
   const uploaded = await uploadAuditDocument({ silent: true });
-  let total = 0;
-  for (const doc of uploaded) {
-    const out = await analyzeDocumentById(doc.id);
-    total += out.suggestions?.length || 0;
-  }
-  setStatus(`${uploaded.length} document(s) déposé(s) puis analysé(s). ${total} proposition(s) générée(s) ou mise(s) à disposition pour revue auditeur.`, "success", "documentStatus");
-  await Promise.all([loadDocuments(), loadSuggestions()]);
-  showTab("documents", { preserveScroll: true });
+  await dossierWorkspace.open(uploaded.map(d=>d.id));
 }
 
 async function analyzeAuditDocument() {
   requireMission();
-  if (state.demo) return demoOnly("L’analyse IA réelle nécessite l’API Worker, Supabase et une clé OpenAI configurée.");
-  if ($("auditDocumentFile").files.length) {
-    throw new Error("Un nouveau fichier est choisi mais pas encore déposé. Clique “Déposer puis analyser”. Pour analyser un document déjà présent, sélectionne sa ligne dans le registre.");
-  }
-  if (!state.documentId) throw new Error("Sélectionne un document déjà présent dans le registre, ou choisis un fichier puis clique “Déposer puis analyser”.");
-  const out = await analyzeDocumentById(state.documentId);
-  setStatus(`${out.suggestions.length} proposition(s) d'écart générée(s). Validation auditeur requise.`, "success", "documentStatus");
-  await Promise.all([loadDocuments(), loadSuggestions()]);
-  showTab("documents", { preserveScroll: true });
+  if ($("auditDocumentFile").files.length) throw new Error("Dépose d’abord le nouveau fichier ou clique « Déposer puis analyser ».");
+  if (!state.documentId) throw new Error("Sélectionne un document dans le registre.");
+  await dossierWorkspace.open([state.documentId]);
 }
 
 async function loadSuggestions() {
@@ -1552,31 +1547,24 @@ async function run(fn, targetId = "actionStatus") {
     setStatus(e.message || String(e), "error", targetId);
   }
 }
-function enableDemoMode(error) {
-  state.demo = true;
-  state.missions = [{ id: "demo-mission", number: "APERÇU-LOCAL", title: "Audit PA — aperçu visuel" }];
-  state.missionId = "demo-mission";
-  state.chain = structuredClone(DEMO_CHAIN);
-  $("runtimeMode").textContent = "Aperçu local";
-  $("runtimeMode").className = "modePill warn";
-  $("baseline").textContent = `${DEMO_BASELINE.label} - sources vérifiées ${DEMO_BASELINE.checkedAt}`;
-  appRelease = { ...appRelease, buildCommit: "file-local", schema: { current: "hors API", ok: false } };
-  renderVersionStack(appRelease);
-  $("runtimeNotice").hidden = false;
-  $("runtimeNotice").textContent = `Tu consultes l’interface hors API (${location.protocol}). Les écrans sont interactifs pour validation visuelle, mais les données ne sont pas enregistrées. Pour tester le vrai SaaS : lancer le Worker Cloudflare avec Supabase configuré. Détail technique : ${error.message}`;
-  $("missionSelect").innerHTML = `<option value="demo-mission">APERÇU-LOCAL - Audit PA — aperçu visuel</option>`;
-  $("opinion").innerHTML = "<strong>APERÇU LOCAL</strong><br>Interface chargée sans base Supabase. Les contrôles ci-dessous servent à valider l’ergonomie.";
+function showInitializationFailure(error) {
+  state.demo = false;
+  state.missions = [];
+  state.missionId = null;
+  state.chain = [];
   state.documents = [];
   state.suggestions = [];
-  setMissionDependentEnabled(true);
-  renderDemo();
-}
-function renderDemo() {
+  state.clientFindings = [];
+  $("runtimeMode").textContent = "Chargement interrompu";
+  $("runtimeMode").className = "modePill warn";
+  $("runtimeNotice").hidden = false;
+  $("runtimeNotice").textContent = `Les données n’ont pas pu être chargées : ${error.message || String(error)}. Recharge la page pour réessayer. Aucune donnée de démonstration n’a été substituée.`;
+  $("missionSelect").replaceChildren();
+  $("activeMissionLabel").textContent = "Aucune mission chargée";
+  setMissionDependentEnabled(false);
   renderChain();
   renderDocuments();
-  state.suggestions = [{ id: "demo-suggestion", reference: "DGFiP-2.3", requirement_source: "DGFiP v1.3 §7.3 / PDP Integrity EX-19.7", requirement_excerpt: "Preuve opposable de chaque traitement.", evidence_document_name: "Exemple.pdf", evidence_sha256: "demo", evidence_locator: "page 12 / section journalisation", assessment_type: "INSUFFICIENT_EVIDENCE", suggested_qualification: "CRITICAL", potential_gap: "Exemple : preuve de restitution complète de la piste d’audit insuffisante.", missing_evidence: "Export horodaté et manifest d’intégrité.", confidence: 0.82, status: "DEMO" }];
   renderSuggestions();
-  state.clientFindings = state.chain.filter((row) => row.constat_id);
   renderClientFindings();
 }
 function demoOnly(message) {
@@ -1661,7 +1649,7 @@ function d2fSuiteLabel(scope = {}) {
   const clientId = scope.d2f_business_suite_client_id || "";
   const caseUrl = scope.d2f_business_suite_case_url || "";
   if (!clientId && !caseUrl) return "Non raccordé";
-  const status = scope.d2f_business_suite_sync_status === "SYNCED_API" ? "Synchronisé par API" : "Raccordé manuellement";
+  const status = scope.d2f_business_suite_sync_status === "SYNCED_API" ? "Import historique — synchronisation à vérifier" : "Lien enregistré — retour vers Gestion non confirmé";
   const syncedAt = scope.d2f_business_suite_synced_at ? `le ${formatDate(scope.d2f_business_suite_synced_at)}` : "";
   return [status, syncedAt, clientId, caseUrl].filter(Boolean).join(" · ");
 }

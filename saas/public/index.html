@@ -38,6 +38,7 @@
       <button id="toggleExpert" class="tab" type="button">Tous les écrans</button>
       <button class="tab active" data-tab="dashboard" type="button">Pilotage</button>
       <button class="tab" data-tab="mission_form" type="button">Fiche mission</button>
+      <button class="tab" data-tab="planning" id="openAuditPlanning" type="button">Lettre et plan d’audit</button>
       <button class="tab" data-tab="admin" id="openReferenceAdmin" type="button">Admin référentiels</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
       <button class="tab" data-tab="lifecycle" id="openLifecycle" type="button">Cycles de vie</button>
@@ -61,6 +62,7 @@
     </nav>
 
     <main class="layout">
+      <section class="card wide" data-panel="planning" hidden><h2>Lettre de mission et plan d’audit</h2><p>Prépare la mission, les séances et les participants. Le client confirme son organisation dans son espace.</p><div id="auditPlanning"></div></section>
       <section class="card wide auditGuide" data-panel="guide" hidden>
         <div class="guideHero"><div><p class="eyebrow dark">DIAM · Votre parcours d’audit</p><h2>Conduisez votre audit.<br><span>Une étape à la fois.</span></h2><p>Retrouvez les sources utiles, les actions à mener et les points restant à traiter. Les exigences conservent leur libellé ; les propositions de l’IA sont soumises à votre revue.</p></div><aside><strong>Votre mission</strong><p id="guideMissionName"></p><p>Exigence → source → contrôle → constat → réponse client → contre-test → rapport.</p><button id="refreshGuide" class="secondary" type="button">Actualiser l’avancement</button></aside></div>
         <div class="guideMissionPicker"><label>Mission existante<select id="guideMissionSelect"></select></label><button id="guideOpenMission" type="button">Ouvrir cette mission</button><button id="guideNewMission" class="secondary" type="button">Créer une mission</button></div>
@@ -156,6 +158,7 @@
       </section>
 
       <section class="card wide" data-panel="admin" hidden>
+        <details><summary>Profils de pratiques des organismes</summary><div id="auditMethods"></div></details>
         <div class="sectionHeader">
           <div>
             <p class="eyebrow dark">Administration</p>
@@ -388,10 +391,11 @@
       <section class="card wide" data-panel="dossier" hidden>
         <h2>Préparation d’audit — dossier croisé</h2>
         <p>Ouvre la mission existante, dépose ses pièces dans Documents &amp; IA, puis sélectionne les documents client et les référentiels à croiser. Pour un audit PA, prépare successivement le socle, les cycles de vie et la cybersécurité. Les référentiels doivent être identifiés et validés dans Administration.</p>
-        <p>Les fichiers sélectionnés sont transmis au service d’analyse configuré. Maximum 20 documents et 45 Mo par lot. Les propositions restent distinctes des réponses validées et du rapport DGFiP.</p>
+        <p>Par défaut, l’extraction et le repérage documentaire fonctionnent sans OpenAI. Seul le mode IA facultatif transmet les fichiers au service configuré. Maximum 20 documents et 45 Mo par lot ; 3 000 pages par document et 10 millions de caractères extraits par lot. Les propositions restent distinctes des décisions de l’auditeur.</p>
         <button id="reloadDossier" type="button">Actualiser les documents</button>
         <div id="dossierDocuments"></div>
         <label>Volet <select id="dossierPhase"><option value="CORE">Socle du programme d’audit</option><option value="LIFECYCLE">Cycles de vie</option><option value="CYBER">Cybersécurité</option></select></label>
+        <label>Mode de préparation<select id="dossierMode"><option value="DOCUMENTARY">Analyse documentaire — sans IA, sans crédits OpenAI</option><option value="AI">Approfondissement IA facultatif — service configuré</option></select></label>
         <button id="startDossier" type="button">Préparer ce volet</button>
         <button id="retryDossier" type="button" hidden>Relancer l’analyse échouée</button>
         <p id="dossierStatus" role="status"></p>
@@ -469,6 +473,7 @@
       </section>
 
       <section class="card wide" data-panel="client" hidden>
+        <div id="clientPlanning"></div>
         <h2>Espace client — réponses aux constats</h2>
         <p class="muted" id="clientPortalIntro">Le client audité répond aux écarts ouverts et verse ses preuves de correction. Chaque réponse est horodatée, rattachée au constat et peut être archivée au SAE. Si la réponse est en anglais ou dans une autre langue, une traduction française doit être fournie pour le dossier DGFiP.</p>
         <div class="tableWrap">

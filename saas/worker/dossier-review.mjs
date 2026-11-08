@@ -4,7 +4,7 @@ import {sha256} from './lifecycle-store.mjs';
 export const REVIEW_VERSION='1';
 export const REVIEW_STATES=['DOCUMENTED','CLARIFY','REQUEST_EVIDENCE','PLAN_TEST','POTENTIAL_GAP','SCOPE_REVIEW'];
 export function reviewTargets(phase,questions){
- if(phase==='CORE')return questions.map(q=>({id:q.reference,control:q.reference,title:q.title,expected:q.requirement,source:q.source,question_id:q.id}));
+ if(phase==='CORE')return questions.map(q=>({id:q.reference,control:q.reference,title:q.title,expected:q.requirement,source:q.source,question_id:q.id,verification_method:q.verification_method||'',expected_evidence:q.expected_evidence||''}));
  if(!questions.some(q=>q.reference==='DGFiP-3.9'))throw new Error('Les matrices PA ne sont pas disponibles pour cette mission.');
  if(phase==='CYBER')return CYBER_CONTROLS.map(c=>({...c,question_id:questions.find(q=>q.reference===c.control)?.id||null}));
  if(phase==='LIFECYCLE')return TESTS.map(t=>({...t,control:'DGFiP-3.9',question_id:questions.find(q=>q.reference==='DGFiP-3.9').id}));

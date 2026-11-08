@@ -1,3 +1,4 @@
+import {auditPreparationStore} from './audit-preparation-store.mjs';
 import {referenceLibrary} from './reference-library.mjs';
 import {dossierJobs} from './dossier-jobs.mjs';
 import {reconcileMatrixFindings} from './matrix-findings.mjs';
@@ -14,13 +15,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.7.3",
-  release: "Conduite guidée, référentiels et préparation d’audit",
+  version: "1.8.0",
+  release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-11-08",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Parcours guidé D2F Technology, bibliothèque PA/SC/ISO, préparation croisée et protection des accès"
+  lastChange: "Préparation documentaire indépendante de l’IA, lettre, planning, participants et accès aux fiches"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -293,8 +294,8 @@ async function findOrSaveClient(db, tenantId, body, program) {
     custom_referentials: body.custom_referentials || "",
     d2f_business_suite_client_id: body.d2f_business_suite_client_id || "",
     d2f_business_suite_case_url: body.d2f_business_suite_case_url || "",
-    d2f_business_suite_sync_status: body.d2f_business_suite_client_id ? "SYNCED_API" : body.d2f_business_suite_case_url ? "LINKED_MANUAL" : "NOT_LINKED",
-    d2f_business_suite_synced_at: body.d2f_business_suite_client_id ? new Date().toISOString() : null,
+    d2f_business_suite_sync_status: body.d2f_business_suite_client_id ? "LINKED_UNVERIFIED" : body.d2f_business_suite_case_url ? "LINKED_MANUAL" : "NOT_LINKED",
+    d2f_business_suite_synced_at: null,
     d2f_business_suite_source_updated_at: body.d2f_business_suite_source_updated_at || null,
     accepted_application_required: body.dgfip_application_status === "ACCEPTED"
   };
@@ -746,20 +747,16 @@ async function ensureTenant(db, env, request) {
   return db.upsert("diam_tenants", { slug, name: "D2F Compliant DIAM", owner_email: email }, "slug");
 }
 
-async function ensureClientMissionAccess(db, tenant, request) {
+async function ensureClientMissionAccess(db, tenant, request, currentUser) {
   const url = new URL(request.url);
   const missionId = url.searchParams.get("mission_id") || (request.headers.get("x-diam-mission-id") || "");
   const token = url.searchParams.get("token") || request.headers.get("x-diam-client-token") || "";
-  if (!missionId) throw new Error("Mission manquante.");
-  if (!token) {
-    const internalMission = (await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}`))[0];
-    if (!internalMission) throw new Error("Mission introuvable.");
-    return internalMission;
-  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(missionId)) throw new HttpError("Identifiant mission invalide.", 400);
+  if (!token) return ensureMissionAccess(db, tenant.id, missionId, currentUser);
   const missions = await db.select("diam_missions", `?id=eq.${missionId}&tenant_id=eq.${tenant.id}&client_access_token=eq.${encodeURIComponent(token)}`);
   const mission = missions[0];
-  if (!mission || !mission.client_access_enabled) throw new Error("Accès client refusé ou désactivé.");
-  if (mission.client_access_expires_at && new Date(mission.client_access_expires_at) < new Date()) throw new Error("Lien client expiré.");
+  if (!mission || !mission.client_access_enabled) throw new HttpError("Accès client refusé ou désactivé.", 403);
+  if (mission.client_access_expires_at && new Date(mission.client_access_expires_at) < new Date()) throw new HttpError("Lien client expiré.", 403);
   return mission;
 }
 
@@ -1617,18 +1614,20 @@ async function handleApi(request, env) {
       audit_program_label: program.label,
       dgfip_application_status: body.dgfip_application_status || currentScope.dgfip_application_status || "UNKNOWN",
       declared_scope: body.declared_scope ?? currentScope.declared_scope ?? "",
+      custom_audit_type_name: body.custom_audit_type_name ?? currentScope.custom_audit_type_name ?? "",
+      custom_referentials: body.custom_referentials ?? currentScope.custom_referentials ?? "",
       d2f_business_suite_client_id: body.d2f_business_suite_client_id ?? currentScope.d2f_business_suite_client_id ?? "",
       d2f_business_suite_case_url: body.d2f_business_suite_case_url ?? currentScope.d2f_business_suite_case_url ?? "",
-      d2f_business_suite_sync_status: body.d2f_business_suite_client_id ? "SYNCED_API" : body.d2f_business_suite_case_url ? "LINKED_MANUAL" : currentScope.d2f_business_suite_sync_status || "NOT_LINKED",
-      d2f_business_suite_synced_at: body.d2f_business_suite_client_id ? new Date().toISOString() : currentScope.d2f_business_suite_synced_at || null,
+      d2f_business_suite_sync_status: body.d2f_business_suite_client_id ? "LINKED_UNVERIFIED" : body.d2f_business_suite_case_url ? "LINKED_MANUAL" : currentScope.d2f_business_suite_sync_status || "NOT_LINKED",
+      d2f_business_suite_synced_at: currentScope.d2f_business_suite_synced_at || null,
       d2f_business_suite_source_updated_at: body.d2f_business_suite_source_updated_at ?? currentScope.d2f_business_suite_source_updated_at ?? null,
       accepted_application_required: body.dgfip_application_status === "ACCEPTED" || currentScope.accepted_application_required === true
     };
     const updatedClient = await db.patch("diam_clients", `?id=eq.${client.id}&tenant_id=eq.${tenant.id}`, {
       name: body.client_name || client.name || "Client audité",
-      siren: body.siren || null,
-      address: body.address || null,
-      city: body.city || null,
+      siren: body.siren === undefined ? client.siren : body.siren || null,
+      address: body.address === undefined ? client.address : body.address || null,
+      city: body.city === undefined ? client.city : body.city || null,
       country: body.country || client.country || "France",
       scope: nextScope,
       updated_at: new Date().toISOString()
@@ -1810,6 +1809,8 @@ async function handleApi(request, env) {
     return json({ ...evidence, archive }, 201);
   }
 
+  const preparationResponse = await auditPreparationStore({request,url,path,db,tenant,currentUser,who,ensureMissionAccess,ensureClientMissionAccess,requireAdminUser,json});
+  if (preparationResponse) return preparationResponse;
   const referenceResponse = await referenceLibrary({request,path,db,tenant,currentUser,who,requireAdminUser,json});
   if (referenceResponse) return referenceResponse;
   const dossierResponse = await dossierJobs({request,url,path,db,env,tenant,currentUser,who,ensureMissionAccess,json});
@@ -2052,13 +2053,13 @@ async function handleApi(request, env) {
   }
 
   if (path === "/api/client/findings" && request.method === "GET") {
-    const mission = await ensureClientMissionAccess(db, tenant, request);
+    const mission = await ensureClientMissionAccess(db, tenant, request, currentUser);
     const chain = await auditChain(db, tenant.id, mission.id);
     return json(chain.filter((row) => row.constat_id && row.statut_constat !== "CLOSED"));
   }
 
   if (path.match(/^\/api\/client\/findings\/[^/]+\/reply$/) && request.method === "POST") {
-    const mission = await ensureClientMissionAccess(db, tenant, request);
+    const mission = await ensureClientMissionAccess(db, tenant, request, currentUser);
     const findingId = path.split("/")[4];
     const finding = (await db.select("diam_findings", `?id=eq.${findingId}&tenant_id=eq.${tenant.id}`))[0];
     if (!finding) return json({ error: "Constat introuvable." }, 404);

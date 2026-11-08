@@ -1,3 +1,4 @@
+import {DOCUMENTARY_VERSION,validateExtractions,documentaryReview} from './documentary-review.mjs';
 import {reviewTargets,selectReviewDocuments,fingerprintReview,launchReview,openAIRequest,cleanupReviewFiles,validateReview} from './dossier-review.mjs';
 import {sha256} from './lifecycle-store.mjs';
 const uuid = h => `${h.slice(0,8)}-${h.slice(8,12)}-4${h.slice(13,16)}-a${h.slice(17,20)}-${h.slice(20,32)}`;
@@ -15,7 +16,9 @@ export async function dossierJobs({request,url,path,db,env,tenant,currentUser,wh
   const rows=await events(),seen=new Set();return json(rows.filter(e=>{if(seen.has(e.object_id))return false;seen.add(e.object_id);return true;}).map(publicJob));
  }
  if(path==='/api/dossier-reviews'&&request.method==='POST'){
-  if(!env.OPENAI_API_KEY)return json({error:'Analyse non exécutée : clé API absente côté DIAM.'},503);
+  const local=body.mode==='DOCUMENTARY';
+  if(body.mode&&!['DOCUMENTARY','AI'].includes(body.mode))return json({error:'Mode de préparation invalide.'},400);
+  if(!local&&!env.OPENAI_API_KEY)return json({error:'Analyse non exécutée : clé API absente côté DIAM.'},503);
   if(mission.client_id){const client=(await db.select('diam_clients',`?tenant_id=eq.${tenant.id}&id=eq.${mission.client_id}`))[0];mission.client_scope=client?.scope||{};}
   let targets,docs;
   try{targets=reviewTargets(body.phase,await db.select('diam_questions',`?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=reference.asc`));
@@ -25,16 +28,20 @@ export async function dossierJobs({request,url,path,db,env,tenant,currentUser,wh
   const references=await db.select('diam_audit_events',`?tenant_id=eq.${tenant.id}&object_type=eq.REFERENCE_LIBRARY&order=created_at.desc&limit=1000`);
   for(const d of docs.filter(d=>d.role==='REFERENCE')){
    const review=references.find(e=>e.object_id===d.id)?.details;
-   if(!review||review.status!=='VALIDATED'||review.sha256!==d.sha256)return json({error:`Référentiel à identifier et valider dans Administration avant analyse : ${d.original_name}.`},409);
-   d.reference={title:review.title,edition:review.edition,origin:review.origin,scope:review.scope,program:review.program,status:review.status};
+   if(!local&&(!review||review.status!=='VALIDATED'||review.sha256!==d.sha256))return json({error:`Référentiel à identifier et valider dans Administration avant analyse : ${d.original_name}.`},409);
+   d.reference=review&&review.sha256===d.sha256?{title:review.title,edition:review.edition,origin:review.origin,scope:review.scope,program:review.program,status:review.status}:{status:'UNVALIDATED'};
   }
-  const fingerprint=await fingerprintReview(mission,body.phase,targets,docs,env.OPENAI_MODEL||'gpt-5');
+  let indexes,indexHash;
+  if(local){try{indexes=validateExtractions(body.extractions,docs);indexHash=await sha256(new TextEncoder().encode(JSON.stringify(indexes)));}catch(e){return json({error:e.message},400);}}
+  const model=local?DOCUMENTARY_VERSION:env.OPENAI_MODEL||'gpt-5';
+  const fingerprint=await fingerprintReview(mission,body.phase,targets,docs,local?`${model}:${indexHash}`:model);
   if(body.retry_of&&!/^[a-f0-9-]{36}$/i.test(body.retry_of))return json({error:'Identifiant de reprise invalide.'},400);
   const rows=body.retry_of?await events(body.retry_of):[];
   if(body.retry_of){const prior=rows.find(e=>e.object_id===body.retry_of);if(!prior||!['DOSSIER_REVIEW_FAILED','DOSSIER_REVIEW_COMPLETED'].includes(prior.event_type)||prior.details.fingerprint!==fingerprint)return json({error:'Seule une préparation terminée du même dossier peut être relancée.'},409);}
   const id=uuid(body.retry_of?await sha256(new TextEncoder().encode(`${fingerprint}:${body.retry_of}`)):fingerprint),existing=(await events(id))[0];
   if(existing)return json(publicJob(existing));
-  const metadata={fingerprint,phase:body.phase,model:env.OPENAI_MODEL||'gpt-5',mission_context:{number:mission.number,title:mission.title,period:mission.audit_period,referential:mission.referential_version,audit_type:mission.audit_type,client_scope:mission.client_scope},targets,documents:docs.map(({id,original_name,sha256,role,reference})=>({id,original_name,sha256,role,reference}))};
+  const metadata={fingerprint,phase:body.phase,model,mode:local?'DOCUMENTARY':'AI',mission_context:{number:mission.number,title:mission.title,period:mission.audit_period,referential:mission.referential_version,audit_type:mission.audit_type,client_scope:mission.client_scope},targets,documents:docs.map(({id,original_name,sha256,role,reference})=>({id,original_name,sha256,role,reference}))};
+  if(local){const result=documentaryReview(targets,docs,indexes),details={...metadata,extraction_sha256:indexHash,extractions:indexes.map(x=>({document_id:x.document_id,source_sha256:x.source_sha256,extractor:x.extractor,pages:x.pages.length})),result,result_sha256:await sha256(new TextEncoder().encode(JSON.stringify(result)))};try{return json(publicJob(await record(id,'DOSSIER_REVIEW_COMPLETED',details,id)),201);}catch(e){const prior=(await events(id))[0];if(prior)return json(publicJob(prior));throw e;}}
   // A deterministic primary key prevents two concurrent clicks from launching two paid jobs.
   try{await record(id,'DOSSIER_REVIEW_REQUESTED',metadata,id);}catch(e){const prior=(await events(id))[0];if(prior)return json(publicJob(prior));throw e;}
   let launched;

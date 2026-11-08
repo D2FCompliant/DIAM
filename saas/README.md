@@ -448,3 +448,42 @@ Les informations techniques sont déplacées dans « À propos » ; la déconnex
 reste accessible. L’icône est également utilisée comme favicon. Pas de migration.
 Validation navigateur du démarrage complet, de l’image et d’un bandeau inférieur
 à 120 pixels sur ordinateur. Les termes et la structure du rapport sont inchangés.
+
+
+## 1.8.0 — 2026-11-08 — préparation sans OpenAI et lettre / plan
+
+Support Gestion : **D2F-20261108-C70A7D** (suivi global restant ouvert).
+
+- Le parcours documentaire standard extrait les PDF dans le navigateur (PDF.js
+  6.3.289, Apache-2.0, fichiers distribués avec leur licence dans `public/vendor`).
+  Il vérifie le SHA-256, repère les passages client et référence, et enregistre
+  un résultat déterministe dans le journal existant `diam_audit_events`.
+  Aucun appel OpenAI n’a lieu en mode DOCUMENTARY. Le mode AI est facultatif.
+- Le repérage textuel n’est pas une interprétation normative : citations à
+  vérifier, pages sans texte signalées, aucune conformité ou NC automatique.
+  Limites : 20 fichiers / 45 Mio par lot, 3 000 pages par document, 10 millions
+  de caractères extraits. DOCX : fournir un PDF ou texte. Pas d’OCR automatique.
+- Lettre de mission, profils de pratiques validés, participants, fonctions,
+  disponibilités et séances utilisent des révisions immuables et un contrôle
+  des écritures concurrentes. Le portail confirme l’organisation ; cette
+  confirmation ne constitue pas une signature. Une pièce signée de la mission
+  peut être liée. Une revue indépendante peut être requise par le profil.
+- La fiche client est accessible directement depuis Pilotage. Les PATCH
+  partiels conservent les champs omis. Le portail interne vérifie l’affectation.
+  Une erreur de démarrage ne crée plus de faux audit de démonstration.
+- Une liaison saisie manuellement avec Gestion n’est plus déclarée synchronisée.
+  Le connecteur reste en lecture seule dans cette version. Le commanditaire
+  Gestion et l’entité auditée doivent rester distincts lorsqu’ils diffèrent.
+
+Validation : tests Node 22, recette Chromium du parcours guidé et de la saisie
+planning ; extraction réelle des quatre PDF INTESA (76 pages) et des deux
+référentiels fournis (222 pages). Les tests ne qualifient pas une certification
+ou le produit multi-organismes. Aucun profil AFNOR/SGS/APAVE n’est présumé validé.
+Aucune migration de base : les événements de préparation et de résultats
+réutilisent le journal existant. Retour arrière : v1.7.3 / 1444f62.
+
+Limites encore ouvertes du cahier des charges : synchronisation bidirectionnelle
+Gestion avec conflits, identité distincte du commanditaire, isolation autonome
+multi-organismes/SSO, OCR et indexation de très grands corpus, signature et SAE
+opérationnels, recette complète du rapport INTESA. Ne pas annoncer ces fonctions
+comme livrées ou le ticket global comme résolu.
