@@ -1,3 +1,4 @@
+import {storageObjectName} from './storage-key.mjs';
 import {auditPreparationStore} from './audit-preparation-store.mjs';
 import {referenceLibrary} from './reference-library.mjs';
 import {dossierJobs} from './dossier-jobs.mjs';
@@ -15,7 +16,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.8.0",
+  version: "1.8.1",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
@@ -25,7 +26,7 @@ const APP_RELEASE = {
 };
 
 const D2F_BUSINESS_SUITE = {
-  version: "3.41.56",
+  version: null,
   endpoint: "https://gestion.d2fcompliant.org/api/v1/integration/audit-clients",
   accept: "application/vnd.d2f.audit-client+json;version=1",
   requiredScope: "audit-clients:read"
@@ -1781,7 +1782,7 @@ async function handleApi(request, env) {
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
-    const storagePath = `${tenant.id}/${missionId}/${crypto.randomUUID()}-${file.name}`;
+    const storagePath = `${tenant.id}/${missionId}/${storageObjectName(file.name)}`;
     await db.upload(storagePath, bytes, file.type || "application/octet-stream");
     const evidence = await db.insert("diam_evidences", {
       tenant_id: tenant.id,
@@ -1869,7 +1870,7 @@ async function handleApi(request, env) {
       });
       return json({ ...(updated || existing), duplicate: true, message: documentScope === "GLOBAL" ? "Document déjà présent dans la bibliothèque transverse." : "Document déjà présent dans cette mission : il a été sélectionné pour analyse." }, 200);
     }
-    const storagePath = `${tenant.id}/${documentScope.toLowerCase()}/${missionId || "global"}/${crypto.randomUUID()}-${file.name}`;
+    const storagePath = `${tenant.id}/${documentScope.toLowerCase()}/${missionId || "global"}/${storageObjectName(file.name)}`;
     await db.uploadToBucket("diam-documents", storagePath, bytes, file.type || "application/octet-stream");
     const document = await db.insert("diam_documents", {
       tenant_id: tenant.id,
@@ -2079,7 +2080,7 @@ async function handleApi(request, env) {
     if (file) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
-      const storagePath = `${tenant.id}/${question.mission_id}/${crypto.randomUUID()}-${file.name}`;
+      const storagePath = `${tenant.id}/${question.mission_id}/${storageObjectName(file.name)}`;
       await db.upload(storagePath, bytes, file.type || "application/octet-stream");
       evidence = await db.insert("diam_evidences", {
         tenant_id: tenant.id,

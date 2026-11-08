@@ -21,10 +21,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.8.0",
+  version: "1.8.1",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.8.0",
+  buildCommit: "local-v1.8.1",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -1600,9 +1600,9 @@ function assessmentLabel(value) {
 }
 function analysisStatusLabel(value) {
   return ({
-    UPLOADED: "Déposé — analyse non lancée",
-    ANALYZED: "Analysé au regard du référentiel",
-    FAILED: "Analyse impossible — voir message d’erreur"
+    UPLOADED: "Déposé — IA non lancée (facultative)",
+    ANALYZED: "Propositions IA disponibles — revue requise",
+    FAILED: "Dernière IA échouée — préparation sans IA disponible"
   })[value] || value || "-";
 }
 function languageLabel(value) {

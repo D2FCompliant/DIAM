@@ -487,3 +487,17 @@ Gestion avec conflits, identité distincte du commanditaire, isolation autonome
 multi-organismes/SSO, OCR et indexation de très grands corpus, signature et SAE
 opérationnels, recette complète du rapport INTESA. Ne pas annoncer ces fonctions
 comme livrées ou le ticket global comme résolu.
+
+
+## 1.8.1 — 2026-11-08 — noms des documents préservés
+
+Support : D2F-20261108-C70A7D. La recette réelle du guide DGFiP a révélé un
+rejet Supabase Storage `InvalidKey` pour son nom avec caractères accentués.
+Les clés de documents et preuves utilisent désormais uniquement un UUID et
+une extension ASCII. Le nom original demeure inchangé dans les métadonnées,
+l’interface et les exports. Les anciens chemins restent lisibles.
+
+Régression testée sur la route de dépôt réelle avec base simulée : nom accentué
+préservé, clé opaque, empreinte conservée. L’historique IA est distingué de la
+préparation documentaire sans IA. La version Gestion n’est plus inventée depuis
+une ancienne constante. Aucun changement de schéma.
