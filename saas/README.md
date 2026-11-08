@@ -426,3 +426,16 @@ métier ni migration. Régression vérifiée via le serveur local Wrangler et su
 l’URL DIAM, en plus des tests Node. Origine : 842c1a799b2352657ece96b8ef128fb53ef899e5.
 
 Routage conforme à la [documentation Cloudflare](https://developers.cloudflare.com/workers/static-assets/routing/worker-script/).
+
+## 1.7.2 — 2026-11-08 : changement de mission et fiche affichée
+
+Symptôme utilisateur reproduit dans un navigateur : ouvrir la seconde mission
+changeait l’identifiant actif mais conservait le client et le titre de la première
+fiche. `openMission` ne rappelait pas `fillMissionForm`. L’ouverture synchronise
+maintenant tous les champs (y compris le programme personnalisé), vide les
+sélections précédentes et ignore les réponses asynchrones d’une ancienne mission.
+Le sélecteur de pilotage utilise le même chemin d’ouverture. Aucun audit ni client
+n’est modifié par cette correction d’affichage. Pas de migration.
+Validation : scénario navigateur à deux missions reproduit en échec avant la
+correction, puis passant ; tests de non-régression versionnés dans
+`tests/mission-selection.test.mjs`.

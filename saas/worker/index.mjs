@@ -14,7 +14,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.7.1",
+  version: "1.7.2",
   release: "Conduite guidée, référentiels et préparation d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",

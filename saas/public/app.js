@@ -7,6 +7,7 @@ import { periodDates } from "./audit-period.mjs";
 import { structuredReportHtml, standaloneReport } from "./report-template.mjs";
 import { bindLifecycle, downloadFile } from "./lifecycle-ui.mjs";
 let lastReport = null;
+let missionEpoch = 0;
 const $ = (id) => document.getElementById(id);
 let state = { missions: [], missionId: "", chain: [], selected: null, documents: [], suggestions: [], clientFindings: [], selectedClientFinding: null, d2fClients: [], d2fImportedClientUpdatedAt: "", auditors: [], auditorAssignments: [], clientToken: "", clientPortal: false, demo: false, activeTab: "dashboard", authenticated: false, actor: "", authRole: "" };
 
@@ -17,10 +18,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.7.1",
+  version: "1.7.2",
   release: "Conduite guidée et préparation du dossier d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.7.1",
+  buildCommit: "local-v1.7.2",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -260,11 +261,7 @@ function bindEvents() {
       $("auditDocumentFile")?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
   }
-  $("missionSelect").onchange = () => {
-    state.missionId = $("missionSelect").value;
-    fillMissionForm(currentMission());
-    run(refreshAll, "createStatus");
-  };
+  $("missionSelect").onchange = () => run(() => openMission($("missionSelect").value), "createStatus");
   $("clientCountry").addEventListener("input", syncCountryIdentifierFields);
   $("clientCountry").addEventListener("change", syncCountryIdentifierFields);
   for (const id of ["clientName", "siren", "legalIdentifier", "vatId", "clientAddress", "clientAddressLine2", "clientPostalCode", "clientCity", "clientEmail", "clientPhone", "clientLanguage", "d2fSuiteClientId", "d2fSuiteCaseUrl", "declaredScope"]) {
@@ -279,6 +276,7 @@ function bindEvents() {
 function prepareNewMission(options = {}) {
   showTab("mission_form");
   if (options.blank) {
+    missionEpoch++;
     state.missionId = "";
     state.selected = null;
     resetMissionForm();
@@ -616,6 +614,9 @@ function fillMissionForm(mission) {
   $("legalIdentifier").value = scope.client_legal_identifier || "";
   $("vatId").value = scope.client_vat_id || "";
   $("auditProgram").value = auditProgramFromMission(mission).id;
+  $("customAuditTypeName").value = scope.custom_audit_type_name || "";
+  $("customReferentials").value = scope.custom_referentials || "";
+  $("customControlsText").value = "";
   $("missionTitle").value = mission.title || "Audit de conformité PA";
   const period = periodDates(mission.audit_period);
   $("auditPeriodStart").value = period.start;
@@ -633,6 +634,7 @@ function fillMissionForm(mission) {
   $("d2fSuiteCaseUrl").value = scope.d2f_business_suite_case_url || "";
   state.d2fImportedClientUpdatedAt = scope.d2f_business_suite_source_updated_at || "";
   $("declaredScope").value = scope.declared_scope || "";
+  applyAuditProgramDefaults();
   syncCountryIdentifierFields();
 }
 
@@ -911,13 +913,25 @@ function renderClientFacts() {
 }
 
 async function openMission(id) {
-  if (!id) throw new Error("Choisis une mission à ouvrir.");
+  const mission = state.missions.find(m => m.id === id);
+  if (!mission) throw new Error("Choisis une mission autorisée à ouvrir.");
+  const epoch = ++missionEpoch;
   state.missionId = id;
   $("missionSelect").value = id;
   state.selected = null;
+  state.documentId = null;
+  state.suggestionId = null;
+  state.selectedClientFinding = null;
+  state.chain = []; state.documents = []; state.suggestions = []; state.clientFindings = [];
+  lastReport = null;
+  $("report").replaceChildren();
   $("detailEmpty").hidden = false;
   $("detail").hidden = true;
+  fillMissionForm(mission);
+  renderClientFacts();
+  renderChain(); renderDocuments(); renderSuggestions(); renderClientFindings();
   await refreshAll();
+  if (epoch !== missionEpoch) return;
   renderMissionList();
   await auditGuide.open();
 }
@@ -1022,8 +1036,11 @@ async function refreshAll() {
 }
 
 async function loadChain() {
-  const data = await api(`/api/audit-chain?mission_id=${state.missionId}`);
+  const id=state.missionId, epoch=missionEpoch;
+  const data = await api(`/api/audit-chain?mission_id=${id}`);
+  if (id!==state.missionId || epoch!==missionEpoch) return;
   state.chain = data.chain;
+  if (selectedAuditProgramId() === "CUSTOM_CDC") $("customControlsText").value = data.chain.map(q=>q.question).join("\n");
   $("opinion").innerHTML = `<strong>${data.result.opinion}</strong><br>${escapeHtml(data.result.reason)}`;
   renderChain();
 }
@@ -1178,8 +1195,11 @@ async function uploadEvidence() {
 }
 
 async function loadDocuments() {
+  const id=state.missionId, epoch=missionEpoch;
   const query = state.missionId ? `?mission_id=${state.missionId}&include_global=true` : "?scope=global";
-  state.documents = await api(`/api/documents${query}`);
+  const docs = await api(`/api/documents${query}`);
+  if (id!==state.missionId || epoch!==missionEpoch) return;
+  state.documents = docs;
   renderDocuments();
 }
 
@@ -1280,7 +1300,10 @@ async function analyzeAuditDocument() {
 }
 
 async function loadSuggestions() {
-  state.suggestions = await api(`/api/ai-suggestions?mission_id=${state.missionId}`);
+  const id=state.missionId, epoch=missionEpoch;
+  const suggestions = await api(`/api/ai-suggestions?mission_id=${id}`);
+  if (id!==state.missionId || epoch!==missionEpoch) return;
+  state.suggestions = suggestions;
   renderSuggestions();
 }
 
@@ -1337,10 +1360,13 @@ async function rejectSuggestion() {
 }
 
 async function loadClientFindings() {
+  const id=state.missionId, epoch=missionEpoch;
   const query = state.clientPortal
     ? `mission_id=${encodeURIComponent(state.missionId)}&token=${encodeURIComponent(state.clientToken)}`
     : `mission_id=${encodeURIComponent(state.missionId)}`;
-  state.clientFindings = await api(`/api/client/findings?${query}`);
+  const findings = await api(`/api/client/findings?${query}`);
+  if (id!==state.missionId || epoch!==missionEpoch) return;
+  state.clientFindings = findings;
   renderClientFindings();
 }
 
