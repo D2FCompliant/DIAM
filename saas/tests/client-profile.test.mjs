@@ -13,3 +13,5 @@ test('client portal routes do not bypass internal mission assignments',async()=>
 test('client mission IDs cannot inject database query parameters',async()=>fixture(async h=>{assert.equal((await h.call('/api/client/findings?mission_id=invalid')).status,400);}));
 
 test('manual client linkage does not claim an API synchronization',async()=>fixture(async h=>{assert.equal((await h.call(`/api/missions/${mid}`,{d2f_business_suite_client_id:'source-client'})).status,200);const p=h.patches.find(p=>p.table==='diam_clients').body;assert.equal(p.scope.d2f_business_suite_sync_status,'LINKED_UNVERIFIED');assert.equal(p.scope.d2f_business_suite_synced_at,null);}));
+
+test('editing an existing mission cannot relabel its PA controls as another audit programme',async()=>fixture(async h=>{const r=await h.call(`/api/missions/${mid}`,{audit_program:'SC_RLFC'});assert.equal(r.status,409);assert.equal(h.patches.length,0);}));

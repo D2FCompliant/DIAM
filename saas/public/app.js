@@ -1,3 +1,4 @@
+import {sameClientIdentity} from './client-identity.mjs';
 import {bindAuditPreparation} from './audit-preparation-ui.mjs';
 let auditPreparation;
 let dossierWorkspace;
@@ -21,10 +22,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.8.1",
+  version: "1.8.2",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.8.1",
+  buildCommit: "local-v1.8.2",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -456,6 +457,7 @@ async function importD2FClient() {
   if (index === "") throw new Error("Recherche et sélectionne d’abord un client D2F Business Suite.");
   const client = state.d2fClients?.[Number(index)];
   if (!client) throw new Error("Client D2F introuvable dans la sélection.");
+  if (currentMission() && !sameClientIdentity(currentMission(),client)) throw new Error(`Le client Gestion « ${client.name} » est distinct de l’entité auditée « ${currentMission().client_name} ». Le rattachement du commanditaire doit être séparé : aucune identité n’a été remplacée.`);
   $("clientName").value = client.name || $("clientName").value;
   $("clientCountry").value = client.country || $("clientCountry").value;
   const french = isFrenchCountry($("clientCountry").value);
@@ -676,6 +678,7 @@ function auditProgramFromMission(mission = {}) {
   const referential = String(mission.referential_version || "");
   if (referential.includes("RLF-C:SC")) return AUDIT_PROGRAMS.SC_RLFC;
   if (referential.includes("Audit personnalisé") || referential.includes("CDC personnalisé")) return AUDIT_PROGRAMS.CUSTOM_CDC;
+  if (referential.includes("DGFiP") || referential.includes("PDP Integrity")) return AUDIT_PROGRAMS.PA_DGFIP;
   const scope = mission.client_scope || {};
   if (scope.audit_program && AUDIT_PROGRAMS[scope.audit_program]) return auditProgram(scope.audit_program);
   return AUDIT_PROGRAMS.PA_DGFIP;

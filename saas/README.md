@@ -501,3 +501,11 @@ Régression testée sur la route de dépôt réelle avec base simulée : nom acc
 préservé, clé opaque, empreinte conservée. L’historique IA est distingué de la
 préparation documentaire sans IA. La version Gestion n’est plus inventée depuis
 une ancienne constante. Aucun changement de schéma.
+
+## 1.8.2 — 2026-11-08 — identité client et programme de mission
+
+Le programme propre à la mission prime sur celui du client partagé. Une mission existante ne peut pas être requalifiée avec un autre programme sans créer une mission distincte. L’import Gestion empêche le remplacement de l’entité auditée par un commanditaire distinct. Ce contrôle ne constitue pas encore un lien de commanditaire ni une synchronisation bidirectionnelle.
+
+Les préparations documentaires apparaissent immédiatement dans l’historique, avec leur identifiant stable et le mode Sans IA / IA facultative.
+
+Support : D2F-20261108-C70A7D.

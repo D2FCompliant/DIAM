@@ -16,7 +16,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.8.1",
+  version: "1.8.2",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
@@ -1330,7 +1330,7 @@ async function analyzeWithAI(env, file, controls, context = {}) {
     throw new HttpError("Analyse non exécutée : clé API absente côté DIAM.", 503);
   }
   const uploaded = await uploadOpenAIFile(env, file);
-  const missionProgram = auditProgram(context?.mission?.client_scope?.audit_program || programFromReferential(context?.mission?.referential_version).id);
+  const missionProgram = auditProgram(programFromReferential(context?.mission?.referential_version).id);
   const languagePolicy = auditLanguagePolicy(context?.mission?.client_language || context?.mission?.client_scope?.client_language || "fr");
   const prompt = [
     "Tu es le moteur d'analyse assistée D2F Compliant pour les référentiels PA, SC et les audits personnalisés.",
@@ -1600,7 +1600,9 @@ async function handleApi(request, env) {
     const client = (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0];
     if (!client) return json({ error: "Client rattaché à la mission introuvable." }, 404);
     const currentScope = client.scope || {};
-    const program = auditProgram(body.audit_program || currentScope.audit_program || programFromReferential(mission.referential_version).id);
+    const currentProgram = programFromReferential(mission.referential_version).id;
+    if (body.audit_program && body.audit_program !== currentProgram) return json({error:"Le programme de cette mission est conservé avec ses contrôles. Crée une mission distincte pour changer de programme d’audit."},409);
+    const program = auditProgram(currentProgram);
     const periodUpdate = ("audit_period_start" in body || "audit_period_end" in body) ? { audit_period: auditPeriod(body.audit_period_start, body.audit_period_end) } : {};
     const nextScope = {
       ...currentScope,
