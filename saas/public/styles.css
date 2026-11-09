@@ -670,3 +670,12 @@ body.technologyTheme{--ink:#102536;--muted:#617486;--line:#d4e0e8;--brand:#0869d
 .technicalInfo{position:relative;font-size:12px;color:#617486}.technicalInfo summary{cursor:pointer;padding:10px 0}.technicalPopover{position:absolute;right:0;top:38px;width:min(500px,90vw);padding:20px;border:1px solid #d4e0e8;border-radius:14px;background:#fff;box-shadow:0 15px 40px rgba(16,37,54,.15);z-index:100;display:grid;gap:14px}.technicalPopover .baseline,.technicalPopover .versionStack{font-size:12px;line-height:1.6;color:#617486;text-align:left}.technicalPopover strong{color:#102536}
 .authLocked .missionContext{visibility:hidden}
 @media(max-width:850px){.technologyTheme .productHeader{padding:12px 16px;flex-wrap:wrap;gap:12px}.productHeader .brandBlock{min-width:0;flex:1}.diamProductIcon{width:48px;height:48px}.technologyTheme .productHeader h1{font-size:24px}.companySignature{font-size:9px}.productPurpose{font-size:11px}.sessionActions{gap:10px}.missionContext{order:3;flex-basis:100%;padding:8px 0 0;border-left:0;border-top:1px solid #d4e0e8;grid-template-columns:1fr auto}.missionContext>span{display:none}.missionContext strong{font-size:12px}.missionContext .contextLink{margin:0}.productHeader .ghostButton{font-size:11px;padding:8px}.authLocked .missionContext{display:none}}
+
+.programClause {border:1px solid #d9e3ec;border-radius:8px;padding:12px;margin:8px 0;background:white}
+.programClauseChoice,.programSourceChoice {display:flex;align-items:flex-start;gap:10px;font-weight:400}
+.programClauseChoice input[type=checkbox],.programSourceChoice input[type=checkbox] {width:18px;min-width:18px;height:18px;margin:3px 0}
+.programClause details {margin:8px 0 0 28px;font-weight:400}
+.programClause summary {cursor:pointer;color:#1754a5}
+
+.programBuilderPanel {grid-column:1 / -1}
+.programBuilderPanel button.secondary:hover {color:#1754a5;border-color:#9bb7d4}

@@ -523,3 +523,13 @@ Les programmes personnalisés sont distingués par une empreinte de leur défini
 ## 1.9.1 — 2026-11-09 — sélection des passages
 
 Recherche textuelle et compteur des passages sélectionnés ; la recherche ne modifie pas la sélection. Le rechargement des contrôles personnalisés conserve leur exigence complète et leurs repères au lieu du seul titre abrégé. Support : D2F-20261108-C70A7D.
+
+## 1.10.0 — 2026-11-09 — structure des référentiels
+
+Support : D2F-20261108-C70A7D. Lecture des styles Word hérités, définitions de numérotation, départs et reprises, listes, notes de bas de page et de fin. Regroupement par clauses avec contexte parent et texte intégral, choix de niveau par source, sélection groupée par chapitre, recherche par numéro ou texte. Le niveau proposé utilise la fréquence des niveaux numériques, sans qualification normative automatique. Aucun filtre NF525 codé en dur.
+
+Les numéros de clauses sont conservés dans la chaîne de contrôle ; les points-virgules ne divisent plus une exigence en plusieurs contrôles. Les programmes existants ne sont pas réécrits. Pas de migration.
+
+Validation structurelle : `node scripts/qa-document-structure.mjs` avec PLAYWRIGHT_MODULE et CHROMIUM_EXECUTABLE pointant vers les outils QA installés (Node22). Tests sur styles hérités, départs/reprises, notes, limites de clauses, numérotation explicite et définitions manquantes. Vérification séparée sur les deux annexes NF525 fournies.
+
+Limites : pas de promesse d’extraction universelle ou d’exhaustivité normative. Les relations de tableaux, illustrations, champs calculés, numérotations non décimales et structures absentes/ambiguës nécessitent une revue explicitement signalée. Le PDF et le texte utilisent la numérotation littérale ; les scans demandent OCR. Les niveaux non retenus restent accessibles. La sélection n’est ni une validation d’applicabilité ni une décision de conformité.

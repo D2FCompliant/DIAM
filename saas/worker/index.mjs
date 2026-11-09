@@ -16,7 +16,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.9.1",
+  version: "1.10.0",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
@@ -338,8 +338,10 @@ function controlsFromMissionDefinition(program, body) {
   if (program.id !== "CUSTOM_CDC") return controlsForProgram(program.id);
   const refs = splitLines(body.custom_referentials);
   const source = refs.length ? refs.join(" ; ") : "Référentiel personnalisé à documenter dans DIAM";
-  return splitLines(body.custom_controls_text).map((line, index) => ({
-    reference: `AUD-${String(index + 1).padStart(2, "0")}`,
+  const lines=String(body.custom_controls_text||"").split(/\r?\n/).map(line=>line.trim()).filter(Boolean);
+  const clauseNumber=line=>line.replace(/^\[[^\]]+\]\s*/, "").match(/^§(\d+(?:\.\d+)+)\s/)?.[1];
+  return lines.map((line, index) => ({
+    reference: clauseNumber(line) ? `§${clauseNumber(line)}${lines.filter(x=>clauseNumber(x)===clauseNumber(line)).length>1?` / SRC-${index+1}`:""}` : `AUD-${String(index + 1).padStart(2, "0")}`,
     chapter: body.custom_audit_type_name || "Audit personnalisé",
     title: line.replace(/^\[[^\]]+\]\s*/, "").slice(0, 120),
     requirement: line,
