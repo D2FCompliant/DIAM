@@ -533,3 +533,7 @@ Les numéros de clauses sont conservés dans la chaîne de contrôle ; les point
 Validation structurelle : `node scripts/qa-document-structure.mjs` avec PLAYWRIGHT_MODULE et CHROMIUM_EXECUTABLE pointant vers les outils QA installés (Node22). Tests sur styles hérités, départs/reprises, notes, limites de clauses, numérotation explicite et définitions manquantes. Vérification séparée sur les deux annexes NF525 fournies.
 
 Limites : pas de promesse d’extraction universelle ou d’exhaustivité normative. Les relations de tableaux, illustrations, champs calculés, numérotations non décimales et structures absentes/ambiguës nécessitent une revue explicitement signalée. Le PDF et le texte utilisent la numérotation littérale ; les scans demandent OCR. Les niveaux non retenus restent accessibles. La sélection n’est ni une validation d’applicabilité ni une décision de conformité.
+
+## 1.10.1 — 2026-11-09 — préparation depuis la sélection
+
+Le bouton de préparation fonctionne lorsque le nom du type d’audit n’a pas été saisi : un nom modifiable est proposé à partir des titres exacts des sources retenues. Un nom déjà saisi est conservé. Les erreurs de sélection sont affichées directement sous le bouton. Aucun audit n’est créé automatiquement : la fiche mission reste à compléter avant création. Support : D2F-20261108-C70A7D. Régression vérifiée avec les236 clauses des deux annexes NF525, nom vide et sélection vide.

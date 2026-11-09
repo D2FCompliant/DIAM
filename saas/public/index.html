@@ -189,7 +189,7 @@
             <p>Les clauses sont regroupées selon leur numérotation. Choisis le niveau de contrôle adapté au référentiel ; les listes et notes restent rattachées au texte. Vérifie les limites de lecture signalées.</p>
             <label>Niveau des contrôles<select id="programDepth"><option value="0">Charger les sources pour détecter les niveaux</option></select></label><div id="programSourceLevels"></div><button id="programSelectVisible" type="button" class="secondary">Sélectionner tous les contrôles affichés</button><button id="programClearSelection" type="button" class="secondary">Effacer la sélection</button><label>Rechercher un numéro ou un texte<input id="programSearch" placeholder="Mot ou expression exacte"></label><p id="programSelection" role="status"></p>
             <div id="programCandidates" style="max-height:440px;overflow:auto"></div>
-            <button id="programUse" type="button">Préparer l’audit avec les contrôles sélectionnés</button>
+            <button id="programUse" type="button">Préparer l’audit avec les contrôles sélectionnés</button><p id="programUseStatus" class="status" role="alert" aria-live="assertive"></p>
             <h4>Ou saisir manuellement le programme</h4>
             <label>Référentiels / sources à rattacher <textarea id="adminAuditReferentials" placeholder="Un référentiel ou document source par ligne : nom, version, date, origine."></textarea></label>
             <label>Contrôles initiaux à générer <textarea id="adminAuditControls" placeholder="Une ligne par contrôle : critère, objectif ou exigence à auditer."></textarea></label>

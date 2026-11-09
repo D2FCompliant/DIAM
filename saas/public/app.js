@@ -23,10 +23,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.10.0",
+  version: "1.10.1",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.10.0",
+  buildCommit: "local-v1.10.1",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -390,7 +390,7 @@ function prepareCustomDefinition({name,referentials,controls}) {
   $("customControlsText").value = controls;
   $("missionTitle").value = name;
   applyAuditProgramDefaults();
-  setStatus("Type d’audit personnalisé préparé : complète le client puis clique “Créer mission + questionnaire”. Les contrôles saisis généreront une chaîne dédiée au référentiel libre.", "success", "createStatus");
+  setStatus("Programme préparé avec les contrôles sélectionnés. Vérifie le nom proposé, complète le client puis clique “Créer mission + questionnaire”. Les contrôles saisis généreront une chaîne dédiée au référentiel libre.", "success", "createStatus");
 }
 
 function showLogin(details = {}) {
