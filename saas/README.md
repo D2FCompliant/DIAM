@@ -537,3 +537,14 @@ Limites : pas de promesse d’extraction universelle ou d’exhaustivité normat
 ## 1.10.1 — 2026-11-09 — préparation depuis la sélection
 
 Le bouton de préparation fonctionne lorsque le nom du type d’audit n’a pas été saisi : un nom modifiable est proposé à partir des titres exacts des sources retenues. Un nom déjà saisi est conservé. Les erreurs de sélection sont affichées directement sous le bouton. Aucun audit n’est créé automatiquement : la fiche mission reste à compléter avant création. Support : D2F-20261108-C70A7D. Régression vérifiée avec les236 clauses des deux annexes NF525, nom vide et sélection vide.
+
+## 1.11.0 — 2026-11-09 — conduite des contrôles et questions d’audit
+
+Support : D2F-20261108-C70A7D.
+
+- Le détail d’un contrôle propose précédent, suivant, accès direct, retour à la liste et enregistrer/passer au suivant. Une erreur d’enregistrement conserve le contrôle et les saisies ; les modifications non enregistrées demandent confirmation avant abandon. L’enregistrement recharge aussi l’identité du constat pour permettre sa mise en revue immédiatement.
+- La fin du chargement initial ne ramène plus au guide après une navigation explicite. La progression compte les réponses renseignées, pas les conformités.
+- À l’import d’un référentiel, les questions proposées sont modifiables avant la préparation de l’audit. Elles sont stockées dans le titre du contrôle, séparément du texte intégral de l’exigence. Leur génération déterministe n’utilise ni OpenAI ni un autre service d’IA. Elle propose une question de conduite fondée sur le titre repéré ; elle ne décompose pas automatiquement chaque obligation et ne constitue pas une interprétation normative. Relire les conditions, exceptions, listes et dépendances dans le texte source avant validation.
+- Les anciens contrôles personnalisés présentent une formulation interrogative sans réécrire leurs titres historiques, réponses ou preuves. Le champ API `question_originale` conserve le titre enregistré. Les nouveaux titres interrogatifs sont conservés tels que revus par l’auditeur.
+- Les audits personnalisés présentent une applicabilité à confirmer et un rapport selon leur programme ; les mentions DGFiP restent réservées au programme PA. Les statuts du parcours sont libellés en français, sans changer les valeurs API.
+- Aucune migration de base. Retour arrière compatible : 1.10.1 / a26710f5caa13e9011899de1b3255a6ced194124. Les questions interrogatives déjà créées restent du texte ordinaire compatible avec la version précédente.

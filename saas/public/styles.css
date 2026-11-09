@@ -679,3 +679,16 @@ body.technologyTheme{--ink:#102536;--muted:#617486;--line:#d4e0e8;--brand:#0869d
 
 .programBuilderPanel {grid-column:1 / -1}
 .programBuilderPanel button.secondary:hover {color:#1754a5;border-color:#9bb7d4}
+
+.controlToolbar {position:sticky;top:0;z-index:3;background:#f5f9fd;border:1px solid #d8e4ef;border-radius:12px;padding:14px;margin-bottom:18px;box-shadow:0 3px 12px #1334490d}
+.controlProgress {display:flex;justify-content:space-between;gap:16px;margin-bottom:10px;color:#183b53}
+.controlToolbar .row {display:flex;flex-wrap:wrap;gap:8px}
+.controlToolbar .status:empty {display:none}
+#detailCard #requirement {white-space:pre-wrap;line-height:1.65}
+#detailCard textarea {min-height:110px}
+@media(max-width:700px){.controlToolbar{position:static}.controlProgress{flex-direction:column}}
+body.technologyTheme #detailCard button:not(.secondary){background:#0869d8;box-shadow:none;border-radius:10px;min-height:36px;font-weight:700}
+body.technologyTheme #detailCard button.secondary{border-radius:10px;min-height:36px;font-weight:600}
+body.technologyTheme #detailCard button.secondary:hover{background:#edf5fc;color:#0869d8;border-color:#9bb7d4}
+#detailCard h4{color:#082f43;margin-top:18px}
+#detailCard .twoCols>div{min-width:0}

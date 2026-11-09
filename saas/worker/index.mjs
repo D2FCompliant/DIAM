@@ -1,3 +1,4 @@
+import {questionForControl} from '../public/audit-question.mjs';
 import {storageObjectName} from './storage-key.mjs';
 import {auditPreparationStore} from './audit-preparation-store.mjs';
 import {referenceLibrary} from './reference-library.mjs';
@@ -16,7 +17,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.10.1",
+  version: "1.11.0",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
@@ -222,12 +223,12 @@ function assessApplicability(question, mission = {}, client = {}) {
   ].filter(Boolean).join(" "));
   const reference = String(question.reference || "");
   const criterion = normalizeKey(`${question.chapter || ""} ${question.title || ""} ${question.requirement || ""} ${question.source || ""}`);
-  const language = auditLanguagePolicy(mission.client_language || scope.client_language || "fr");
+  const language = program.id === "PA_DGFIP" ? auditLanguagePolicy(mission.client_language || scope.client_language || "fr") : `Langue de conduite : ${(mission.client_language || scope.client_language || "fr")==="en"?"anglais":"français"}. Rapport selon le programme et les modalités de la mission.`;
 
   if (program.id === "CUSTOM_CDC") {
     return {
-      status: "OBLIGATOIRE",
-      reason: "Contrôle issu du type d'audit personnalisé défini par D2F : applicable tant que l'auditeur ne le classe pas hors périmètre.",
+      status: "A_CONFIRMER",
+      reason: "Applicabilité à confirmer selon le référentiel, le périmètre et les preuves. Toute exclusion doit être justifiée par l’auditeur.",
       language
     };
   }
@@ -334,6 +335,12 @@ async function findOrSaveClient(db, tenantId, body, program) {
   return db.insert("diam_clients", { tenant_id: tenantId, ...payload });
 }
 
+function customQuestion(line,body) {
+  const proposed=Array.isArray(body.custom_questions)?body.custom_questions.find(q=>q.requirement===line)?.question:null;
+  if(proposed!=null){if(typeof proposed!=='string'||!proposed.trim().endsWith('?')||proposed.length>2000)throw Error('Question d’audit invalide : formulation interrogative attendue (2 000 caractères maximum).');return proposed.trim();}
+  return questionForControl({requirement:line,title:'',reference:line.match(/§\d+(?:\.\d+)+/)?.[0]||''});
+}
+
 function controlsFromMissionDefinition(program, body) {
   if (program.id !== "CUSTOM_CDC") return controlsForProgram(program.id);
   const refs = splitLines(body.custom_referentials);
@@ -343,7 +350,7 @@ function controlsFromMissionDefinition(program, body) {
   return lines.map((line, index) => ({
     reference: clauseNumber(line) ? `§${clauseNumber(line)}${lines.filter(x=>clauseNumber(x)===clauseNumber(line)).length>1?` / SRC-${index+1}`:""}` : `AUD-${String(index + 1).padStart(2, "0")}`,
     chapter: body.custom_audit_type_name || "Audit personnalisé",
-    title: line.replace(/^\[[^\]]+\]\s*/, "").slice(0, 120),
+    title: customQuestion(line,body),
     requirement: line,
     source,
     base_qualification: "HIGH",
@@ -1433,7 +1440,8 @@ async function auditChain(db, tenantId, missionId) {
     return {
       question_id: q.id,
       reference: q.reference,
-      question: q.title,
+      question: missionProgramId(mission||{}) === "CUSTOM_CDC" ? questionForControl(q) : q.title,
+      question_originale: q.title,
       chapter: q.chapter,
       source: q.source,
       evidence_ids: [...new Set([...questionProofs, ...linked].map(e => e.id))],

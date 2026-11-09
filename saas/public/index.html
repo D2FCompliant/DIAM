@@ -321,7 +321,7 @@
 
       <section class="card wide" data-panel="audit" hidden>
         <h2>Chaîne d'audit</h2>
-        <p>Une ligne = attendu DGFiP + qualification de base + réponse client + constat + preuves.</p>
+        <p>Une ligne = exigence du référentiel + question d’audit + réponse client + analyse auditeur + constat + preuves.</p>
         <div class="tableWrap">
           <table id="chainTable">
             <thead>
@@ -335,13 +335,19 @@
       </section>
 
       <section class="card wide" id="detailCard" data-panel="detail" hidden>
-        <h2>Détail du contrôle sélectionné</h2>
+        <h2>Conduire les contrôles</h2>
+        <div class="controlToolbar">
+          <div class="controlProgress"><strong id="controlPosition">Choisir un contrôle</strong><span id="controlProgress"></span></div>
+          <label>Aller à un contrôle<select id="controlJump" aria-label="Aller à un contrôle"></select></label>
+          <div class="row"><button id="controlPrevious" class="secondary" type="button">← Précédent</button><button id="controlList" class="secondary" type="button">Liste des contrôles</button><button id="controlNext" class="secondary" type="button">Suivant →</button><button id="controlSaveNext" type="button">Enregistrer et suivant →</button></div>
+          <p id="actionStatus" class="status" role="status" aria-live="polite"></p>
+        </div>
         <div id="detailEmpty" class="muted">Sélectionne une ligne dans la chaîne d'audit.</div>
         <div id="detail" hidden>
           <h3 id="detailTitle"></h3>
           <div class="twoCols">
             <div>
-              <h4>Attendu DGFiP</h4>
+              <h4 id="requirementLabel">Exigence du référentiel</h4>
               <p id="requirement"></p>
               <h4>Preuves attendues</h4>
               <p id="expectedEvidence"></p>
@@ -354,11 +360,11 @@
               <h4>Réponse client / analyse</h4>
               <label>Statut
                 <select id="answerStatus">
-                  <option>NOT_STARTED</option>
-                  <option>COMPLIANT</option>
-                  <option>PARTIALLY_COMPLIANT</option>
-                  <option>NON_COMPLIANT</option>
-                  <option>NOT_APPLICABLE</option>
+                  <option value="NOT_STARTED">À examiner</option>
+                  <option value="COMPLIANT">Conforme</option>
+                  <option value="PARTIALLY_COMPLIANT">Partiellement conforme</option>
+                  <option value="NON_COMPLIANT">Non conforme</option>
+                  <option value="NOT_APPLICABLE">Non applicable</option>
                 </select>
               </label>
               <label>Réponse client <textarea id="clientAnswer"></textarea></label>
@@ -374,24 +380,24 @@
               <label>Synthèse constat <input id="findingSummary" /></label>
               <label>Qualification retenue
                 <select id="retainedQualification">
-                  <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>CRITICAL</option>
+                  <option value="LOW">Faible</option><option value="MEDIUM">Moyenne</option><option value="HIGH">Élevée</option><option value="CRITICAL">Critique</option>
                 </select>
               </label>
               <label>Recommandation <textarea id="recommendation"></textarea></label>
               <button id="saveFinding">Créer / mettre à jour constat</button>
               <div class="row">
                 <select id="findingStatus">
-                  <option>OPEN</option><option>IN_REVIEW</option><option>CLOSED</option>
+                  <option value="OPEN">Ouvert</option><option value="IN_REVIEW">En revue</option><option value="CLOSED">Clôturé</option>
                 </select>
                 <button id="closeFinding">Mettre à jour traitement</button>
               </div>
             </div>
             <div>
               <h4>Preuve liée au constat</h4>
-              <p class="muted">Verse une preuve directement ici : elle sera stockée dans Supabase Storage, hachée SHA-256 et liée au constat.</p>
+              <p class="muted">Ajoute la pièce qui étaye le constat. DIAM conserve son empreinte et son lien avec ce contrôle.</p>
               <input id="evidenceFile" type="file" />
               <button id="uploadEvidence">Verser et lier au constat</button>
-              <p class="status" id="actionStatus"></p>
+
             </div>
           </div>
         </div>

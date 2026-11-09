@@ -1,3 +1,24 @@
+let preparedQuestions=[];
+let navigationEpoch=0;
+let controlBusy=false;
+let answerBaseline='',findingBaseline='',treatmentBaseline='';
+const answerFields=['answerStatus','clientAnswer','auditorAnalysis'];
+const findingFields=['findingSummary','retainedQualification','recommendation'];
+const snapshot=ids=>JSON.stringify(ids.map(id=>document.getElementById(id)?.value||''));
+function controlDirty(){return Boolean(state.selected&&answerBaseline&&(snapshot(answerFields)!==answerBaseline||snapshot(findingFields)!==findingBaseline||$('findingStatus').value!==treatmentBaseline||$('evidenceFile').files?.length));}
+function allowControlLeave(){if(!controlDirty())return true;if(!confirm('Des saisies de ce contrôle ne sont pas enregistrées. Quitter sans les enregistrer ?'))return false;const q=state.selected;for(const [id,key] of Object.entries({answerStatus:'reponse_statut',clientAnswer:'reponse_client',auditorAnalysis:'analyse_auditeur',findingSummary:'synthese_constat',retainedQualification:'qualification_retenue',recommendation:'recommandation',findingStatus:'statut_constat'}))$(id).value=q[key]||(id==='findingStatus'?'OPEN':'');$('evidenceFile').value='';answerBaseline=snapshot(answerFields);findingBaseline=snapshot(findingFields);treatmentBaseline=$('findingStatus').value;return true;}
+function renderControlNavigation(){
+ const index=state.chain.findIndex(q=>q.question_id===state.selected?.question_id);
+ $('controlPosition').textContent=index<0?'Choisir un contrôle':`Contrôle ${index+1} sur ${state.chain.length}`;
+ $('controlProgress').textContent=`${state.chain.filter(q=>q.reponse_statut&&q.reponse_statut!=='NOT_STARTED').length} réponses renseignées sur ${state.chain.length}`;
+ $('controlJump').innerHTML=state.chain.map((q,i)=>`<option value="${i}">${escapeHtml(q.reference)} — ${escapeHtml(q.question)}</option>`).join('');$('controlJump').value=String(index);
+ for(const id of ['controlPrevious','controlNext','controlJump','controlList','controlSaveNext','saveAnswer','saveFinding','closeFinding','uploadEvidence'])$(id).disabled=controlBusy||index<0;
+ for(const id of [...answerFields,...findingFields,'findingStatus','evidenceFile'])$(id).disabled=controlBusy;
+ $('controlPrevious').disabled=controlBusy||index<=0;$('controlNext').disabled=controlBusy||index<0||index>=state.chain.length-1;
+ $('controlSaveNext').textContent=index===state.chain.length-1?'Enregistrer ce dernier contrôle':'Enregistrer et suivant →';
+}
+async function controlAction(fn){if(controlBusy)return;controlBusy=true;renderControlNavigation();try{await run(fn,'actionStatus');}finally{controlBusy=false;renderControlNavigation();}}
+async function saveAndNextControl(){const id=state.selected?.question_id;if($('evidenceFile').files?.length)throw Error('Verse la preuve choisie avant de passer au contrôle suivant.');if(snapshot(findingFields)!==findingBaseline&&!$('findingSummary').value.trim())throw Error('Renseigne la synthèse du constat avant de l’enregistrer.');await saveAnswer();if(snapshot(findingFields)!==findingBaseline)await saveFinding();if($('findingStatus').value!==treatmentBaseline)await updateFindingStatus();const index=state.chain.findIndex(q=>q.question_id===id);if(index<state.chain.length-1)selectQuestion(index+1,true);else setStatus('Dernier contrôle enregistré. La revue de la mission reste à effectuer.','success','actionStatus');}
 import {bindProgramBuilder} from './program-builder.mjs';
 import {sameClientIdentity} from './client-identity.mjs';
 import {bindAuditPreparation} from './audit-preparation-ui.mjs';
@@ -23,10 +44,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.10.1",
+  version: "1.11.0",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.10.1",
+  buildCommit: "local-v1.11.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -154,6 +175,7 @@ function setStatus(text, type = "info", targetId = "actionStatus") {
 
 async function init() {
   bindEvents();
+  const initialNavigationEpoch=navigationEpoch;
   const params = new URLSearchParams(location.search);
   if (params.get("portal") === "client") {
     state.clientPortal = true;
@@ -188,7 +210,7 @@ async function init() {
     } else {
       await loadMissions();
       if (boot.auth?.full_access) await loadAuditorAdmin();
-      await auditGuide.open();
+      if(navigationEpoch===initialNavigationEpoch) await auditGuide.open();
     }
   } catch (e) {
     showInitializationFailure(e);
@@ -196,6 +218,7 @@ async function init() {
 }
 
 function bindEvents() {
+  window.addEventListener('beforeunload',event=>{if(controlDirty()){event.preventDefault();event.returnValue='';}});
   if ($("loginForm")) $("loginForm").onsubmit = (event) => {
     event.preventDefault();
     run(login, "loginStatus");
@@ -230,10 +253,15 @@ function bindEvents() {
   $("refreshMissions").onclick = () => run(loadMissions, "createStatus");
   $("reload").onclick = () => run(refreshAll, "createStatus");
   $("deleteMission").onclick = () => run(deleteMission, "createStatus");
-  $("saveAnswer").onclick = () => run(saveAnswer);
-  $("saveFinding").onclick = () => run(saveFinding);
-  $("closeFinding").onclick = () => run(updateFindingStatus);
-  $("uploadEvidence").onclick = () => run(uploadEvidence);
+  $("saveAnswer").onclick = () => controlAction(saveAnswer);
+  $("saveFinding").onclick = () => controlAction(saveFinding);
+  $("closeFinding").onclick = () => controlAction(updateFindingStatus);
+  $("uploadEvidence").onclick = () => controlAction(uploadEvidence);
+  $('controlPrevious').onclick=()=>selectQuestion(state.chain.findIndex(q=>q.question_id===state.selected?.question_id)-1);
+  $('controlNext').onclick=()=>selectQuestion(state.chain.findIndex(q=>q.question_id===state.selected?.question_id)+1);
+  $('controlJump').onchange=()=>{selectQuestion(Number($('controlJump').value));renderControlNavigation();};
+  $('controlList').onclick=()=>showTab('audit');
+  $('controlSaveNext').onclick=()=>controlAction(saveAndNextControl);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
   bindReferenceLibrary({api,run,showTab});
   bindProgramBuilder({api,run,onPrepare:prepareCustomDefinition});
@@ -283,7 +311,7 @@ function bindEvents() {
 }
 
 function prepareNewMission(options = {}) {
-  showTab("mission_form");
+  if(showTab("mission_form")===false)return false;
   if (options.blank) {
     missionEpoch++;
     state.missionId = "";
@@ -316,7 +344,7 @@ function resetMissionForm() {
   $("auditProgram").value = "PA_DGFIP";
   $("customAuditTypeName").value = "";
   $("customReferentials").value = "";
-  $("customControlsText").value = "";
+  $("customControlsText").value = "";preparedQuestions=[];
   $("missionTitle").value = AUDIT_PROGRAMS.PA_DGFIP.defaultTitle;
   $("auditPeriodStart").value = "";
   $("auditPeriodEnd").value = "";
@@ -382,12 +410,13 @@ function prepareCustomAuditFromAdmin() {
   prepareCustomDefinition({name,referentials,controls});
 }
 
-function prepareCustomDefinition({name,referentials,controls}) {
-  prepareNewMission({ blank: true });
+function prepareCustomDefinition({name,referentials,controls,questions=[]}) {
+  if(prepareNewMission({ blank: true })===false)return;
   $("auditProgram").value = "CUSTOM_CDC";
   $("customAuditTypeName").value = name;
   $("customReferentials").value = referentials;
   $("customControlsText").value = controls;
+  preparedQuestions=questions;
   $("missionTitle").value = name;
   applyAuditProgramDefaults();
   setStatus("Programme préparé avec les contrôles sélectionnés. Vérifie le nom proposé, complète le client puis clique “Créer mission + questionnaire”. Les contrôles saisis généreront une chaîne dédiée au référentiel libre.", "success", "createStatus");
@@ -631,7 +660,7 @@ function fillMissionForm(mission) {
   $("auditProgram").value = auditProgramFromMission(mission).id;
   $("customAuditTypeName").value = scope.custom_audit_type_name || "";
   $("customReferentials").value = scope.custom_referentials || "";
-  $("customControlsText").value = "";
+  $("customControlsText").value = "";preparedQuestions=[];
   $("missionTitle").value = mission.title || "Audit de conformité PA";
   const period = periodDates(mission.audit_period);
   $("auditPeriodStart").value = period.start;
@@ -728,6 +757,7 @@ function missionProfilePayload() {
     declared_scope: $("declaredScope").value,
     custom_audit_type_name: $("customAuditTypeName").value,
     custom_referentials: $("customReferentials").value,
+    custom_questions: preparedQuestions,
     custom_controls_text: $("customControlsText").value
   };
 }
@@ -936,6 +966,8 @@ function renderClientFacts() {
 }
 
 async function openMission(id) {
+  if(controlBusy)throw Error('Enregistrement en cours : attends sa fin avant de changer de mission.');
+  if(!allowControlLeave())return;
   const mission = state.missions.find(m => m.id === id);
   if (!mission) throw new Error("Choisis une mission autorisée à ouvrir.");
   const epoch = ++missionEpoch;
@@ -1067,7 +1099,8 @@ async function loadChain() {
   const data = await api(`/api/audit-chain?mission_id=${id}`);
   if (id!==state.missionId || epoch!==missionEpoch) return;
   state.chain = data.chain;
-  if (selectedAuditProgramId() === "CUSTOM_CDC") $("customControlsText").value = data.chain.map(q=>q.attendu_dgfip||q.question).join("\n");
+  if(state.selected) state.selected=state.chain.find(q=>q.question_id===state.selected.question_id)||null;
+  if (selectedAuditProgramId() === "CUSTOM_CDC") {$("customControlsText").value = data.chain.map(q=>q.attendu_dgfip||q.question).join("\n");preparedQuestions=data.chain.map(q=>({requirement:q.attendu_dgfip,question:q.question}));}
   $("opinion").innerHTML = `<strong>${data.result.opinion}</strong><br>${escapeHtml(data.result.reason)}`;
   renderChain();
 }
@@ -1090,8 +1123,8 @@ function renderChain() {
       <td>${applicabilityBadge(r.applicabilite_statut)}<br><span class="muted smallText">${escapeHtml(r.applicabilite_raison || "")}</span></td>
       <td>${badge(r.qualification_base)}</td>
       <td>${badge(r.qualification_retenue)}</td>
-      <td>${escapeHtml(r.reponse_statut)}${r.report_limitation ? `<br><small>${escapeHtml(r.report_limitation)}</small>` : ""}</td>
-      <td>${escapeHtml(r.constat || "-")}<br>${escapeHtml(r.statut_constat || "")}</td>
+      <td>${escapeHtml(controlLabel(r.reponse_statut))}${r.report_limitation ? `<br><small>${escapeHtml(r.report_limitation)}</small>` : ""}</td>
+      <td>${escapeHtml(r.constat || "-")}<br>${escapeHtml(controlLabel(r.statut_constat || ""))}</td>
       <td>${escapeHtml(r.preuves_associees || "Aucune preuve liée")}</td>
     </tr>`).join("");
   for (const row of $("chainTable").querySelectorAll("tbody tr")) {
@@ -1099,17 +1132,21 @@ function renderChain() {
   }
 }
 
-function selectQuestion(index) {
+function selectQuestion(index,afterSave=false) {
+  if(!state.chain[index]||(!afterSave&&controlBusy))return;
+  if(!afterSave&&!allowControlLeave())return;
   state.selected = state.chain[index];
   $("detailEmpty").hidden = true;
   $("detail").hidden = false;
-  $("detailTitle").textContent = `${state.selected.reference} - ${state.selected.question}`;
+  const reference=state.selected.reference||'';const title=state.selected.question||'';
+  $("detailTitle").textContent=title.startsWith(reference)?title:`${reference} — ${title}`;
+  $('requirementLabel').textContent=auditProgramFromMission(currentMission()).id==='PA_DGFIP'?'Attendu DGFiP':'Exigence du référentiel';
   $("requirement").textContent = state.selected.attendu_dgfip;
   $("expectedEvidence").textContent = state.selected.preuves_attendues;
   $("applicabilityNote").innerHTML = `
     <strong>${escapeHtml(applicabilityLabel(state.selected.applicabilite_statut))}</strong><br>
     ${escapeHtml(state.selected.applicabilite_raison || "Applicabilité à confirmer par l'auditeur.")}<br>
-    <span class="muted">${escapeHtml(state.selected.conduite_audit || auditLanguagePolicy(currentMission()?.client_language || "fr"))}</span>
+    <span class="muted">${escapeHtml(state.selected.conduite_audit || (auditProgramFromMission(currentMission()).id==='PA_DGFIP'?auditLanguagePolicy(currentMission()?.client_language || "fr"):'Rapport selon le programme et les modalités de la mission.'))}</span>
   `;
   $("checklist").innerHTML = state.selected.checklist.map((x) => `<li>${escapeHtml(x)}</li>`).join("");
   $("answerStatus").value = state.selected.reponse_statut;
@@ -1119,7 +1156,8 @@ function selectQuestion(index) {
   $("retainedQualification").value = state.selected.qualification_retenue;
   $("recommendation").value = state.selected.recommandation || "";
   $("findingStatus").value = state.selected.statut_constat || "OPEN";
-  renderChain();
+  answerBaseline=snapshot(answerFields);findingBaseline=snapshot(findingFields);treatmentBaseline=$('findingStatus').value;$('evidenceFile').value='';
+  renderControlNavigation();renderChain();
   showTab("detail");
 }
 
@@ -1133,6 +1171,7 @@ async function saveAnswer() {
     renderChain();
     return;
   }
+  const submittedAnswer=snapshot(answerFields);
   await api("/api/answers", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1143,6 +1182,7 @@ async function saveAnswer() {
       auditor_analysis: $("auditorAnalysis").value
     })
   });
+  answerBaseline=submittedAnswer;
   setStatus("Réponse enregistrée.", "success");
   await loadChain();
   showTab("detail");
@@ -1161,6 +1201,7 @@ async function saveFinding() {
     renderChain();
     return;
   }
+  const submittedFinding=snapshot(findingFields);
   await api("/api/findings", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -1171,6 +1212,7 @@ async function saveFinding() {
       recommendation: $("recommendation").value
     })
   });
+  findingBaseline=submittedFinding;
   setStatus("Constat créé/mis à jour. La qualification retenue est tracée.", "success");
   await loadChain();
   showTab("detail");
@@ -1195,6 +1237,7 @@ async function updateFindingStatus() {
       closure_comment: "Traitement saisi par l'auditeur"
     })
   });
+  treatmentBaseline=$("findingStatus").value;
   setStatus("Traitement du constat mis à jour.", "success");
   await loadChain();
   showTab("detail");
@@ -1203,6 +1246,7 @@ async function updateFindingStatus() {
 async function uploadEvidence() {
   requireSelection();
   if (state.demo) return demoOnly("Le versement de preuve nécessite l’API, Supabase Storage et le hachage côté Worker.");
+  if (!$("evidenceFile").files[0]) throw new Error("Choisis un fichier de preuve.");
   if (!state.selected.constat_id) await saveFinding();
   await loadChain();
   state.selected = state.chain.find((x) => x.question_id === state.selected.question_id);
@@ -1485,7 +1529,7 @@ function legacyReportHtml(out) {
     <tbody>${(out.client_replies || []).map((r) => `<tr><td>${formatDate(r.submitted_at)}</td><td>${escapeHtml(languageLabel(r.message_language))}</td><td>${escapeHtml(r.message)}</td><td>${escapeHtml(r.french_translation || "")}</td><td>${r.translation_validated ? "Validée" : "À valider"}</td></tr>`).join("") || `<tr><td colspan="5">Aucune réponse client enregistrée.</td></tr>`}</tbody></table>
     <h2>Evidence book</h2>
     <table><thead><tr><th>Contrôle</th><th>Attendu</th><th>Réponse</th><th>Constat</th><th>Preuves attendues</th><th>Preuves associées</th></tr></thead>
-    <tbody>${out.chain.map((r) => `<tr><td>${escapeHtml(r.reference)}</td><td>${escapeHtml(r.attendu_dgfip)}</td><td>${escapeHtml(r.reponse_statut)}<br>${escapeHtml(r.reponse_client)}</td><td>${escapeHtml(r.constat)} ${escapeHtml(r.synthese_constat)}</td><td>${escapeHtml(r.preuves_attendues)}</td><td>${escapeHtml(r.preuves_associees)}</td></tr>`).join("")}</tbody></table>
+    <tbody>${out.chain.map((r) => `<tr><td>${escapeHtml(r.reference)}</td><td>${escapeHtml(r.attendu_dgfip)}</td><td>${escapeHtml(controlLabel(r.reponse_statut))}<br>${escapeHtml(r.reponse_client)}</td><td>${escapeHtml(r.constat)} ${escapeHtml(r.synthese_constat)}</td><td>${escapeHtml(r.preuves_attendues)}</td><td>${escapeHtml(r.preuves_associees)}</td></tr>`).join("")}</tbody></table>
   `;
 }
 
@@ -1499,6 +1543,8 @@ function requireMission() {
   }
 }
 function showTab(name, options = {}) {
+  if(state.activeTab==='detail'&&name!=='detail'&&(controlBusy||!allowControlLeave()))return false;
+  navigationEpoch++;
   state.activeTab = name;
   const layout = document.querySelector(".layout");
   layout?.classList.toggle("dashboardMode", name === "dashboard");
@@ -1588,9 +1634,11 @@ function demoOnly(message) {
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[c]));
 }
-function badge(value) { return `<strong>${escapeHtml(value)}</strong>`; }
+function controlLabel(value){return ({NOT_STARTED:'À examiner',COMPLIANT:'Conforme',PARTIALLY_COMPLIANT:'Partiellement conforme',NON_COMPLIANT:'Non conforme',NOT_APPLICABLE:'Non applicable',LOW:'Faible',MEDIUM:'Moyenne',HIGH:'Élevée',CRITICAL:'Critique',OPEN:'Ouvert',IN_REVIEW:'En revue',CLOSED:'Clôturé'})[value]||value;}
+function badge(value) { return `<strong>${escapeHtml(controlLabel(value))}</strong>`; }
 function applicabilityLabel(value) {
   return ({
+    A_CONFIRMER: "Applicabilité à confirmer",
     OBLIGATOIRE: "Obligatoire",
     CONDITIONNEL: "Conditionnel",
     HORS_PERIMETRE_A_CONFIRMER: "Hors périmètre à confirmer"
