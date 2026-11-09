@@ -23,10 +23,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.9.0",
+  version: "1.9.1",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.9.0",
+  buildCommit: "local-v1.9.1",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -1067,7 +1067,7 @@ async function loadChain() {
   const data = await api(`/api/audit-chain?mission_id=${id}`);
   if (id!==state.missionId || epoch!==missionEpoch) return;
   state.chain = data.chain;
-  if (selectedAuditProgramId() === "CUSTOM_CDC") $("customControlsText").value = data.chain.map(q=>q.question).join("\n");
+  if (selectedAuditProgramId() === "CUSTOM_CDC") $("customControlsText").value = data.chain.map(q=>q.attendu_dgfip||q.question).join("\n");
   $("opinion").innerHTML = `<strong>${data.result.opinion}</strong><br>${escapeHtml(data.result.reason)}`;
   renderChain();
 }
