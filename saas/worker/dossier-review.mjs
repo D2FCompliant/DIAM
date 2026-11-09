@@ -36,10 +36,10 @@ Mission : ${JSON.stringify({number:mission.number,title:mission.title,period:mis
 Bibliographie sélectionnée : ${JSON.stringify(documents)}
 Cibles : ${JSON.stringify(targets)}
 Répondre selon le schéma, en français, avec des formulations courtes et actionnables.`;}
-export function selectReviewDocuments(all,selection,tenantId,missionId){
- if(!Array.isArray(selection)||selection.length<2||selection.length>20||new Set(selection.map(x=>x.id)).size!==selection.length)throw new Error('Sélectionne entre 2 et 20 documents distincts.');
+export function selectReviewDocuments(all,selection,tenantId,missionId,{documentary=false}={}){
+ if(!Array.isArray(selection)||selection.length<2||selection.length>(documentary?100:20)||new Set(selection.map(x=>x.id)).size!==selection.length)throw new Error(`Sélectionne entre 2 et ${documentary?100:20} documents distincts.`);
  const docs=selection.map(s=>{const d=all.find(d=>d.id===s.id&&d.tenant_id===tenantId&&(d.mission_id===missionId||d.document_scope==='GLOBAL'));if(!d||!['REFERENCE','CLIENT'].includes(s.role))throw new Error('Document non autorisé ou rôle invalide.');
- if(!/\.(pdf|txt|md|json|xml|csv|docx)$/i.test(d.original_name))throw new Error(`Format non pris en charge pour la préparation : ${d.original_name}. Déposer une version PDF ou texte.`);
+ if(!documentary&&!/\.(pdf|txt|md|json|xml|csv|docx)$/i.test(d.original_name))throw new Error(`Format non pris en charge pour la préparation : ${d.original_name}. Déposer une version PDF ou texte.`);
  if(!/^[a-f0-9]{64}$/i.test(d.sha256)||!d.storage_path?.startsWith(`${tenantId}/`))throw new Error('Empreinte ou chemin documentaire invalide.');return {...d,role:s.role};});
  if(!docs.some(d=>d.role==='REFERENCE')||!docs.some(d=>d.role==='CLIENT'))throw new Error('Sélectionne au moins un référentiel et un document client.');
  if(docs.reduce((n,d)=>n+Number(d.file_size||0),0)>45*1024*1024)throw new Error('Dossier supérieur à 45 Mo : sélectionner un lot cohérent plus petit.');return docs;

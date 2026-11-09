@@ -1,3 +1,6 @@
+import {bindControlDocuments} from './control-documents.mjs';
+let controlDocumentsWorkspace;
+import {expandDossierFiles} from './dossier-files.mjs';
 let preparedQuestions=[];
 let navigationEpoch=0;
 let controlBusy=false;
@@ -44,10 +47,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.11.1",
-  release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
+  version: "1.12.0",
+  release: "Dossier complet, préparation des contrôles et rapport par programme",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.11.1",
+  buildCommit: "local-v1.12.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -269,7 +272,8 @@ function bindEvents() {
   auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
   $("printReport").onclick=()=>window.print();
   $("changeActiveMission").onclick=()=>run(()=>auditGuide.open(),"guideStatus");
-  dossierWorkspace=bindDossier({api,getMission:()=>state.missionId,run,showTab,openControl:item=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0)selectQuestion(index);}});
+  controlDocumentsWorkspace=bindControlDocuments({api,getMission:()=>state.missionId,getSelected:()=>state.selected,getAnalysis:()=>$('auditorAnalysis').value,setAnalysis:v=>{$('auditorAnalysis').value=v;},act:controlAction,refresh:loadChain});
+  dossierWorkspace=bindDossier({api,getReferenceIds:()=>new Set(state.chain.flatMap(q=>(q.source||'').match(/[a-f0-9]{8}-[a-f0-9-]{27}/gi)||[])),getMission:()=>state.missionId,run,showTab,openControl:(item,job)=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0){selectQuestion(index);if(state.selected?.question_id===item.question_id)controlDocumentsWorkspace.open(state.selected,job).catch(e=>setStatus(e.message,'error'));}}});
   bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   $("loadLastReport").onclick = () => run(async () => {
@@ -636,9 +640,10 @@ async function loadMissions() {
     return;
   }
   $("missionSelect").innerHTML = state.missions.map((m) => `<option value="${m.id}">${m.number} - ${escapeHtml(m.title)}</option>`).join("");
-  state.missionId = state.missionId && state.missions.some((m) => m.id === state.missionId) ? state.missionId : state.missions[0]?.id || "";
+  let remembered='';try{remembered=localStorage.getItem('diam.mission.'+state.actor)||'';}catch{}
+  state.missionId=[state.missionId,remembered].find(id=>state.missions.some(m=>m.id===id))||state.missions.find(m=>![m.client_name,m.title].some(value=>/^\[(?:TEST|DEMO)/i.test(value||'')))?.id||'';
   $("missionSelect").value = state.missionId;
-  setMissionDependentEnabled(true);
+  setMissionDependentEnabled(Boolean(state.missionId));
   fillMissionForm(currentMission());
   renderClientFacts();
   renderMissionList();
@@ -652,6 +657,12 @@ function currentMission() {
 
 function fillMissionForm(mission) {
   if (!mission) return;
+  const pa=auditProgramFromMission(mission).id==='PA_DGFIP';
+  const reportTab=document.querySelector('[data-tab="report"]');if(reportTab)reportTab.textContent=pa?'Rapport DGFiP':'Rapport d’audit';
+  $('openLifecycleReport').hidden=!pa;
+  $('generateReport').textContent=pa?'Générer rapport DGFiP':'Générer le rapport d’audit';
+  for(const id of ['topDgfipFile','prepareDgfipAnalysis','openLifecycle','openCyber'])if($(id))$(id).hidden=!pa;
+
   const scope = mission.client_scope || {};
   $("clientName").value = mission.client_name || "";
   $("siren").value = mission.client_siren || "";
@@ -972,6 +983,7 @@ async function openMission(id) {
   if (!mission) throw new Error("Choisis une mission autorisée à ouvrir.");
   const epoch = ++missionEpoch;
   state.missionId = id;
+  try{localStorage.setItem('diam.mission.'+state.actor,id);}catch{}
   $("missionSelect").value = id;
   state.selected = null;
   state.documentId = null;
@@ -1159,6 +1171,7 @@ function selectQuestion(index,afterSave=false) {
   answerBaseline=snapshot(answerFields);findingBaseline=snapshot(findingFields);treatmentBaseline=$('findingStatus').value;$('evidenceFile').value='';
   renderControlNavigation();renderChain();
   showTab("detail");
+  controlDocumentsWorkspace?.open(state.selected).catch(e=>setStatus(e.message,"error"));
 }
 
 async function saveAnswer() {
@@ -1309,18 +1322,23 @@ async function uploadAuditDocument(options = {}) {
   const globalScope = isGlobalDocumentType(documentType);
   if (!globalScope) requireMission();
   if (state.demo) return demoOnly("Le dépôt documentaire nécessite l’API Cloudflare Worker et Supabase Storage.");
-  const files = [...$("auditDocumentFile").files];
+  const selectedFiles = [...$("auditDocumentFile").files];
+  const files=await expandDossierFiles(selectedFiles);
   if (!files.length) throw new Error("Choisis un ou plusieurs documents à déposer : dossier DGFiP accepté, nouveau référentiel, CR réunion, note D2F, document qualité, technique ou sécurité.");
+  const uploadMission=state.missionId;
   const uploaded = [];
   setStatus(`Dépôt documentaire en cours (${files.length} fichier(s))...`, "info", "documentStatus");
   for (const file of files) {
+    if(!globalScope&&state.missionId!==uploadMission)throw Error(`Mission changée. ${uploaded.length} fichiers déjà déposés dans la mission initiale ; aucun fichier envoyé à la nouvelle mission.`);
+    setStatus(`Dépôt ${uploaded.length+1}/${files.length} : ${file.name}`, "info", "documentStatus");
     const fd = new FormData();
     if (state.missionId && !globalScope) fd.set("mission_id", state.missionId);
     fd.set("document_type", documentType);
     fd.set("document_scope", globalScope ? "GLOBAL" : "MISSION");
     fd.set("file", file);
-    uploaded.push(await api("/api/documents", { method: "POST", body: fd }));
+    try{uploaded.push(await api("/api/documents", { method: "POST", body: fd }));}catch(e){await loadDocuments();throw Error(`${uploaded.length}/${files.length} fichiers déposés. Échec pour ${file.name} : ${e.message}. Relance le même dépôt : les fichiers déjà présents sont reconnus par leur empreinte.`);}
   }
+  controlDocumentsWorkspace?.invalidate();
   state.documentId = uploaded.at(-1)?.id || state.documentId;
   const duplicates = uploaded.filter((doc) => doc.duplicate).length;
   const created = uploaded.length - duplicates;
@@ -1500,7 +1518,7 @@ async function generateReport() {
 }
 
 function reportHtml(out) {
-  if (out.template?.id === "D2F-PA-STRUCTURED") return structuredReportHtml(out);
+  if (out.template || /Audit personnalisé|RLF-C:SC/.test(out.mission?.referential_version||"")) return structuredReportHtml(out);
   return legacyReportHtml(out);
 }
 

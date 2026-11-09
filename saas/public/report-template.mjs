@@ -1,3 +1,4 @@
+import {auditReportHtml} from './audit-report.mjs';
 import {CYBER_TITLE,assessCyber} from './cyber.mjs';
 import { periodLabel } from "./audit-period.mjs";
 import { DIMENSIONS, STATUSES } from './lifecycle.mjs';
@@ -22,6 +23,7 @@ export function reportSummary(chain=[]) {
   return Object.entries(labels).filter(([key])=>!['PASS','FAIL'].includes(key)).map(([key,label])=>[label,chain.filter(r=>r.reponse_statut===key).length]);
 }
 export function structuredReportHtml(out) {
+  if(out.template?.id==='D2F-AUDIT-STRUCTURED'||/Audit personnalisé|RLF-C:SC/.test(out.mission?.referential_version||''))return auditReportHtml(out);
   const {mission={},client={},chain=[],client_replies:replies=[],evidences=[],lifecycle={},release={}}=out;
   const template=out.template||REPORT_TEMPLATE;
   const scope=client.scope||{}, assessment=lifecycle.assessment||{status:'NOT_STARTED',issues:['Dossier non constitué.'],tests:[],statuses:[],passed:0,total:0};

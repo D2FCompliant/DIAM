@@ -2,7 +2,7 @@ import {extractDocumentText} from './document-text.mjs';
 const phases={CORE:'Socle du programme',CYBER:'Cybersécurité',LIFECYCLE:'Cycles de vie'},states={REQUESTED:'Envoi en cours',STARTED:'Analyse en cours',COMPLETED:'Préparation disponible',FAILED:'Analyse échouée'};
 const labels={DOCUMENTED:'Déjà documenté',CLARIFY:'Clarifications',REQUEST_EVIDENCE:'Pièces à demander',PLAN_TEST:'Tests à conduire',POTENTIAL_GAP:'Écarts proposés',SCOPE_REVIEW:'Périmètre à valider'};
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-export function bindDossier({api,getMission,run,showTab,openControl}){
+export function bindDossier({api,getReferenceIds=()=>new Set(),getMission,run,showTab,openControl}){
  const el=id=>document.getElementById(id);let selectedMission='',documents=[],jobs=[],job=null,timer=null;
  const mission=()=>{const m=getMission();if(!m)throw new Error('Ouvre d’abord la mission à préparer.');return m;};
  const current=m=>m===getMission();
@@ -22,7 +22,7 @@ export function bindDossier({api,getMission,run,showTab,openControl}){
   el('retryDossier').hidden=!['FAILED','COMPLETED'].includes(job.status);el('retryDossier').textContent=job.status==='FAILED'?'Relancer l’analyse échouée':'Créer une nouvelle préparation du même dossier';
  }
  function cards(){const filter=el('dossierFilter').value;el('dossierCards').innerHTML=job.result.items.map((x,i)=>filter&&x.status!==filter?'':`<article class="card" style="margin-top:12px"><h3>${esc(x.id)} — ${esc(x.title)}</h3><strong>${labels[x.status]}</strong><p>${esc(x.finding)}</p><ul>${x.warnings.map(w=>`<li>${esc(w)}</li>`).join('')}</ul><details><summary>Sources client et critères</summary><h4>Documents examinés</h4><ul>${x.sources.map(citation).join('')}</ul><h4>Critères</h4><ul>${x.criteria.map(citation).join('')}</ul></details><p><strong>Pièce à demander :</strong> ${esc(x.evidence_request)}</p><p><strong>Test à conduire :</strong> ${esc(x.test)}</p><p><strong>Interlocuteur :</strong> ${esc(x.interlocutor)}</p>${x.question_id?`<button type="button" data-open-control="${i}">Ouvrir le contrôle ${esc(x.control)}</button>`:''}</article>`).join('');
-  el('dossierCards').querySelectorAll('[data-open-control]').forEach(b=>b.onclick=()=>{if(selectedMission!==getMission())return;openControl(job.result.items[Number(b.dataset.openControl)]);});
+  el('dossierCards').querySelectorAll('[data-open-control]').forEach(b=>b.onclick=()=>{if(selectedMission!==getMission())return;openControl(job.result.items[Number(b.dataset.openControl)],job);});
  }
  async function start(retry=false){const m=mission();if(m!==selectedMission)throw new Error('Actualise le dossier après le changement de mission.');
   const selection=retry?job.documents.map(({id,role})=>({id,role})):Array.from(el('dossierDocuments').querySelectorAll('input:checked')).map(c=>({id:documents[Number(c.dataset.doc)].id,role:el('dossierDocuments').querySelector(`[data-role="${c.dataset.doc}"]`).value}));
@@ -33,12 +33,13 @@ export function bindDossier({api,getMission,run,showTab,openControl}){
    const out=await api('/api/dossier-reviews',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({mission_id:m,mode,extractions,phase:retry?job.phase:el('dossierPhase').value,documents:selection,...(retry?{retry_of:job.id}:{})})});if(current(m)){job=out;render();el('dossierStatus').textContent=out.status==='COMPLETED'?'Préparation disponible ci-dessous.':'Préparation enregistrée. Le résultat s’actualise automatiquement.';}}finally{el('startDossier').disabled=false;el('retryDossier').disabled=false;}
  }
  el('openDossier').onclick=()=>{showTab('dossier');run(load,'dossierStatus');};
+ el('dossierSelectMission').onclick=()=>{const refs=getReferenceIds();for(const c of el('dossierDocuments').querySelectorAll('[data-doc]')){const d=documents[Number(c.dataset.doc)];c.checked=d.document_scope!=='GLOBAL'||refs.has(d.id);}el('dossierStatus').textContent='Pièces de la mission et référentiels rattachés sélectionnés. Vérifie les sources avant de lancer.';};
  el('reloadDossier').onclick=()=>run(load,'dossierStatus');
  el('startDossier').onclick=()=>run(()=>start(),'dossierStatus');
  el('retryDossier').onclick=()=>run(()=>start(true),'dossierStatus');
  async function poll(){const m=mission();if(!job||m!==selectedMission)throw new Error('Sélectionne une préparation de cette mission.');const id=job.id,out=await api(`/api/dossier-reviews/${id}?mission_id=${m}`);if(current(m)&&job?.id===id){job=out;render();}}
  el('pollDossier').onclick=()=>run(poll,'dossierStatus');
  el('exportDossier').onclick=()=>run(()=>{if(!job?.result||mission()!==selectedMission)throw new Error('Aucun résultat terminé pour cette mission.');const blob=new Blob([JSON.stringify({mission_id:selectedMission,...job},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`DIAM-preparation-${job.phase}-${job.id}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);},'dossierStatus');
- return {open:async(ids=[])=>{showTab('dossier');await load();if(!current(selectedMission))return;el('dossierMode').value='DOCUMENTARY';for(const checkbox of el('dossierDocuments').querySelectorAll('[data-doc]')){const d=documents[Number(checkbox.dataset.doc)];checkbox.checked=ids.includes(d.id)||(d.document_scope==='GLOBAL'&&d.catalogue?.status==='VALIDATED');}el('dossierStatus').textContent='Vérifie les documents sélectionnés et les référentiels applicables, puis lance la préparation sans IA.';}};
+ return {open:async(ids=[])=>{showTab('dossier');await load();if(!current(selectedMission))return;el('dossierMode').value='DOCUMENTARY';for(const checkbox of el('dossierDocuments').querySelectorAll('[data-doc]')){const d=documents[Number(checkbox.dataset.doc)];checkbox.checked=ids.includes(d.id)||(d.document_scope==='GLOBAL'&&d.catalogue?.status==='VALIDATED'&&getReferenceIds().has(d.id));}el('dossierStatus').textContent='Vérifie les documents sélectionnés et les référentiels applicables, puis lance la préparation sans IA.';}};
 
 }

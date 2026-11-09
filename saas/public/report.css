@@ -28,3 +28,19 @@
   .d2fReport th { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
 }
 @media(max-width:700px){.lcFields{grid-template-columns:1fr}.d2fReport{padding:12px}}
+.d2fReport td { white-space:pre-wrap; overflow-wrap:anywhere; vertical-align:top; }
+.d2fReport .reportControl { margin-top:20px; }
+.d2fReport .reportControl th:first-child { width:24%; }
+@media print { .d2fReport .reportControl tr { break-inside:auto; } .d2fReport footer { margin-top:12mm; font-size:8pt; color:#617486; } }
+.d2fReport .reportMatrix th:nth-child(1) { width:12%; }
+.d2fReport .reportMatrix th:nth-child(2) { width:51%; }
+.d2fReport .reportMatrix th:nth-child(3) { width:15%; }
+.d2fReport .reportMatrix th:nth-child(4) { width:22%; }
+@media print {
+  .d2fReport { page:diamAudit; }
+  @page diamAudit {
+    size:A4 portrait; margin:18mm 12mm;
+    @top-right { content:"D2F COMPLIANT · DIAM"; font:8pt Arial,sans-serif; color:#18324a; }
+    @bottom-center { content:"Page " counter(page) " / " counter(pages); font:8pt Arial,sans-serif; color:#617486; }
+  }
+}

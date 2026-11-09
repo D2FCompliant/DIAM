@@ -692,3 +692,7 @@ body.technologyTheme #detailCard button.secondary{border-radius:10px;min-height:
 body.technologyTheme #detailCard button.secondary:hover{background:#edf5fc;color:#0869d8;border-color:#9bb7d4}
 #detailCard h4{color:#082f43;margin-top:18px}
 #detailCard .twoCols>div{min-width:0}
+.controlDocuments { margin:16px 0; padding:16px; background:#f4f8fa; border:1px solid #d4e0e8; border-radius:12px; }
+.controlDocuments blockquote { margin:8px 0; padding:8px 12px; border-left:3px solid #0869d8; white-space:pre-wrap; }
+.controlDocuments summary { cursor:pointer; font-weight:700; }
+.controlDocuments select { max-width:100%; }

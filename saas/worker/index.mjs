@@ -1,3 +1,5 @@
+import {AUDIT_REPORT_TEMPLATE} from '../public/audit-report.mjs';
+import {canonical} from '../public/audit-preparation.mjs';
 import {questionForControl} from '../public/audit-question.mjs';
 import {storageObjectName} from './storage-key.mjs';
 import {auditPreparationStore} from './audit-preparation-store.mjs';
@@ -17,11 +19,11 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.11.1",
-  release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
+  version: "1.12.0",
+  release: "Dossier complet, préparation des contrôles et rapport par programme",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
-  releasedAt: "2026-11-08",
+  releasedAt: "2026-11-09",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
   lastChange: "Préparation documentaire indépendante de l’IA, lettre, planning, participants et accès aux fiches"
 };
@@ -1418,6 +1420,13 @@ function openAiFriendlyError(raw) {
   }
 }
 
+function validDocumentEvidence(doc,tenantId,missionId,hash){return Boolean(doc&&doc.tenant_id===tenantId&&doc.mission_id===missionId&&doc.document_scope==='MISSION'&&doc.sha256===hash);}
+
+async function recordDocumentEvidence(db,tenantId,missionId,who,doc,evidence){
+  const rows=await db.select('diam_audit_events',`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&object_id=eq.${evidence.id}&event_type=eq.DOCUMENT_LINKED_TO_CONTROL&limit=1`);
+  if(!rows.length)await db.insert('diam_audit_events',{tenant_id:tenantId,mission_id:missionId,actor:who,event_type:'DOCUMENT_LINKED_TO_CONTROL',object_type:'EVIDENCE',object_id:evidence.id,details:{source_document_id:doc.id,question_id:evidence.question_id,sha256:evidence.sha256,original_name:doc.original_name}});
+}
+
 async function auditChain(db, tenantId, missionId) {
   const [mission] = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&id=eq.${missionId}&limit=1`);
   const [client] = mission?.client_id ? await db.select("diam_clients", `?tenant_id=eq.${tenantId}&id=eq.${mission.client_id}&limit=1`) : [];
@@ -1801,6 +1810,15 @@ async function handleApi(request, env) {
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
     const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const sourceDocumentId=form.get("source_document_id");
+    let sourceDocument=null;
+    if(sourceDocumentId){
+      if(!/^[a-f0-9-]{36}$/i.test(sourceDocumentId)||!questionId)return json({error:"Document source et contrôle invalides."},400);
+      sourceDocument=(await db.select("diam_documents",`?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&id=eq.${sourceDocumentId}`))[0];
+      if(!validDocumentEvidence(sourceDocument,tenant.id,missionId,hash))return json({error:"La pièce source n’appartient pas à cette mission ou son empreinte diffère."},409);
+      const prior=(await db.select("diam_evidences",`?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&question_id=eq.${questionId}&sha256=eq.${hash}`))[0];
+      if(prior){await recordDocumentEvidence(db,tenant.id,missionId,who,sourceDocument,prior);return json({...prior,duplicate:true},200);}
+    }
     const storagePath = `${tenant.id}/${missionId}/${storageObjectName(file.name)}`;
     await db.upload(storagePath, bytes, file.type || "application/octet-stream");
     const evidence = await db.insert("diam_evidences", {
@@ -1815,6 +1833,7 @@ async function handleApi(request, env) {
       sha256: hash,
       uploaded_by: who
     });
+    if(sourceDocument)await recordDocumentEvidence(db,tenant.id,missionId,who,sourceDocument,evidence);
     if (findingId) await db.upsert("diam_finding_evidences", { finding_id: findingId, evidence_id: evidence.id }, "finding_id,evidence_id");
     const archive = await archiveObject(db, env, tenant, {
       object_type: "EVIDENCE",
@@ -2208,19 +2227,26 @@ async function handleApi(request, env) {
     const evidenceRows = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=uploaded_at.desc`);
     const lifecycleQuestion = chain.find(r => r.reference === "DGFiP-3.9");
     const lifecycle = lifecycleQuestion ? await readLifecycle(db, tenant.id, b.mission_id, lifecycleQuestion.question_id, evidenceRows) : null;
-    if (lifecycle) chain = applyEvidenceGates(applyLifecycleGate(chain, lifecycle), evidenceRows);
+    if (lifecycle) chain = applyLifecycleGate(chain, lifecycle);
+    chain=applyEvidenceGates(chain,evidenceRows);
     const cyberQuestion = chain.find(r => r.reference === 'DGFiP-7.3');
     const cyber = cyberQuestion ? await readLifecycle(db, tenant.id, b.mission_id, cyberQuestion.question_id, evidenceRows, cyberConfig) : null;
     if(cyber) chain=applyCyberGate(chain,cyber);
     const result = opinion(chain);
     if (cyber && cyber.assessment.status !== 'COMPLIANT') { if(result.opinion === 'CONFORME') result.opinion='AUDIT INCOMPLET'; result.reason += ' Cybersécurité : '+cyber.assessment.issues.join(' '); }
     if (lifecycleQuestion && !mission.audit_period) { result.opinion = "AUDIT INCOMPLET"; result.reason += " Période auditée à renseigner dans la fiche mission."; }
-    if (clientReplies.some(r => r.message_language !== "fr" && (!r.french_translation || !r.translation_validated))) {
+    if (lifecycleQuestion && clientReplies.some(r => r.message_language !== "fr" && (!r.french_translation || !r.translation_validated))) {
       result.opinion = "AUDIT INCOMPLET";
       result.reason = "Au moins une réponse client nécessite une traduction française validée.";
     }
     const evidences = evidenceRows.map(({id,number,original_name,sha256,uploaded_at,uploaded_by,archive_status,archive_id}) => ({id,number,original_name,sha256,uploaded_at,uploaded_by,archive_status,archive_id}));
-    const reportPayload = { baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : null, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
+    const documents=await db.select('diam_documents',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=uploaded_at.asc`);
+    const planEvent=(await db.select('diam_audit_events',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&object_type=eq.AUDIT_PREPARATION&order=created_at.desc&limit=1`))[0];
+    const preparation=planEvent?.details?.plan||{};
+    if(planEvent&&await sha256(new TextEncoder().encode(canonical(preparation)))!==planEvent.details.sha256)return json({error:'Intégrité du plan d’audit non vérifiée : rapport interrompu.'},409);
+    const reviews=await db.select('diam_audit_events',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&object_type=eq.DOSSIER_REVIEW&event_type=eq.DOSSIER_REVIEW_COMPLETED&order=created_at.desc&limit=200`);
+    const phases=new Set();const documentary_reviews=reviews.filter(e=>{if(phases.has(e.details.phase))return false;phases.add(e.details.phase);return true;}).map(e=>({id:e.object_id,created_at:e.created_at,...e.details}));
+    const reportPayload = { documents,preparation,documentary_reviews,baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : AUDIT_REPORT_TEMPLATE, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
     const report = await db.insert("diam_reports", {
       tenant_id: tenant.id,
       mission_id: b.mission_id,

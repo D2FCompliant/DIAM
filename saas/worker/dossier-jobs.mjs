@@ -23,7 +23,7 @@ export async function dossierJobs({request,url,path,db,env,tenant,currentUser,wh
   let targets,docs;
   try{targets=reviewTargets(body.phase,await db.select('diam_questions',`?tenant_id=eq.${tenant.id}&mission_id=eq.${missionId}&order=reference.asc`));
    if(!targets.length)throw new Error('Le programme de cette mission ne contient aucun contrôle.');
-   docs=selectReviewDocuments(await db.select('diam_documents',`?tenant_id=eq.${tenant.id}&or=(mission_id.eq.${missionId},document_scope.eq.GLOBAL)`),body.documents,tenant.id,missionId);
+   docs=selectReviewDocuments(await db.select('diam_documents',`?tenant_id=eq.${tenant.id}&or=(mission_id.eq.${missionId},document_scope.eq.GLOBAL)`),body.documents,tenant.id,missionId,{documentary:local});
   }catch(e){return json({error:e.message},400);}
   const references=await db.select('diam_audit_events',`?tenant_id=eq.${tenant.id}&object_type=eq.REFERENCE_LIBRARY&order=created_at.desc&limit=1000`);
   for(const d of docs.filter(d=>d.role==='REFERENCE')){

@@ -45,7 +45,7 @@
       <button class="tab" data-tab="cyber" id="openCyber" type="button">Cybersécurité</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
       <button class="tab" data-tab="dossier" id="openDossier" type="button">Préparation d’audit</button>
-      <button class="tab" data-tab="documents" type="button">Documents & IA</button>
+      <button class="tab" data-tab="documents" type="button">Dossier documentaire</button>
       <button class="tab" data-tab="client" type="button">Espace client</button>
       <button class="tab" data-tab="report" type="button">Rapport DGFiP</button>
     </nav>
@@ -344,7 +344,7 @@
         </div>
         <div id="detailEmpty" class="muted">Sélectionne une ligne dans la chaîne d'audit.</div>
         <div id="detail" hidden>
-          <h3 id="detailTitle"></h3>
+          <h3 id="detailTitle"></h3><div id="controlDocuments" class="controlDocuments"></div>
           <div class="twoCols">
             <div>
               <h4 id="requirementLabel">Exigence du référentiel</h4>
@@ -404,11 +404,11 @@
       </section>
 
       <section class="card wide" data-panel="dossier" hidden>
-        <h2>Préparation d’audit — dossier croisé</h2>
-        <p>Ouvre la mission existante, dépose ses pièces dans Documents &amp; IA, puis sélectionne les documents client et les référentiels à croiser. Pour un audit PA, prépare successivement le socle, les cycles de vie et la cybersécurité. Les référentiels doivent être identifiés et validés dans Administration.</p>
+        <h2>Préparation d’audit — analyser le dossier et renseigner les contrôles</h2>
+        <p>Ouvre la mission existante, dépose ses pièces dans Dossier documentaire, puis sélectionne les documents client et les référentiels à croiser. Pour un audit PA, prépare successivement le socle, les cycles de vie et la cybersécurité. Les référentiels doivent être identifiés et validés dans Administration.</p>
         <p>Par défaut, l’extraction et le repérage documentaire fonctionnent sans OpenAI. Seul le mode IA facultatif transmet les fichiers au service configuré. Maximum 20 documents et 45 Mo par lot ; 3 000 pages par document et 10 millions de caractères extraits par lot. Les propositions restent distinctes des décisions de l’auditeur.</p>
         <button id="reloadDossier" type="button">Actualiser les documents</button>
-        <div id="dossierDocuments"></div>
+        <button id="dossierSelectMission" type="button">Sélectionner le dossier et les référentiels de cette mission</button><div id="dossierDocuments"></div>
         <label>Volet <select id="dossierPhase"><option value="CORE">Socle du programme d’audit</option><option value="LIFECYCLE">Cycles de vie</option><option value="CYBER">Cybersécurité</option></select></label>
         <label>Mode de préparation<select id="dossierMode"><option value="DOCUMENTARY">Analyse documentaire — sans IA, sans crédits OpenAI</option><option value="AI">Approfondissement IA facultatif — service configuré</option></select></label>
         <button id="startDossier" type="button">Préparer ce volet</button>
@@ -429,7 +429,7 @@
         </div>
         <p>Dépose ici soit des documents propres à la mission ouverte, soit des sources transverses. Les types Qualité, Technique, Sécurité, Dossier DGFiP, Export D2F et Autre sont rattachés à l’audit sélectionné. Les référentiels, textes, CR DGFiP/AIFE et notes D2F sont globaux et applicables à toutes les missions.</p>
         <div class="documentDropZone">
-          <h3>Ajouter des documents</h3>
+          <h3>Ajouter le dossier client</h3><p>Dépose les fichiers ou un ZIP : les archives imbriquées sont ouvertes, les originaux et chemins sont conservés. Clique « Déposer puis analyser » pour préparer les contrôles. Les images et pages sans texte restent signalées comme à examiner visuellement.</p>
           <p class="documentHint">Pour compléter un audit existant : ouvre d’abord la mission, sélectionne un type non transverse, puis dépose le fichier. Pour une source commune à tous les audits : choisis Nouveau référentiel, Nouveau texte, CR réunion ou Note D2F.</p>
           <div class="quickActions" aria-label="Types de dépôt rapides">
             <button class="secondary" data-doc-type="DGFiP_APPLICATION_ACCEPTED" type="button">Dossier DGFiP accepté</button>
