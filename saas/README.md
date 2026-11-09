@@ -509,3 +509,13 @@ Le programme propre à la mission prime sur celui du client partagé. Une missio
 Les préparations documentaires apparaissent immédiatement dans l’historique, avec leur identifiant stable et le mode Sans IA / IA facultative.
 
 Support : D2F-20261108-C70A7D.
+
+## 1.9.0 — 2026-11-09 — création depuis les référentiels
+
+Support : D2F-20261108-C70A7D.
+
+Administration : afficher les référentiels validés, sélectionner les sources, extraire les passages sans IA, sélectionner les exigences puis préparer le nouvel audit. La fiche demande ensuite le client avant création du questionnaire. La saisie manuelle reste disponible. Les textes retenus sont conservés avec le titre, la version et le repère source ; les sources incluent leur identifiant et empreinte.
+
+Word DOCX : lecture bornée de word/document.xml sans exécution de contenu ; repères par paragraphe et non pages. Les tableaux sont linéarisés, leurs relations et la numérotation automatique ne sont pas reconstituées. Les images, en-têtes, pieds de page et notes ne sont pas extraits. La sélection est une revue explicite, pas une détection exhaustive des exigences. PDF et texte restent pris en charge.
+
+Les programmes personnalisés sont distingués par une empreinte de leur définition ; une autre définition ne rouvre plus un audit personnalisé sans rapport. Les reprises complètent les contrôles manquants. La création désactive le bouton pendant la requête. Pas de migration. La protection contre créations concurrentes dans plusieurs onglets reste limitée par l’architecture existante ; aucun verrou distribué ajouté.

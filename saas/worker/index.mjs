@@ -16,7 +16,7 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.8.2",
+  version: "1.9.0",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
@@ -341,7 +341,7 @@ function controlsFromMissionDefinition(program, body) {
   return splitLines(body.custom_controls_text).map((line, index) => ({
     reference: `AUD-${String(index + 1).padStart(2, "0")}`,
     chapter: body.custom_audit_type_name || "Audit personnalisé",
-    title: line.slice(0, 120),
+    title: line.replace(/^\[[^\]]+\]\s*/, "").slice(0, 120),
     requirement: line,
     source,
     base_qualification: "HIGH",
@@ -363,11 +363,16 @@ async function countMissionQuestions(db, tenantId, missionId) {
   return questions.length;
 }
 
-async function findReusableOpenMission(db, tenantId, clientId, programId) {
+async function seedMissionControls(db,tenantId,missionId,controls) {
+  const existing=await db.select("diam_questions",`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}`);
+  for(const control of controls) if(!existing.some(q=>q.reference===control.reference)) await db.insert("diam_questions",{tenant_id:tenantId,mission_id:missionId,...control});
+}
+
+async function findReusableOpenMission(db, tenantId, clientId, programId, definition) {
   const missions = await db.select("diam_missions", `?tenant_id=eq.${tenantId}&client_id=eq.${clientId}&order=created_at.desc`);
   for (const mission of missions) {
     if (["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(mission.status || "").toUpperCase())) continue;
-    if (missionProgramId(mission) === programId) return mission;
+    if (missionProgramId(mission) === programId && (programId !== "CUSTOM_CDC" || mission.referential_version === definition)) return mission;
   }
   return null;
 }
@@ -1552,9 +1557,11 @@ async function handleApi(request, env) {
     const program = auditProgram(body.audit_program || "PA_DGFIP");
     const controls = controlsFromMissionDefinition(program, body);
     if (program.id === "CUSTOM_CDC" && !controls.length) return json({ error: "Audit personnalisé : ajoute au moins un contrôle à générer dans la fiche mission." }, 400);
+    const definition = program.id === "CUSTOM_CDC" ? `Audit personnalisé — ${String(body.custom_audit_type_name || body.title || "Audit personnalisé").trim()} — ${await sha256(new TextEncoder().encode(JSON.stringify({name:body.custom_audit_type_name,refs:body.custom_referentials,controls})))}` : program.referentialVersion;
     const client = await findOrSaveClient(db, tenant.id, body, program);
-    const reusableMission = await findReusableOpenMission(db, tenant.id, client.id, program.id);
+    const reusableMission = await findReusableOpenMission(db, tenant.id, client.id, program.id, definition);
     if (reusableMission) {
+      if(program.id === "CUSTOM_CDC") await seedMissionControls(db,tenant.id,reusableMission.id,controls);
       return json({
         client,
         mission: reusableMission,
@@ -1571,7 +1578,7 @@ async function handleApi(request, env) {
       number: `MIS-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
       title: body.title || program.defaultTitle,
       audit_period: period,
-      referential_version: program.referentialVersion,
+      referential_version: definition,
       client_access_token: crypto.randomUUID().replaceAll("-", "") + crypto.randomUUID().replaceAll("-", ""),
       client_language: body.client_language || "fr",
       audit_type: lifecycle.audit_type,
@@ -1587,7 +1594,7 @@ async function handleApi(request, env) {
       lifecycle_notes: lifecycle.lifecycle_notes,
       created_by: who
     });
-    for (const c of controls) await db.insert("diam_questions", { tenant_id: tenant.id, mission_id: mission.id, ...c });
+    await seedMissionControls(db,tenant.id,mission.id,controls);
     return json({ client, mission, seeded_controls: controls.length, audit_program: program }, 201);
   }
 
@@ -1639,7 +1646,7 @@ async function handleApi(request, env) {
       title: body.title || mission.title || program.defaultTitle,
       ...periodUpdate,
       client_language: body.client_language || mission.client_language || "fr",
-      referential_version: program.referentialVersion,
+      referential_version: mission.referential_version,
       lifecycle_notes: body.lifecycle_notes ?? mission.lifecycle_notes,
       updated_at: new Date().toISOString()
     });
@@ -1820,10 +1827,12 @@ async function handleApi(request, env) {
   if (dossierResponse) return dossierResponse;
   if (/^\/api\/documents\/[a-f0-9-]{36}\/content$/.test(path) && request.method === "GET") {
     const missionId = url.searchParams.get("mission_id");
-    if (!/^[a-f0-9-]{36}$/i.test(missionId || "")) return json({error:"Mission invalide."},400);
-    await ensureMissionAccess(db, tenant.id, missionId, currentUser);
+    if (missionId) {
+      if (!/^[a-f0-9-]{36}$/i.test(missionId)) return json({error:"Mission invalide."},400);
+      await ensureMissionAccess(db, tenant.id, missionId, currentUser);
+    } else requireAdminUser(currentUser);
     const doc = (await db.select("diam_documents", `?id=eq.${path.split("/")[3]}&tenant_id=eq.${tenant.id}`))[0];
-    if (!doc || (doc.document_scope !== "GLOBAL" && doc.mission_id !== missionId)) return json({error:"Document non accessible dans cette mission."},404);
+    if (!doc || (doc.document_scope !== "GLOBAL" && (!missionId || doc.mission_id !== missionId))) return json({error:"Document non accessible dans cette mission."},404);
     if (!doc.storage_path?.startsWith(`${tenant.id}/`)) return json({error:"Chemin documentaire invalide."},409);
     const bytes = await db.downloadFromBucket("diam-documents",doc.storage_path);
     if (await sha256(bytes) !== doc.sha256) return json({error:"Intégrité documentaire invalide."},409);

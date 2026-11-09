@@ -1,3 +1,4 @@
+import {bindProgramBuilder} from './program-builder.mjs';
 import {sameClientIdentity} from './client-identity.mjs';
 import {bindAuditPreparation} from './audit-preparation-ui.mjs';
 let auditPreparation;
@@ -22,10 +23,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.8.2",
+  version: "1.9.0",
   release: "Préparation documentaire sans OpenAI, lettre et plan d’audit",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.8.2",
+  buildCommit: "local-v1.9.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -235,6 +236,7 @@ function bindEvents() {
   $("uploadEvidence").onclick = () => run(uploadEvidence);
   $("generateReport").onclick = () => run(generateReport, "createStatus");
   bindReferenceLibrary({api,run,showTab});
+  bindProgramBuilder({api,run,onPrepare:prepareCustomDefinition});
   auditPreparation=bindAuditPreparation({api,getMission:()=>state.missionId,getClient:()=>({portal:state.clientPortal,token:state.clientToken}),showTab,run});
   auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
   $("printReport").onclick=()=>window.print();
@@ -373,9 +375,14 @@ function prepareCustomAuditFromAdmin() {
   const referentials = $("adminAuditReferentials").value.trim();
   const controls = $("adminAuditControls").value.trim();
   if (!name || !referentials || !controls) {
-    setStatus("Renseigne le nom du type d’audit, au moins un référentiel/source et au moins un contrôle.", "error", "adminStatus");
+    setStatus("Renseigne le nom du type d’audit, au moins un référentiel/source et au moins un contrôle.", "error", "programStatus");
+    $("programStatus")?.scrollIntoView({block:"center"});
     return;
   }
+  prepareCustomDefinition({name,referentials,controls});
+}
+
+function prepareCustomDefinition({name,referentials,controls}) {
   prepareNewMission({ blank: true });
   $("auditProgram").value = "CUSTOM_CDC";
   $("customAuditTypeName").value = name;
@@ -959,7 +966,10 @@ async function createMission() {
     $("customControlsText")?.focus();
     throw new Error("Audit personnalisé : renseigne au moins un contrôle à générer. Une ligne = un contrôle dans la chaîne d’audit.");
   }
+  if ($("createMission").disabled) return;
+  $("createMission").disabled = true;
   $("createStatus").textContent = "Création en cours...";
+  try {
   const out = await api("/api/missions", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -975,6 +985,7 @@ async function createMission() {
   if ($("missionSelect")) $("missionSelect").value = state.missionId;
   await refreshAll();
   await auditGuide.open();
+  } finally { $("createMission").disabled = false; }
 }
 
 async function updateMissionProfile() {

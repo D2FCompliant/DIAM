@@ -182,6 +182,14 @@
           <div class="integrationBox">
             <h3>Nouveau programme libre — ISO / SAE / CFN / GED / CDC / autre</h3>
             <label>Nom du type d’audit <input id="adminAuditTypeName" placeholder="Ex. Audit SAE Stratow, audit CFN, audit GED, audit conformité interne..." /></label>
+            <h4>2. Sélectionner les sources et leurs exigences</h4>
+            <button id="programReload" type="button" class="secondary">Afficher les référentiels validés</button>
+            <p id="programStatus" class="status" role="status"></p><div id="programSources"></div>
+            <button id="programExtract" type="button">Extraire les passages des sources (sans IA)</button>
+            <p>Sélectionne les exigences à reprendre telles quelles. Pour Word, le repère est un paragraphe, pas une page. Vérifie les tableaux, la numérotation automatique et les dépendances dans l’original. Les images et notes Word ne sont pas extraites.</p>
+            <div id="programCandidates" style="max-height:440px;overflow:auto"></div>
+            <button id="programUse" type="button">Préparer un nouvel audit avec les exigences sélectionnées</button>
+            <h4>Ou saisir manuellement le programme</h4>
             <label>Référentiels / sources à rattacher <textarea id="adminAuditReferentials" placeholder="Un référentiel ou document source par ligne : nom, version, date, origine."></textarea></label>
             <label>Contrôles initiaux à générer <textarea id="adminAuditControls" placeholder="Une ligne par contrôle : critère, objectif ou exigence à auditer."></textarea></label>
             <div class="row">
