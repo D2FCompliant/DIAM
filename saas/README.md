@@ -175,6 +175,22 @@ npm test
 Sans Supabase configuré, le frontend se charge mais les appels API renvoient un
 message explicite de configuration manquante.
 
+## Version 1.15.0 — Modèle normatif par rubrique (2026-11-10)
+
+La migration `202611100001_normative_rubric_model.sql` ajoute, sans supprimer ni
+réécrire les contrôles historiques, les rubriques d’évaluation, obligations
+élémentaires, attestations d’examen, relations normatives et liens explicites
+preuve–obligation. Applicabilité, état de l’examen et résultat de conformité
+sont indépendants. Toute consolidation demeure une décision humaine historisée ;
+DIAM signale les contradictions sans modifier silencieusement cette décision.
+
+Les contrôles NF525 de niveau 4 sont regroupés par défaut sous leur rubrique de
+niveau 3. Une exigence autonome de niveau 2 ou 3 reste directement évaluable.
+La nature impérative, conditionnelle, facultative ou explicative est proposée à
+partir du texte et reste à confirmer : elle n’est jamais déduite de la profondeur.
+Le rapport principal restitue la consolidation ; le dossier technique conserve
+la matrice complète, les preuves mutualisées, attestations et états historiques.
+
 ## Version 1.5.0 — Rapport PA structuré et cycles de vie (2026-10-03)
 
 Le modèle PA reprend la présentation du rapport D2F Compliant fourni pour cette
@@ -597,3 +613,7 @@ Support : D2F-20261108-C70A7D. Le générateur unique reproduisait les 236 exige
 Le rapport principal conserve la référence exacte du référentiel et du paragraphe, synthétise les résultats par domaine, détaille uniquement les non-conformités, conformités partielles et constats significatifs, et regroupe les contrôles non évalués. Les propositions documentaires non validées et les libellés provisoires ne sont pas promus en constats significatifs. Une observation absente reste explicitement non enregistrée ; une clôture sans justification n’est pas présentée comme résolue. Le dossier technique conserve les 236 contrôles, exigences intégrales, réponses, analyses, tests, décisions, pièces, SHA-256, contradictoires et historique.
 
 Régression PEEK TRAVEL LLC : rapport principal A4 de 15 pages et dossier technique de 344 pages, 236/236 contrôles conservés, sans modification des statuts ni qualifications. Aucune migration de base de données. Retour arrière : 1.13.0 / 56cb04463bb204842f87c3019bca1e211d66ac91 ; la correction 1.13.1 non publiée est incluse dans cette version mineure.
+
+## 1.15.0 — 2026-11-10 — moteur normatif par rubrique
+
+Support : D2F-20261108-C70A7D. Ajout d’un modèle générique domaine–rubrique–obligation, de trois axes indépendants (applicabilité, examen, conformité), de l’attestation d’examen par rubrique et d’une matrice many-to-many preuve–obligation. Les contradictions sont signalées sans modifier la décision humaine. La migration `202611100001_normative_rubric_model` rattache les contrôles existants à leurs rubriques sans supprimer ni réécrire réponses, constats, preuves ou historique ; toutes les conclusions nouvelles commencent à « Indéterminé ». Le rapport principal consolide les rubriques et le dossier technique conserve la matrice exhaustive. Retour arrière applicatif : 1.14.0 / fd382ed013933618f40ef8e96630471b8203336c ; les nouvelles tables peuvent rester en place sans affecter les données historiques.

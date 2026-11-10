@@ -41,6 +41,7 @@
       <button class="tab" data-tab="planning" id="openAuditPlanning" type="button">Lettre et plan d’audit</button>
       <button class="tab" data-tab="admin" id="openReferenceAdmin" type="button">Admin référentiels</button>
       <button class="tab" data-tab="audit" type="button">Chaîne d’audit</button>
+      <button class="tab" data-tab="rubrics" type="button">Rubriques normatives</button>
       <button class="tab" data-tab="lifecycle" id="openLifecycle" type="button">Cycles de vie</button>
       <button class="tab" data-tab="cyber" id="openCyber" type="button">Cybersécurité</button>
       <button class="tab" data-tab="detail" type="button">Contrôle sélectionné</button>
@@ -332,6 +333,14 @@
             <tbody></tbody>
           </table>
         </div>
+      </section>
+
+      <section class="card wide" data-panel="rubrics" hidden>
+        <h2>Évaluation par rubrique normative</h2>
+        <p>La rubrique consolide l’examen sans effacer les obligations élémentaires. Applicabilité, avancement de l’examen et conformité sont trois décisions indépendantes.</p>
+        <div class="row"><label>Rubrique<select id="rubricSelect"></select></label><button id="reloadRubrics" class="secondary" type="button">Actualiser</button></div>
+        <p id="rubricStatus" class="status" role="status"></p>
+        <div id="rubricWorkspace"></div>
       </section>
 
       <section class="card wide" id="detailCard" data-panel="detail" hidden>

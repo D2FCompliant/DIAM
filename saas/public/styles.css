@@ -696,3 +696,4 @@ body.technologyTheme #detailCard button.secondary:hover{background:#edf5fc;color
 .controlDocuments blockquote { margin:8px 0; padding:8px 12px; border-left:3px solid #0869d8; white-space:pre-wrap; }
 .controlDocuments summary { cursor:pointer; font-weight:700; }
 .controlDocuments select { max-width:100%; }
+.rubricAxes{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:14px;margin:16px 0}.rubricMatrix{min-width:1700px}.rubricMatrix td{vertical-align:top}.rubricMatrix textarea{min-width:240px;min-height:74px}.rubricMatrix select{min-width:170px}.rubricMatrix small{display:block;margin-top:8px;color:#5f7185}.rubricEvidence,.rubricAttestation{margin-top:24px;padding:20px;border:1px solid #cfdeed;border-radius:16px;background:#f7fbff}.notice.danger{border-color:#d92d20;background:#fff4f2;color:#7a271a}.rubricAttestation .grid,.rubricEvidence .grid{align-items:start}@media(max-width:900px){.rubricAxes{grid-template-columns:1fr}}

@@ -11,6 +11,7 @@ const cyberConfig={file:CYBER_FILE,blank:blankCyber,normalize:normalizeCyber,ass
 import { auditPeriod } from "../public/audit-period.mjs";
 import { LIFECYCLE_FILE, normalizeLifecycle, assessLifecycle } from "../public/lifecycle.mjs";
 import { REPORT_TEMPLATE } from "../public/report-template.mjs";
+import { groupNormativeControls, obligationNature, rubricContradictions, assertNormativeState } from "../public/normative-model.mjs";
 import { readLifecycle, sha256, applyLifecycleGate, applyEvidenceGates, applyCyberGate } from "./lifecycle-store.mjs";
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -19,13 +20,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.14.0",
-  release: "Rapport d’audit concis et dossier technique séparé",
-  schemaVersion: "202609030001_multi_auditor_access",
+  version: "1.15.0",
+  release: "Évaluation normative par rubrique et matrice de couverture",
+  schemaVersion: "202611100001_normative_rubric_model",
   channel: "main",
   releasedAt: "2026-11-10",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Deux livrables immuables : rapport de jugement concis et dossier technique exhaustif"
+  lastChange: "Trois axes indépendants, attestation d’examen et mutualisation explicite des preuves"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -703,6 +704,11 @@ function supabase(env) {
       const r = await fetch(`${base}/rest/v1/${table}?on_conflict=${onConflict}`, { method: "POST", headers: h, body: JSON.stringify(payload) });
       if (!r.ok) throw new Error(await r.text());
       return (await r.json())[0];
+    },
+    async rpc(name, payload) {
+      const r = await fetch(`${base}/rest/v1/rpc/${name}`, { method: "POST", headers, body: JSON.stringify(payload) });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
     },
     async patch(table, query, payload) {
       const r = await fetch(`${base}/rest/v1/${table}${query}`, { method: "PATCH", headers, body: JSON.stringify(payload) });
@@ -1489,6 +1495,54 @@ async function auditChain(db, tenantId, missionId) {
   });
 }
 
+async function ensureMissionRubrics(db,tenantId,missionId){
+  const questions=await selectAll(db,'diam_questions',`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&order=reference.asc`);
+  for(const group of groupNormativeControls(questions)){
+    const rubric=await db.upsert('diam_audit_rubrics',{
+      tenant_id:tenantId,mission_id:missionId,reference:group.reference,domain_reference:group.domain_reference||null,
+      normative_level:group.normative_level,title:group.title||null,source:group.obligations[0]?.source||null,
+      legacy_snapshot:{migrated_at:new Date().toISOString(),control_count:group.obligations.length,question_ids:group.obligations.map(q=>q.id)},
+      consolidation_proposal:{status:'HUMAN_REVIEW_REQUIRED',message:'Aucune conclusion de rubrique n’est appliquée automatiquement.'}
+    },'mission_id,reference');
+    for(const q of group.obligations){
+      const nature=obligationNature(`${q.title||''} ${q.requirement||''}`);
+      await db.upsert('diam_rubric_obligations',{tenant_id:tenantId,rubric_id:rubric.id,question_id:q.id,relation_type:'PRIMARY',obligation_nature:nature.nature,nature_reviewed:false,normative_metadata:{exact_reference:q.reference,source_text_preserved:true,nature_basis:nature.basis,applicability_tables_review:'HUMAN_REVIEW_REQUIRED'}},'rubric_id,question_id');
+      for(const externalReference of [...new Set(`${q.title||''} ${q.requirement||''} ${q.source||''}`.match(/\bR(?:12|13|19)\b/gi)?.map(v=>v.toUpperCase())||[])]){
+        const found=await db.select('diam_obligation_relations',`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&from_question_id=eq.${q.id}&external_reference=eq.${externalReference}&relationship=eq.REFERENCE&limit=1`);
+        if(!found.length)await db.insert('diam_obligation_relations',{tenant_id:tenantId,mission_id:missionId,from_question_id:q.id,external_reference:externalReference,relationship:'REFERENCE',rationale:`Renvoi normatif ${externalReference} détecté dans le texte source ; portée à confirmer par l’administrateur du référentiel.`});
+      }
+    }
+  }
+}
+
+async function normativeMatrix(db,tenantId,missionId){
+  await ensureMissionRubrics(db,tenantId,missionId);
+  const rubrics=await db.select('diam_audit_rubrics',`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&order=reference.asc`);
+  const rubricIds=rubrics.map(r=>r.id);
+  const obligations=rubricIds.length?await selectAll(db,'diam_rubric_obligations',`?tenant_id=eq.${tenantId}&rubric_id=in.(${rubricIds.join(',')})`):[];
+  const questionIds=obligations.map(o=>o.question_id);
+  const questions=questionIds.length?await selectAll(db,'diam_questions',`?tenant_id=eq.${tenantId}&id=in.(${questionIds.join(',')})`):[];
+  const answers=questionIds.length?await selectAll(db,'diam_answers',`?tenant_id=eq.${tenantId}&question_id=in.(${questionIds.join(',')})`):[];
+  const findings=questionIds.length?await selectAll(db,'diam_findings',`?tenant_id=eq.${tenantId}&question_id=in.(${questionIds.join(',')})`):[];
+  const evidences=await selectAll(db,'diam_evidences',`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&order=uploaded_at.asc`);
+  const coverage=rubricIds.length?await selectAll(db,'diam_rubric_evidence_coverage',`?tenant_id=eq.${tenantId}&rubric_id=in.(${rubricIds.join(',')})`):[];
+  const attestations=rubricIds.length?await selectAll(db,'diam_rubric_attestations',`?tenant_id=eq.${tenantId}&rubric_id=in.(${rubricIds.join(',')})&order=examined_at.desc`):[];
+  const relations=questionIds.length?await selectAll(db,'diam_obligation_relations',`?tenant_id=eq.${tenantId}&mission_id=eq.${missionId}&from_question_id=in.(${questionIds.join(',')})`):[];
+  return rubrics.map(r=>{
+    const rows=obligations.filter(o=>o.rubric_id===r.id).map(o=>{
+      const q=questions.find(x=>x.id===o.question_id)||{};
+      const answer=answers.find(x=>x.question_id===o.question_id);
+      const finding=findings.find(x=>x.question_id===o.question_id);
+      const links=coverage.filter(x=>x.question_id===o.question_id).map(link=>({...link,evidence:evidences.find(e=>e.id===link.evidence_id)}));
+      return {...o,reference:q.reference,title:q.title,requirement:q.requirement,source:q.source,legacy_result:answer?.compliance_status||'NOT_STARTED',auditor_analysis:answer?.auditor_analysis||'',finding,coverage_links:links,normative_relations:relations.filter(x=>x.from_question_id===o.question_id)};
+    });
+    const rubricFindings=rows.map(o=>o.finding).filter(Boolean);
+    return {...r,obligations:rows,attestations:attestations.filter(a=>a.rubric_id===r.id),contradictions:rubricContradictions(r,rows,rubricFindings)};
+  });
+}
+
+function requireText(value,label){const text=String(value||'').trim();if(!text)throw new HttpError(`${label} obligatoire.`,400);return text;}
+
 async function handleApi(request, env) {
   const url = new URL(request.url);
   const path = url.pathname;
@@ -1720,6 +1774,69 @@ async function handleApi(request, env) {
       updated_at: new Date().toISOString()
     });
     return json({ revoked: true, assignment: updated });
+  }
+
+  if (path === "/api/normative-rubrics" && request.method === "GET") {
+    const missionId=url.searchParams.get('mission_id');
+    await ensureMissionAccess(db,tenant.id,missionId,currentUser);
+    return json({mission_id:missionId,rubrics:await normativeMatrix(db,tenant.id,missionId)});
+  }
+
+  if (path === "/api/normative-coverage" && request.method === "POST") {
+    const body=await readBody(request);
+    await ensureMissionAccess(db,tenant.id,body.mission_id,currentUser);
+    const rubric=(await db.select('diam_audit_rubrics',`?id=eq.${body.rubric_id}&tenant_id=eq.${tenant.id}&mission_id=eq.${body.mission_id}`))[0];
+    if(!rubric)throw new HttpError('Rubrique normative introuvable.',404);
+    const evidence=(await db.select('diam_evidences',`?id=eq.${body.evidence_id}&tenant_id=eq.${tenant.id}&mission_id=eq.${body.mission_id}`))[0];
+    if(!evidence)throw new HttpError('Preuve introuvable dans cette mission.',404);
+    const ids=[...new Set(Array.isArray(body.question_ids)?body.question_ids:[])];
+    if(!ids.length)throw new HttpError('Sélectionne au moins une obligation.',400);
+    const justification=requireText(body.justification,'Justification du rattachement');
+    const links=[];
+    for(const questionId of ids){
+      const obligation=(await db.select('diam_rubric_obligations',`?rubric_id=eq.${rubric.id}&question_id=eq.${questionId}&tenant_id=eq.${tenant.id}`))[0];
+      if(!obligation)throw new HttpError('Une obligation sélectionnée ne dépend pas de cette rubrique.',409);
+      links.push(await db.upsert('diam_rubric_evidence_coverage',{tenant_id:tenant.id,mission_id:body.mission_id,rubric_id:rubric.id,question_id:questionId,evidence_id:evidence.id,justification,created_by:who},'rubric_id,question_id,evidence_id'));
+      if(body.coverage_state){
+        if(!['NOT_COVERED','PARTIAL','COVERED'].includes(body.coverage_state))throw new HttpError('État de couverture invalide.',400);
+        await db.patch('diam_rubric_obligations',`?id=eq.${obligation.id}&tenant_id=eq.${tenant.id}`,{coverage_state:body.coverage_state,updated_at:new Date().toISOString()});
+      }
+    }
+    await db.insert('diam_audit_events',{tenant_id:tenant.id,mission_id:body.mission_id,actor:who,event_type:'NORMATIVE_EVIDENCE_LINKED',object_type:'AUDIT_RUBRIC',object_id:rubric.id,details:{evidence_id:evidence.id,question_ids:ids,justification,coverage_state:body.coverage_state||'UNCHANGED'}});
+    return json({links,rubrics:await normativeMatrix(db,tenant.id,body.mission_id)},201);
+  }
+
+  if (path === "/api/rubric-attestations" && request.method === "POST") {
+    const body=await readBody(request);
+    await ensureMissionAccess(db,tenant.id,body.mission_id,currentUser);
+    const matrix=await normativeMatrix(db,tenant.id,body.mission_id);
+    const current=matrix.find(r=>r.id===body.rubric_id);
+    if(!current)throw new HttpError('Rubrique normative introuvable.',404);
+    const candidate={...current,
+      applicability_state:assertNormativeState('applicability',body.applicability_state),
+      applicability_justification:String(body.applicability_justification||'').trim(),
+      examination_state:assertNormativeState('examination',body.examination_state),
+      compliance_result:assertNormativeState('compliance',body.compliance_result),
+      consolidation_justification:String(body.consolidation_justification||'').trim(),
+      conclusion:requireText(body.conclusion,'Conclusion de l’auditeur')
+    };
+    const workPerformed=requireText(body.work_performed,'Travaux réalisés');
+    const examinationScope=requireText(body.examination_scope,'Portée de l’examen');
+    const updates=Array.isArray(body.obligations)?body.obligations:[];
+    const candidateObligations=current.obligations.map(o=>({...o,...updates.find(u=>u.id===o.id)}));
+    for(const update of updates){
+      const existing=current.obligations.find(o=>o.id===update.id);if(!existing)throw new HttpError('Obligation étrangère à la rubrique.',409);
+      assertNormativeState('applicability',update.applicability_state);
+      if(!['NOT_COVERED','PARTIAL','COVERED'].includes(update.coverage_state))throw new HttpError('État de couverture invalide.',400);
+      if(update.individual_result)assertNormativeState('compliance',update.individual_result);
+    }
+    const contradictions=rubricContradictions(candidate,candidateObligations,current.obligations.map(o=>o.finding).filter(Boolean));
+    const evidenceIds=[...new Set((body.evidence_ids||[]).filter(Boolean))];
+    for(const id of evidenceIds){if(!(await db.select('diam_evidences',`?id=eq.${id}&tenant_id=eq.${tenant.id}&mission_id=eq.${body.mission_id}`))[0])throw new HttpError('Une pièce d’attestation ne dépend pas de cette mission.',409);}
+    const payload={work_performed:workPerformed,evidence_ids:evidenceIds,examination_scope:examinationScope,limits:String(body.limits||'').trim(),exceptions:String(body.exceptions||'').trim(),conclusion:candidate.conclusion,applicability_state:candidate.applicability_state,applicability_justification:candidate.applicability_justification,examination_state:candidate.examination_state,compliance_result:candidate.compliance_result,consolidation_justification:candidate.consolidation_justification,obligations:updates};
+    const attestationId=await db.rpc('diam_save_rubric_attestation',{p_tenant_id:tenant.id,p_mission_id:body.mission_id,p_rubric_id:current.id,p_actor:who,p_payload:payload,p_contradictions:contradictions});
+    const attestation=(await db.select('diam_rubric_attestations',`?id=eq.${attestationId}&tenant_id=eq.${tenant.id}`))[0];
+    return json({attestation,contradictions,rubrics:await normativeMatrix(db,tenant.id,body.mission_id)},201);
   }
 
   if (path === "/api/audit-chain") {
@@ -2263,7 +2380,8 @@ async function handleApi(request, env) {
     const phases=new Set();const documentary_reviews=reviews.filter(e=>{if(phases.has(e.details.phase))return false;phases.add(e.details.phase);return true;}).map(e=>({id:e.object_id,created_at:e.created_at,...e.details}));
     const historyRows=await selectAll(db,'diam_audit_events',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=created_at.asc`);
     const audit_history=await Promise.all(historyRows.map(async e=>({id:e.id,created_at:e.created_at,actor:e.actor,event_type:e.event_type,object_type:e.object_type,object_id:e.object_id,details_sha256:await sha256(new TextEncoder().encode(canonical(e.details||{})))})));
-    const reportPayload = { documents,preparation,documentary_reviews,audit_history,baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, recorded_result:recordedResult, readiness_result:readinessResult, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : AUDIT_REPORT_TEMPLATE, report_contract:{audit_report:{template:'D2F-AUDIT-STRUCTURED',purpose:'Jugement de l’auditeur'},technical_dossier:{template:'D2F-AUDIT-TECHNICAL',purpose:'Exhaustivité et traçabilité'}}, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
+    const rubrics=await normativeMatrix(db,tenant.id,b.mission_id);
+    const reportPayload = { documents,preparation,documentary_reviews,audit_history,rubrics,baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, recorded_result:recordedResult, readiness_result:readinessResult, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : AUDIT_REPORT_TEMPLATE, report_contract:{audit_report:{template:'D2F-AUDIT-STRUCTURED',purpose:'Jugement de l’auditeur'},technical_dossier:{template:'D2F-AUDIT-TECHNICAL',purpose:'Exhaustivité et traçabilité'}}, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
     const report = await db.insert("diam_reports", {
       tenant_id: tenant.id,
       mission_id: b.mission_id,

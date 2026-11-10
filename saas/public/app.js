@@ -30,7 +30,9 @@ let auditPreparation;
 let dossierWorkspace;
 import {bindReferenceLibrary} from './reference-library-ui.mjs';
 import {bindGuide} from './audit-guide.mjs';
+import {bindNormativeRubrics} from './normative-rubrics-ui.mjs';
 let auditGuide;
+let normativeWorkspace;
 import {bindDossier} from './dossier-ui.mjs';
 import {bindCyber} from './cyber-ui.mjs';
 import { periodDates } from "./audit-period.mjs";
@@ -48,10 +50,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.14.0",
-  release: "Rapport d’audit concis et dossier technique séparé",
-  schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.14.0",
+  version: "1.15.0",
+  release: "Évaluation normative par rubrique et matrice de couverture",
+  schemaVersion: "202611100001_normative_rubric_model",
+  buildCommit: "local-v1.15.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 let lastReportKind='audit';
@@ -281,6 +283,7 @@ function bindEvents() {
   dossierWorkspace=bindDossier({api,getReferenceIds:()=>new Set(state.chain.flatMap(q=>(q.source||'').match(/[a-f0-9]{8}-[a-f0-9-]{27}/gi)||[])),getMission:()=>state.missionId,run,showTab,openControl:(item,job)=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0){selectQuestion(index);if(state.selected?.question_id===item.question_id)controlDocumentsWorkspace.open(state.selected,job).catch(e=>setStatus(e.message,'error'));}}});
   bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
+  normativeWorkspace=bindNormativeRubrics({api,missionId:()=>state.missionId});
   $("loadLastReport").onclick = () => run(async () => {
     requireMission();
     const out = await api(`/api/reports?mission_id=${encodeURIComponent(state.missionId)}`);
