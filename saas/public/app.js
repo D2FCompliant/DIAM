@@ -50,10 +50,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.15.0",
+  version: "1.15.1",
   release: "Évaluation normative par rubrique et matrice de couverture",
   schemaVersion: "202611100001_normative_rubric_model",
-  buildCommit: "local-v1.15.0",
+  buildCommit: "local-v1.15.1",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 let lastReportKind='audit';

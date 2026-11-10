@@ -175,6 +175,13 @@ npm test
 Sans Supabase configuré, le frontend se charge mais les appels API renvoient un
 message explicite de configuration manquante.
 
+## Version 1.15.1 — Rapport principal synthétique (2026-11-10)
+
+Le rapport principal ne reproduit plus les rubriques sans décision, attestation
+ou contradiction. Il en présente les compteurs et réserve le détail exhaustif
+des rubriques et obligations au dossier technique. Cette correction de mise en
+page ne change aucune donnée, qualification ou conclusion de l'auditeur.
+
 ## Version 1.15.0 — Modèle normatif par rubrique (2026-11-10)
 
 La migration `202611100001_normative_rubric_model.sql` ajoute, sans supprimer ni
@@ -613,6 +620,10 @@ Support : D2F-20261108-C70A7D. Le générateur unique reproduisait les 236 exige
 Le rapport principal conserve la référence exacte du référentiel et du paragraphe, synthétise les résultats par domaine, détaille uniquement les non-conformités, conformités partielles et constats significatifs, et regroupe les contrôles non évalués. Les propositions documentaires non validées et les libellés provisoires ne sont pas promus en constats significatifs. Une observation absente reste explicitement non enregistrée ; une clôture sans justification n’est pas présentée comme résolue. Le dossier technique conserve les 236 contrôles, exigences intégrales, réponses, analyses, tests, décisions, pièces, SHA-256, contradictoires et historique.
 
 Régression PEEK TRAVEL LLC : rapport principal A4 de 15 pages et dossier technique de 344 pages, 236/236 contrôles conservés, sans modification des statuts ni qualifications. Aucune migration de base de données. Retour arrière : 1.13.0 / 56cb04463bb204842f87c3019bca1e211d66ac91 ; la correction 1.13.1 non publiée est incluse dans cette version mineure.
+
+## 1.15.1 — 2026-11-10 — rapport principal synthétique
+
+Support : D2F-20261108-C70A7D. Les rubriques sans décision, attestation ou contradiction sont regroupées par compteur dans le rapport principal et restent exhaustivement restituées dans le dossier technique. Aucun résultat d'audit n'est modifié. Retour arrière applicatif : 1.15.0 / 932231a18ecbe42025ad521190c713d890a23745.
 
 ## 1.15.0 — 2026-11-10 — moteur normatif par rubrique
 
