@@ -571,3 +571,7 @@ Limites : le moteur sans IA effectue un repérage textuel ; il ne comprend pas a
 ## 1.12.1 — 2026-11-10 — sélection des archives
 
 Support : D2F-20261108-C70A7D. Le sélecteur de dépôt propose explicitement ZIP, GZ et LOG, formats pris en charge par le parcours documentaire. Aucune migration. Retour arrière : 1.12.0 / b9055590f47407c7bf7c5c17733adc6ba8ee5cb3.
+
+## 1.12.2 — 2026-11-10 — préparation des pièces extraites
+
+Support : D2F-20261108-C70A7D. Après import ZIP, la sélection automatique de préparation exclut les conteneurs ZIP conservés : leurs pièces extraites sont déjà sélectionnées. Cela évite de compter deux fois le volume du dossier. Les originaux restent disponibles et sélectionnables manuellement. Aucune migration. Retour arrière : 1.12.1 / cddafb90b641a9b1c514db0efb733b0d899445f9.

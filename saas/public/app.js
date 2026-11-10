@@ -47,10 +47,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.12.1",
+  version: "1.12.2",
   release: "Dossier complet, préparation des contrôles et rapport par programme",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.12.1",
+  buildCommit: "local-v1.12.2",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
