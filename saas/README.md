@@ -567,3 +567,7 @@ Parcours disponible dans l’application :
 La mission ouverte est mémorisée par utilisateur dans le navigateur, uniquement si elle reste autorisée. Un audit technique n’est plus choisi par défaut lorsque des missions réelles sont disponibles. Aucune migration. Retour arrière compatible : 1.11.1 / 75da3f8c12f0c41688a31b1ac785ef213a8f177c. Les rapports enregistrés restent immuables ; une nouvelle génération crée une nouvelle version.
 
 Limites : le moteur sans IA effectue un repérage textuel ; il ne comprend pas automatiquement toutes les contradictions, ne traduit pas les pièces, ne vérifie pas cryptographiquement les signatures métier et n’effectue pas d’OCR. Les images, captures et documents sans texte exigent un examen visuel. L’auditeur confirme produit/version/environnement, réalise les tests et rédige sa conclusion. Une empreinte de conservation ne prouve pas l’authenticité métier d’une signature.
+
+## 1.12.1 — 2026-11-10 — sélection des archives
+
+Support : D2F-20261108-C70A7D. Le sélecteur de dépôt propose explicitement ZIP, GZ et LOG, formats pris en charge par le parcours documentaire. Aucune migration. Retour arrière : 1.12.0 / b9055590f47407c7bf7c5c17733adc6ba8ee5cb3.
