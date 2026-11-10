@@ -1,4 +1,4 @@
-import {auditReportHtml} from './audit-report.mjs';
+import {auditReportHtml,technicalDossierHtml} from './audit-report.mjs';
 import {CYBER_TITLE,assessCyber} from './cyber.mjs';
 import { periodLabel } from "./audit-period.mjs";
 import { DIMENSIONS, STATUSES } from './lifecycle.mjs';
@@ -22,7 +22,8 @@ function domain(r) {
 export function reportSummary(chain=[]) {
   return Object.entries(labels).filter(([key])=>!['PASS','FAIL'].includes(key)).map(([key,label])=>[label,chain.filter(r=>r.reponse_statut===key).length]);
 }
-export function structuredReportHtml(out) {
+export function structuredReportHtml(out,kind='audit') {
+  if(kind==='technical')return technicalDossierHtml(out);
   if(out.template?.id==='D2F-AUDIT-STRUCTURED'||/Audit personnalisé|RLF-C:SC/.test(out.mission?.referential_version||''))return auditReportHtml(out);
   const {mission={},client={},chain=[],client_replies:replies=[],evidences=[],lifecycle={},release={}}=out;
   const template=out.template||REPORT_TEMPLATE;
@@ -93,6 +94,7 @@ export function structuredReportHtml(out) {
   <section class="reportSection reportAnnex"><h2>Annexe D — Matrice des tests de cycle de vie</h2>${assessment.tests.map(t=>`<h3>${esc(t.id)} — ${esc(t.title)}</h3>${table(['Champ','Valeur'],[['Attendu',t.expected],['Résultat déclaré / retenu',`${resultLabel(t.result)} / ${resultLabel(t.effective)}`],['Observé',t.observed],['Situation / déclencheur',`${t.initial_state||''} / ${t.trigger||''}`],['Acteur',t.actor],['Facture / corrélation',`${t.invoice_id||''} / ${t.correlation_id||''}`],['Message / horodatage',`${t.message_id||''} / ${t.timestamp||''}`],['Transitions',`${t.previous_status||''} → ${t.next_status||''} ; ${t.transition_rule||''}`],['Réception / restitution SI',`${t.reception||''} / ${t.si_restitution||''}`],['Rejeu / hors ordre',`${t.replay||''} / ${t.out_of_order||''}`],['Journal',t.journal_reference],['Pièces sources',proofNames(t.evidence_ids)],['SHA-256 payload',t.payload_sha256],['Exclusion / manques',t.exclusion||t.justification||t.missing.join(' ; ')]])}`).join('')}</section>
   <footer>D2F Compliant · Audit &amp; Compliance · ${esc(report.report_number||'Aperçu')} · modèle ${template.version}</footer></article>`;
 }
-export function standaloneReport(out, css='') {
-  return `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(out.report?.report_number||'Rapport DIAM')}</title><style>${css}</style><body>${structuredReportHtml(out)}</body></html>`;
+export function standaloneReport(out, css='',kind='audit') {
+  const suffix=kind==='technical'?'Dossier technique':'Rapport d’audit';
+  return `<!doctype html><html lang="fr"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(out.report?.report_number||'DIAM')} - ${suffix}</title><style>${css}</style><body>${structuredReportHtml(out,kind)}</body></html>`;
 }

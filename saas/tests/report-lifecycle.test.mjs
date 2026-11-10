@@ -110,6 +110,8 @@ test('PA evidence gate blocks unsupported compliance and unjustified exclusion',
  rows[0].evidence_ids=['p1'];assert.equal(applyEvidenceGates(rows,[proof])[0].reponse_statut,'COMPLIANT');
 });
 
+test('report readiness gates never mutate the auditor recorded statuses',()=>{const chain=[{reference:'§1',reponse_statut:'COMPLIANT',analyse_auditeur:'',evidence_ids:[]}],before=structuredClone(chain);const readiness=applyEvidenceGates(chain,[]);assert.equal(readiness[0].reponse_statut,'NOT_STARTED');assert.deepEqual(chain,before);});
+
 test('audit period validates real dates and roundtrips PostgreSQL exclusive end dates',async()=>{
  const {auditPeriod,periodDates,periodLabel}=await import('../public/audit-period.mjs');
  assert.equal(auditPeriod('2026-09-01','2026-09-30'),'[2026-09-01,2026-09-30]');

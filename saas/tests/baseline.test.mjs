@@ -80,6 +80,12 @@ test("frontend contains document AI review and report workflow controls", async 
     "translationValidated",
     "submitClientReply",
     "generateReport",
+    "showAuditReport",
+    "showTechnicalDossier",
+    "printReport",
+    "printTechnical",
+    "downloadReport",
+    "downloadTechnical",
     "missionsTable",
     "openMission",
     "copyClientLink",
@@ -135,6 +141,10 @@ test("top cockpit actions are wired to real handlers", async () => {
   assert.match(app, /state\.activeTab !== "mission_form"/);
   assert.match(app, /Aucune mission n’a été créée depuis cet écran/);
   assert.match(app, /async function openSelectedMissionFromTopBar/);
+  assert.match(app, /\$\("showAuditReport"\)\.onclick=\(\)=>showReportArtifact\('audit'\)/);
+  assert.match(app, /\$\("showTechnicalDossier"\)\.onclick=\(\)=>showReportArtifact\('technical'\)/);
+  assert.match(app, /\$\("printTechnical"\)\.onclick=\(\)=>run\(\(\)=>printReportArtifact\('technical'\)/);
+  assert.match(app, /\$\("downloadTechnical"\)\.onclick=\(\)=>downloadArtifact\('technical'\)/);
   assert.doesNotMatch(app, /\$\("topCreateMission"\)\.onclick = \(\) => run\(createMission, "createStatus"\)/);
   assert.doesNotMatch(app, /topMissionForm/);
 });
@@ -149,9 +159,9 @@ test("production cockpit keeps global chrome fixed and scrolls inside work windo
     fs.readFile(new URL("../package.json", import.meta.url), "utf8")
   ]);
   const pkg = JSON.parse(pkgRaw);
-  assert.equal(pkg.version, "1.13.0");
-  assert.match(app, /version: "1\.13\.0"/);
-  assert.match(worker, /version: "1\.13\.0"/);
+  assert.equal(pkg.version, "1.14.0");
+  assert.match(app, /version: "1\.14\.0"/);
+  assert.match(worker, /version: "1\.14\.0"/);
   assert.match(app, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(worker, /patch=correction, minor=évolution fonctionnelle compatible, major=rupture/);
   assert.match(html, /Préparer nouvel audit/);
@@ -227,7 +237,7 @@ test("worker exposes a public D2F marketplace manifest without secrets", async (
   assert.match(readme, /Publication marketplace D2F Compliant/);
   assert.match(readme, /\.well-known\/d2f-marketplace-app\.json/);
   assert.equal(manifest.id, "d2f-diam-saas");
-  assert.equal(manifest.version, "1.13.0");
+  assert.equal(manifest.version, "1.14.0");
   assert.equal(manifest.security.secretsExposed, false);
   assert.equal(manifest.security.missionScopedAuditorAccess, true);
   assert.match(manifest.endpoints.apiManifest, /\/api\/marketplace\/app$/);

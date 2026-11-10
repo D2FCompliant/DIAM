@@ -19,13 +19,13 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.13.0",
-  release: "Propositions documentaires sourcées et reprise des constats",
+  version: "1.14.0",
+  release: "Rapport d’audit concis et dossier technique séparé",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
   releasedAt: "2026-11-10",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
-  lastChange: "Préparation documentaire indépendante de l’IA, lettre, planning, participants et accès aux fiches"
+  lastChange: "Deux livrables immuables : rapport de jugement concis et dossier technique exhaustif"
 };
 
 const D2F_BUSINESS_SUITE = {
@@ -1420,6 +1420,16 @@ function openAiFriendlyError(raw) {
   }
 }
 
+async function selectAll(db,table,query='',pageSize=1000){
+  const rows=[];let offset=0;
+  for(;;){
+    const page=await db.select(table,`${query}${query?'&':'?'}limit=${pageSize}&offset=${offset}`);
+    rows.push(...page);
+    if(page.length<pageSize)return rows;
+    offset+=pageSize;
+  }
+}
+
 function validDocumentEvidence(doc,tenantId,missionId,hash){return Boolean(doc&&doc.tenant_id===tenantId&&doc.mission_id===missionId&&doc.document_scope==='MISSION'&&doc.sha256===hash);}
 
 async function recordDocumentEvidence(db,tenantId,missionId,who,doc,evidence){
@@ -2220,19 +2230,24 @@ async function handleApi(request, env) {
   if (path === "/api/reports" && request.method === "POST") {
     const b = await readBody(request);
     await ensureMissionAccess(db, tenant.id, b.mission_id, currentUser);
-    let chain = await auditChain(db, tenant.id, b.mission_id);
+    const chain = await auditChain(db, tenant.id, b.mission_id);
     const mission = (await db.select("diam_missions", `?id=eq.${b.mission_id}&tenant_id=eq.${tenant.id}`))[0] || {};
     const client = mission.client_id ? (await db.select("diam_clients", `?id=eq.${mission.client_id}&tenant_id=eq.${tenant.id}`))[0] || {} : {};
     const clientReplies = await db.select("diam_client_replies", `?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=submitted_at.desc`);
     const evidenceRows = await db.select("diam_evidences", `?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=uploaded_at.desc`);
     const lifecycleQuestion = chain.find(r => r.reference === "DGFiP-3.9");
     const lifecycle = lifecycleQuestion ? await readLifecycle(db, tenant.id, b.mission_id, lifecycleQuestion.question_id, evidenceRows) : null;
-    if (lifecycle) chain = applyLifecycleGate(chain, lifecycle);
-    chain=applyEvidenceGates(chain,evidenceRows);
+    let readinessChain=lifecycle?applyLifecycleGate(chain,lifecycle):chain;
+    readinessChain=applyEvidenceGates(readinessChain,evidenceRows);
     const cyberQuestion = chain.find(r => r.reference === 'DGFiP-7.3');
     const cyber = cyberQuestion ? await readLifecycle(db, tenant.id, b.mission_id, cyberQuestion.question_id, evidenceRows, cyberConfig) : null;
-    if(cyber) chain=applyCyberGate(chain,cyber);
-    const result = opinion(chain);
+    if(cyber)readinessChain=applyCyberGate(readinessChain,cyber);
+    const recordedResult=opinion(chain),readinessResult=opinion(readinessChain);
+    const result={...recordedResult};
+    if(result.opinion==='CONFORME'&&readinessResult.opinion!=='CONFORME'){
+      result.opinion='AUDIT INCOMPLET';
+      result.reason=`Le jugement enregistré ne peut pas être présenté comme favorable avant la levée des limites probatoires. ${readinessResult.reason}`;
+    }
     if (cyber && cyber.assessment.status !== 'COMPLIANT') { if(result.opinion === 'CONFORME') result.opinion='AUDIT INCOMPLET'; result.reason += ' Cybersécurité : '+cyber.assessment.issues.join(' '); }
     if (lifecycleQuestion && !mission.audit_period) { result.opinion = "AUDIT INCOMPLET"; result.reason += " Période auditée à renseigner dans la fiche mission."; }
     if (lifecycleQuestion && clientReplies.some(r => r.message_language !== "fr" && (!r.french_translation || !r.translation_validated))) {
@@ -2246,7 +2261,9 @@ async function handleApi(request, env) {
     if(planEvent&&await sha256(new TextEncoder().encode(canonical(preparation)))!==planEvent.details.sha256)return json({error:'Intégrité du plan d’audit non vérifiée : rapport interrompu.'},409);
     const reviews=await db.select('diam_audit_events',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&object_type=eq.DOSSIER_REVIEW&event_type=eq.DOSSIER_REVIEW_COMPLETED&order=created_at.desc&limit=200`);
     const phases=new Set();const documentary_reviews=reviews.filter(e=>{if(phases.has(e.details.phase))return false;phases.add(e.details.phase);return true;}).map(e=>({id:e.object_id,created_at:e.created_at,...e.details}));
-    const reportPayload = { documents,preparation,documentary_reviews,baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : AUDIT_REPORT_TEMPLATE, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
+    const historyRows=await selectAll(db,'diam_audit_events',`?tenant_id=eq.${tenant.id}&mission_id=eq.${b.mission_id}&order=created_at.asc`);
+    const audit_history=await Promise.all(historyRows.map(async e=>({id:e.id,created_at:e.created_at,actor:e.actor,event_type:e.event_type,object_type:e.object_type,object_id:e.object_id,details_sha256:await sha256(new TextEncoder().encode(canonical(e.details||{})))})));
+    const reportPayload = { documents,preparation,documentary_reviews,audit_history,baseline: REGULATORY_BASELINE, mission, client, client_replies: clientReplies, result, recorded_result:recordedResult, readiness_result:readinessResult, chain, evidences, lifecycle, cyber, template: lifecycleQuestion ? REPORT_TEMPLATE : AUDIT_REPORT_TEMPLATE, report_contract:{audit_report:{template:'D2F-AUDIT-STRUCTURED',purpose:'Jugement de l’auditeur'},technical_dossier:{template:'D2F-AUDIT-TECHNICAL',purpose:'Exhaustivité et traçabilité'}}, release: await appMetadata(env, db), generated_at: new Date().toISOString(), generated_by: who };
     const report = await db.insert("diam_reports", {
       tenant_id: tenant.id,
       mission_id: b.mission_id,

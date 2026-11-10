@@ -16,6 +16,7 @@ function renderControlNavigation(){
  $('controlProgress').textContent=`${state.chain.filter(q=>q.reponse_statut&&q.reponse_statut!=='NOT_STARTED').length} réponses renseignées sur ${state.chain.length}`;
  $('controlJump').innerHTML=state.chain.map((q,i)=>`<option value="${i}">${escapeHtml(q.reference)} — ${escapeHtml(q.question)}</option>`).join('');$('controlJump').value=String(index);
  for(const id of ['controlPrevious','controlNext','controlJump','controlList','controlSaveNext','saveAnswer','saveFinding','closeFinding','uploadEvidence'])$(id).disabled=controlBusy||index<0;
+ for(const id of ['draftControlAnalysis','draftFinding','attachControlDocument','existingControlDocument'])if($(id))$(id).disabled=controlBusy||index<0;
  for(const id of [...answerFields,...findingFields,'findingStatus','evidenceFile'])$(id).disabled=controlBusy;
  $('controlPrevious').disabled=controlBusy||index<=0;$('controlNext').disabled=controlBusy||index<0||index>=state.chain.length-1;
  $('controlSaveNext').textContent=index===state.chain.length-1?'Enregistrer ce dernier contrôle':'Enregistrer et suivant →';
@@ -47,12 +48,13 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.13.0",
-  release: "Propositions documentaires sourcées et reprise des constats",
+  version: "1.14.0",
+  release: "Rapport d’audit concis et dossier technique séparé",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.13.0",
+  buildCommit: "local-v1.14.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
+let lastReportKind='audit';
 
 const AUDIT_PROGRAMS = {
   PA_DGFIP: {
@@ -270,7 +272,10 @@ function bindEvents() {
   bindProgramBuilder({api,run,onPrepare:prepareCustomDefinition});
   auditPreparation=bindAuditPreparation({api,getMission:()=>state.missionId,getClient:()=>({portal:state.clientPortal,token:state.clientToken}),showTab,run});
   auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
-  $("printReport").onclick=()=>window.print();
+  $("showAuditReport").onclick=()=>showReportArtifact('audit');
+  $("showTechnicalDossier").onclick=()=>showReportArtifact('technical');
+  $("printReport").onclick=()=>run(()=>printReportArtifact('audit'),"createStatus");
+  $("printTechnical").onclick=()=>run(()=>printReportArtifact('technical'),"createStatus");
   $("changeActiveMission").onclick=()=>run(()=>auditGuide.open(),"guideStatus");
   controlDocumentsWorkspace=bindControlDocuments({api,getMission:()=>state.missionId,getSelected:()=>state.selected,getAnalysis:()=>$('auditorAnalysis').value,setAnalysis:v=>{$('auditorAnalysis').value=v;},getFinding:()=>$('findingSummary').value,setFinding:(summary,recommendation)=>{$('findingSummary').value=summary;$('recommendation').value=recommendation;},act:controlAction,refresh:loadChain});
   dossierWorkspace=bindDossier({api,getReferenceIds:()=>new Set(state.chain.flatMap(q=>(q.source||'').match(/[a-f0-9]{8}-[a-f0-9-]{27}/gi)||[])),getMission:()=>state.missionId,run,showTab,openControl:(item,job)=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0){selectQuestion(index);if(state.selected?.question_id===item.question_id)controlDocumentsWorkspace.open(state.selected,job).catch(e=>setStatus(e.message,'error'));}}});
@@ -280,15 +285,18 @@ function bindEvents() {
     requireMission();
     const out = await api(`/api/reports?mission_id=${encodeURIComponent(state.missionId)}`);
     if (!out) throw new Error("Aucun rapport enregistré pour cette mission.");
-    lastReport = out; $("report").innerHTML = reportHtml(out);
+    lastReport = out; showReportArtifact(lastReportKind);
   }, "createStatus");
-  $("downloadReport").onclick = () => run(async () => {
+  const downloadArtifact=kind=>run(async () => {
     if (!lastReport || lastReport.mission?.id !== state.missionId) throw new Error("Génère ou relis le rapport de la mission active.");
     if (!lastReport.template) throw new Error("Ce rapport historique utilise l’ancien modèle. Génère une nouvelle version pour utiliser le modèle D2F.");
     const response = await fetch("./report.css");
     if (!response.ok) throw new Error("La mise en page du rapport n’a pas pu être chargée.");
-    downloadFile(`${lastReport.report.report_number}.html`, standaloneReport(lastReport, await response.text()), "text/html;charset=utf-8");
+    const suffix=kind==='technical'?'dossier-technique':'rapport-audit';
+    downloadFile(`${lastReport.report.report_number}-${suffix}.html`, standaloneReport(lastReport, await response.text(),kind), "text/html;charset=utf-8");
   }, "createStatus");
+  $("downloadReport").onclick=()=>downloadArtifact('audit');
+  $("downloadTechnical").onclick=()=>downloadArtifact('technical');
   $("uploadAuditDocument").onclick = () => run(uploadAuditDocument, "documentStatus");
   $("uploadAndAnalyzeDocument").onclick = () => run(uploadAndAnalyzeDocument, "documentStatus");
   $("analyzeAuditDocument").onclick = () => run(analyzeAuditDocument, "documentStatus");
@@ -1513,12 +1521,32 @@ async function generateReport() {
   });
   lastReport = out;
   $("reportCard").hidden = false;
-  $("report").innerHTML = reportHtml(out);
+  lastReportKind='audit';
+  $("report").innerHTML = reportHtml(out,'audit');
   showTab("report");
 }
 
-function reportHtml(out) {
-  if (out.template || /Audit personnalisé|RLF-C:SC/.test(out.mission?.referential_version||"")) return structuredReportHtml(out);
+function showReportArtifact(kind='audit'){
+  if(!lastReport)throw new Error('Génère ou relis le rapport de la mission active.');
+  lastReportKind=kind;
+  $("report").innerHTML=reportHtml(lastReport,kind);
+  showTab('report');
+}
+
+async function printReportArtifact(kind='audit'){
+  if(!lastReport||lastReport.mission?.id!==state.missionId)throw new Error('Génère ou relis le rapport de la mission active.');
+  const response=await fetch('./report.css');
+  if(!response.ok)throw new Error('La mise en page du livrable n’a pas pu être chargée.');
+  const popup=window.open('about:blank','_blank');
+  if(!popup)throw new Error('Le navigateur a bloqué la fenêtre d’export. Autorise les fenêtres pour DIAM puis relance.');
+  popup.opener=null;
+  popup.document.open();popup.document.write(standaloneReport(lastReport,await response.text(),kind));popup.document.close();
+  await new Promise(resolve=>{if(popup.document.readyState==='complete')resolve();else popup.addEventListener('load',resolve,{once:true});});
+  popup.focus();popup.print();
+}
+
+function reportHtml(out,kind='audit') {
+  if (out.template || /Audit personnalisé|RLF-C:SC/.test(out.mission?.referential_version||"")) return structuredReportHtml(out,kind);
   return legacyReportHtml(out);
 }
 
