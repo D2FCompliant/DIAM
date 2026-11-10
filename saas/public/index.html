@@ -185,7 +185,7 @@
             <h4>2. Sélectionner les sources et leurs exigences</h4>
             <button id="programReload" type="button" class="secondary">Afficher les référentiels validés</button>
             <p id="programStatus" class="status" role="status"></p><div id="programSources"></div>
-            <button id="programExtract" type="button">Lire les clauses des référentiels (sans IA)</button>
+            <button id="programExtract" type="button">Lire les clauses des référentiels</button>
             <p>Les clauses sont regroupées selon leur numérotation. Choisis le niveau de contrôle adapté au référentiel ; les listes et notes restent rattachées au texte. Vérifie les limites de lecture signalées.</p>
             <label>Niveau des contrôles<select id="programDepth"><option value="0">Charger les sources pour détecter les niveaux</option></select></label><div id="programSourceLevels"></div><button id="programSelectVisible" type="button" class="secondary">Sélectionner tous les contrôles affichés</button><button id="programClearSelection" type="button" class="secondary">Effacer la sélection</button><label>Rechercher un numéro ou un texte<input id="programSearch" placeholder="Mot ou expression exacte"></label><p id="programSelection" role="status"></p>
             <div id="programCandidates" style="max-height:440px;overflow:auto"></div>
@@ -377,7 +377,7 @@
           <div class="twoCols">
             <div>
               <h4>Constat et qualification</h4>
-              <label>Synthèse constat <input id="findingSummary" /></label>
+              <label>Synthèse constat <textarea id="findingSummary" rows="8"></textarea></label>
               <label>Qualification retenue
                 <select id="retainedQualification">
                   <option value="LOW">Faible</option><option value="MEDIUM">Moyenne</option><option value="HIGH">Élevée</option><option value="CRITICAL">Critique</option>
@@ -406,11 +406,11 @@
       <section class="card wide" data-panel="dossier" hidden>
         <h2>Préparation d’audit — analyser le dossier et renseigner les contrôles</h2>
         <p>Ouvre la mission existante, dépose ses pièces dans Dossier documentaire, puis sélectionne les documents client et les référentiels à croiser. Pour un audit PA, prépare successivement le socle, les cycles de vie et la cybersécurité. Les référentiels doivent être identifiés et validés dans Administration.</p>
-        <p>Par défaut, l’extraction et le repérage documentaire fonctionnent sans OpenAI. Seul le mode IA facultatif transmet les fichiers au service configuré. Maximum 20 documents et 45 Mo par lot ; 3 000 pages par document et 10 millions de caractères extraits par lot. Les propositions restent distinctes des décisions de l’auditeur.</p>
+        <p>La préparation documentaire produit des propositions à revoir au regard des sources et du périmètre. Seul le mode IA facultatif transmet les fichiers au service configuré. Maximum 100 documents en préparation documentaire (20 en approfondissement assisté) et 45 Mo par lot ; 3 000 pages par document et 10 millions de caractères extraits par lot. Les propositions restent distinctes des décisions de l’auditeur.</p>
         <button id="reloadDossier" type="button">Actualiser les documents</button>
         <button id="dossierSelectMission" type="button">Sélectionner le dossier et les référentiels de cette mission</button><div id="dossierDocuments"></div>
         <label>Volet <select id="dossierPhase"><option value="CORE">Socle du programme d’audit</option><option value="LIFECYCLE">Cycles de vie</option><option value="CYBER">Cybersécurité</option></select></label>
-        <label>Mode de préparation<select id="dossierMode"><option value="DOCUMENTARY">Analyse documentaire — sans IA, sans crédits OpenAI</option><option value="AI">Approfondissement IA facultatif — service configuré</option></select></label>
+        <label>Mode de préparation<select id="dossierMode"><option value="DOCUMENTARY">Analyse documentaire</option><option value="AI">Approfondissement IA facultatif — service configuré</option></select></label>
         <button id="startDossier" type="button">Préparer ce volet</button>
         <button id="retryDossier" type="button" hidden>Relancer l’analyse échouée</button>
         <p id="dossierStatus" role="status"></p>

@@ -19,11 +19,11 @@ const JSON_HEADERS = {
 
 const APP_RELEASE = {
   name: "DIAM SaaS",
-  version: "1.12.2",
-  release: "Dossier complet, préparation des contrôles et rapport par programme",
+  version: "1.13.0",
+  release: "Propositions documentaires sourcées et reprise des constats",
   schemaVersion: "202609030001_multi_auditor_access",
   channel: "main",
-  releasedAt: "2026-11-09",
+  releasedAt: "2026-11-10",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante",
   lastChange: "Préparation documentaire indépendante de l’IA, lettre, planning, participants et accès aux fiches"
 };

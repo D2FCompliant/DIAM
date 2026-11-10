@@ -575,3 +575,13 @@ Support : D2F-20261108-C70A7D. Le sélecteur de dépôt propose explicitement ZI
 ## 1.12.2 — 2026-11-10 — préparation des pièces extraites
 
 Support : D2F-20261108-C70A7D. Après import ZIP, la sélection automatique de préparation exclut les conteneurs ZIP conservés : leurs pièces extraites sont déjà sélectionnées. Cela évite de compter deux fois le volume du dossier. Les originaux restent disponibles et sélectionnables manuellement. Aucune migration. Retour arrière : 1.12.1 / cddafb90b641a9b1c514db0efb733b0d899445f9.
+
+## 1.13.0 — 2026-11-10 — propositions de constats sourcées
+
+Support : D2F-20261108-C70A7D. Le moteur précédent renvoyait une phrase identique et des passages coupés à 900 caractères. Le modèle D2F-CONSTAT v1 reprend les rubriques du rapport exemple fourni (Détail des constats et contradictoires, pages 39–44) : observation/analyse, risque/action, contradictoire, preuves/contre-test. Ses faits et décisions PA ne sont jamais copiés dans une autre mission.
+
+Les propositions contiennent le critère exact, les déclarations et limites documentaires localisées, les actions et un contre-test proposé. Chaque citation conserve document, empreinte, repère et offsets dans le texte extrait. Les champs provisoires explicitement présents sont signalés ; une date ancienne seule ne prouve pas l’inapplicabilité. Les critères Word non numérotés sont rapprochés du texte intégral du contrôle, dans le fichier source identifié. La pertinence documentaire reste une sélection textuelle, pas une interprétation universelle du référentiel ; la conclusion et l’exécution du test restent à l’auditeur.
+
+Dans Préparation d’audit, lancer une nouvelle préparation pour produire le nouveau modèle ; les préparations et rapports historiques restent inchangés. Ouvrir le contrôle, examiner la proposition et ses sources, puis utiliser Insérer la proposition dans mon analyse ou Préparer le constat à valider. Ce dernier remplit les champs sans les enregistrer et refuse de remplacer un constat déjà saisi. Qualifier et enregistrer explicitement. L’intitulé Sans IA est retiré des écrans et du mode dans les nouveaux rapports ; le moteur utilisé reste tracé dans les données de préparation. Aucun fournisseur d’IA n’est appelé par le mode documentaire.
+
+Aucune migration. Retour arrière : 1.12.2 / 62b123cbd216d40cca4dee5b2934836b725af8bd. Les propositions enrichies sont des données additionnelles compatibles ; aucune réponse ni décision historique réécrite.

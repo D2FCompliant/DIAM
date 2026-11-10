@@ -47,10 +47,10 @@ const DEMO_BASELINE = {
 
 let appRelease = {
   name: "DIAM SaaS",
-  version: "1.12.2",
-  release: "Dossier complet, préparation des contrôles et rapport par programme",
+  version: "1.13.0",
+  release: "Propositions documentaires sourcées et reprise des constats",
   schemaVersion: "202609030001_multi_auditor_access",
-  buildCommit: "local-v1.12.2",
+  buildCommit: "local-v1.13.0",
   versioningPolicy: "ISO 9001 / SemVer DIAM : patch=correction, minor=évolution fonctionnelle compatible, major=rupture ou refonte structurante"
 };
 
@@ -272,7 +272,7 @@ function bindEvents() {
   auditGuide=bindGuide({api,getMission:currentMission,getMissions:()=>state.missions,getChain:()=>state.chain,openMission,showTab,run});
   $("printReport").onclick=()=>window.print();
   $("changeActiveMission").onclick=()=>run(()=>auditGuide.open(),"guideStatus");
-  controlDocumentsWorkspace=bindControlDocuments({api,getMission:()=>state.missionId,getSelected:()=>state.selected,getAnalysis:()=>$('auditorAnalysis').value,setAnalysis:v=>{$('auditorAnalysis').value=v;},act:controlAction,refresh:loadChain});
+  controlDocumentsWorkspace=bindControlDocuments({api,getMission:()=>state.missionId,getSelected:()=>state.selected,getAnalysis:()=>$('auditorAnalysis').value,setAnalysis:v=>{$('auditorAnalysis').value=v;},getFinding:()=>$('findingSummary').value,setFinding:(summary,recommendation)=>{$('findingSummary').value=summary;$('recommendation').value=recommendation;},act:controlAction,refresh:loadChain});
   dossierWorkspace=bindDossier({api,getReferenceIds:()=>new Set(state.chain.flatMap(q=>(q.source||'').match(/[a-f0-9]{8}-[a-f0-9-]{27}/gi)||[])),getMission:()=>state.missionId,run,showTab,openControl:(item,job)=>{const index=state.chain.findIndex(q=>q.question_id===item.question_id);if(index>=0){selectQuestion(index);if(state.selected?.question_id===item.question_id)controlDocumentsWorkspace.open(state.selected,job).catch(e=>setStatus(e.message,'error'));}}});
   bindCyber({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
   bindLifecycle({ api, getMission: () => state.missionId, run, showTab, refresh: loadChain });
@@ -1682,7 +1682,7 @@ function analysisStatusLabel(value) {
   return ({
     UPLOADED: "Déposé — IA non lancée (facultative)",
     ANALYZED: "Propositions IA disponibles — revue requise",
-    FAILED: "Dernière IA échouée — préparation sans IA disponible"
+    FAILED: "Dernier approfondissement échoué — préparation documentaire disponible"
   })[value] || value || "-";
 }
 function languageLabel(value) {
